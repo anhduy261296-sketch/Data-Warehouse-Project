@@ -1,0 +1,40 @@
+{% extends "base.html" %} {% load static %} {% block title %}All Systems
+Tracking{% endblock %} {% block early_loading %}<script>Loading.show("Đang tải dữ liệu...");</script>{% endblock %}
+{% block content %} {% comment %}
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+  <h1 class="h3 mb-0 text-gray-800">Theo dõi đơn hàng</h1>
+</div>
+{% endcomment %}
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Bảng đơn hàng E-com</h6>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table
+        class="table table-bordered"
+        id="systemsTrackingTable"
+        width="100%"
+        cellspacing="0"
+      >
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Last seen</th>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script src="{% static 'js/systemsTracking.js' %}"></script>
+<script>
+  $(function () {
+    loadSystemsTracking();
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% load static %}
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Đăng nhập - Data Warehouse</title>
+    <link rel="icon" type="image/png" href="{% static 'img/favicon.png' %}" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/startbootstrap-sb-admin-2@4.1.4/vendor/fontawesome-free/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/startbootstrap-sb-admin-2@4.1.4/css/sb-admin-2.min.css"
+      rel="stylesheet"
+    />
+    <link href="{% static 'css/loading.css' %}" rel="stylesheet" />
+    <link href="{% static 'css/login.css' %}" rel="stylesheet" />
+  </head>
+  <body class="bg-gradient-primary">
+    <div class="container">
+      <div class="row justify-content-center">
+        <div class="col-xl-5 col-lg-6 col-md-8" style="margin-top: 8rem;">
+          <div class="card o-hidden border-0 shadow-lg my-5">
+            <div class="card-body p-5">
+              <div class="text-center">
+                <h1 class="h4 text-gray-900 mb-4">Data Warehouse</h1>
+              </div>
+              {% if messages %}
+                {% for message in messages %}
+                  <div class="alert alert-danger">{{ message }}</div>
+                {% endfor %}
+              {% endif %}
+              <form method="post" class="user" data-loading data-loading-message="Đang đăng nhập...">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ next }}" />
+                <div class="form-group">
+                  <input
+                    type="text"
+                    class="form-control form-control-user"
+                    name="username"
+                    placeholder="Tên đăng nhập"
+                    required
+                    autofocus
+                  />
+                </div>
+                <div class="form-group">
+                  <input
+                    type="password"
+                    class="form-control form-control-user"
+                    name="password"
+                    placeholder="Mật khẩu"
+                    required
+                  />
+                </div>
+                <button type="submit" class="btn btn-primary btn-user btn-block">
+                  Đăng nhập
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/startbootstrap-sb-admin-2@4.1.4/vendor/jquery/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/startbootstrap-sb-admin-2@4.1.4/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/utils/loading.js' %}"></script>
+  </body>
+</html>

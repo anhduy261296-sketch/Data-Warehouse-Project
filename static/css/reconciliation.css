@@ -1,0 +1,40 @@
+
+.dataTables_length select {
+    margin-right: 5px;
+    height: 38px;
+}
+div.dataTables_wrapper div.dataTables_length label {
+    margin-bottom: 0;
+}
+.col-sm-12.d-flex.justify-content-end.align-items-center {
+  align-items: normal !important;
+}
+.table thead th{
+    vertical-align: middle !important;
+    padding: 0.5rem !important;
+    padding-right: 30px !important;
+}
+ul#accordionSidebar {
+    background-image: linear-gradient(135deg, #820606 0%, #310505 100%);
+    background-size: cover;
+    color: #FFFFFF;
+}
+.text-primary {
+    color: #820606 !important;
+}
+.bg-primary {
+    background-color: #820606 !important;
+}
+.page-item.active .page-link {
+    z-index: 3;
+    color: #fff;
+    background-color: #820606;
+    border-color: #820606;
+}
+a.page-link {
+    color: #820606;
+}
+.badge-success {
+    color: #fff;
+    background-color: #61c81c;
+}

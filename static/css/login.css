@@ -1,0 +1,29 @@
+
+.bg-gradient-primary {
+    background: linear-gradient(
+        135deg,
+        #FFFFFF 0%,
+        #F8F9FA 100%
+    ) !important;
+    background-size: cover;
+}
+
+.btn-primary,
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active,
+.btn-primary:not(:disabled):not(.disabled):active {
+  background-color: #820606;
+  background-image: linear-gradient(135deg, #820606 10%, #ecabab 100%) !important;
+  background-size: cover;
+  border-color: #820606;
+}
+
+.btn-primary:hover {
+  filter: brightness(1.15);
+}
+
+.btn-primary:focus,
+.btn-primary:not(:disabled):not(.disabled):active:focus {
+  box-shadow: 0 0 0 0.2rem rgba(130, 6, 6, 0.4);
+}

@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Chi tiết DMS duyệt{% endblock %}
+{% block early_loading %}<script>Loading.show("Đang tải dữ liệu...");</script>{% endblock %}
+{% block content %}
+
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Chi tiết đơn hàng DMS duyệt (nguồn DMS_SO)</h6>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-bordered" id="detailDmsDuyetTable" width="100%" cellspacing="0">
+        <thead>
+          <tr>
+            <th>Status Sync</th>
+            <th>Mã đơn hàng</th>
+            <th>Mã hàng</th>
+            <th>SKU</th>
+            <th>Số lượng</th>
+            <th>Đơn giá</th>
+            <th>Thành tiền</th>
+            <th>Khách hàng</th>
+            <th>Kho</th>
+            <th>Trạng thái DMS</th>
+            <th>Trạng thái OMS</th>
+            <th>Ngày chứng từ</th>
+            <th>NV bán hàng</th>
+            <th>Kênh bán</th>
+            <th>Ngày tạo</th>
+            <th>Ngày đồng bộ</th>
+            <th>Mã thuế</th>
+            <th>Đơn vị tính</th>
+            <th>Loại</th>
+            <th>KeyOrder</th>
+            <th>Nguồn</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  $(function () {
+    loadDetailTable("detailDmsDuyetTable", CONFIG.DETAIL_DMS_DUYET_REPORT, [
+      DETAIL_STATUS_SYNC_COLUMN,
+      { data: "order_code", title: "Mã đơn hàng" },
+      { data: "item_code", title: "Mã hàng" },
+      { data: "sku", title: "SKU" },
+      { data: "quantity", title: "Số lượng", className: "text-right" },
+      DETAIL_AMOUNT_COLUMN("unit_price", "Đơn giá"),
+      DETAIL_AMOUNT_COLUMN("amount", "Thành tiền"),
+      { data: "customer_code", title: "Khách hàng" },
+      { data: "warehouse_code", title: "Kho" },
+      { data: "order_status", title: "Trạng thái DMS" },
+      { data: "oms_status", title: "Trạng thái OMS" },
+      DETAIL_DATETIME_COLUMN("doc_date", "Ngày chứng từ"),
+      { data: "sale_employee_code", title: "NV bán hàng", visible: false },
+      { data: "sales_channel_code", title: "Kênh bán", visible: false },
+      DETAIL_DATETIME_COLUMN("create_date", "Ngày tạo", false),
+      DETAIL_DATETIME_COLUMN("syn_date", "Ngày đồng bộ", false),
+      { data: "tax_code", title: "Mã thuế", visible: false },
+      { data: "unit_code", title: "Đơn vị tính", visible: false },
+      { data: "type", title: "Loại", visible: false },
+      { data: "key_order", title: "KeyOrder", visible: false },
+      { data: "source", title: "Nguồn", visible: false },
+    ], CONFIG.DETAIL_DMS_DUYET_EXPORT, { dateFilter: true });
+  });
+</script>
+{% endblock %}

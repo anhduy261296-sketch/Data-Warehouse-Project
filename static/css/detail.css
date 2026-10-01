@@ -1,0 +1,27 @@
+
+button.detail-colvis-btn {
+    color: #fff;
+    background-color: #820606 !important;
+    border-color: #820606 !important;
+    margin-left: 5px;
+    height: 31px;
+}
+
+
+button.btn.btn-secondary.btn-sm.bg-white.border.shadow-sm.d-inline-flex.align-items-center.justify-content-center.detail-export-btn {
+    width: 31px;
+    height: 31px;
+    padding: 0;
+    margin-left: 4px;
+    border-radius: 2px;
+}
+button.detail-export-btn:hover {
+    background-color: #aaedc7 !important;
+    border-color: #1D6F42 !important;
+}
+
+
+div.dt-button-collection {
+    left: auto !important;
+    right: 0 !important;
+}

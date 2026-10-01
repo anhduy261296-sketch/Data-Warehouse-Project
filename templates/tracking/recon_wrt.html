@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Đơn hàng WRT{% endblock %}
+{% block early_loading %}<script>Loading.show("Đang tải dữ liệu...");</script>{% endblock %}
+{% block content %}
+
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Bảng đơn hàng WRT</h6>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-bordered" id="reconWrtTable" width="100%" cellspacing="0">
+        <thead>
+          <tr>
+            <th>Status Sync</th>
+            <th>Mã đơn hàng</th>
+            <th>OMS/ WMS</th>
+            <th>SAP</th>
+            <th>WRT</th>
+            <th>SO Status</th>
+            <th>Loại</th>
+            <th>Ngày đơn hàng</th>
+            <th>Cập nhật lúc</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  $(function () {
+    loadReconTable("reconWrtTable", CONFIG.RECON_WRT_REPORT, [
+      RECON_STATUS_SYNC_COLUMN,
+      { data: "order_code", title: "Mã đơn hàng" },
+      RECON_AMOUNT_COLUMN("oms_wms_amount", "OMS/ WMS"),
+      RECON_AMOUNT_COLUMN("sap_amount", "SAP"),
+      RECON_AMOUNT_COLUMN("wrt_amount", "WRT"),
+      { data: "so_status", title: "SO Status" },
+      { data: "type", title: "Loại" },
+      DETAIL_DATETIME_COLUMN("order_date", "Ngày đơn hàng"),
+      RECON_REFRESHED_AT_COLUMN,
+    ], CONFIG.RECON_WRT_EXPORT).then(function () {
+      // Rieng trang nay co them dropdown loc SO Status (theo yeu cau nguoi
+      // dung 2026-09-28) - xem static/js/reconciliation.js.
+      addSoStatusFilter("reconWrtTable", CONFIG.RECON_WRT_SO_STATUS_OPTIONS);
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,90 @@
+name: systems-tracking
+
+x-airflow-common: &airflow-common
+  build:
+    context: ./airflow
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__DEFAULT_TIMEZONE: Asia/Ho_Chi_Minh
+    AIRFLOW__CORE__TEST_CONNECTION: Enabled
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?Set AIRFLOW_FERNET_KEY in .env}
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_POSTGRES_USER:-airflow}:${AIRFLOW_POSTGRES_PASSWORD:-airflow}@airflow-postgres/${AIRFLOW_POSTGRES_DB:-airflow}
+    AIRFLOW_CONN_DMS_POSTGRES: postgres://${DMS_POSTGRES_USER}:${DMS_POSTGRES_PASSWORD}@${DMS_POSTGRES_HOST}:${DMS_POSTGRES_PORT}/${DMS_POSTGRES_DATABASE}
+    AIRFLOW_CONN_SQLSERVER_TRACKING: mssql://${AIRFLOW_MSSQL_USER}:${AIRFLOW_MSSQL_PASSWORD}@${AIRFLOW_MSSQL_HOST}:${AIRFLOW_MSSQL_PORT}/${AIRFLOW_MSSQL_DATABASE}
+    AIRFLOW_CONN_WRT_SQLSERVER: mssql://${WRT_SQLSERVER_USER}:${WRT_SQLSERVER_PASSWORD}@${WRT_SQLSERVER_HOST}:${WRT_SQLSERVER_PORT}/${WRT_SQLSERVER_DATABASE}
+    AIRFLOW_CONN_SAP_HANA: generic://${SAP_HANA_USER}:${SAP_HANA_PASSWORD}@${SAP_HANA_HOST}:${SAP_HANA_PORT}
+    OMS_TOKEN_URL: ${OMS_TOKEN_URL}
+    OMS_ORDERS_URL: ${OMS_ORDERS_URL}
+    OMS_CLIENT_ID: ${OMS_CLIENT_ID}
+    OMS_REFRESH_TOKEN: ${OMS_REFRESH_TOKEN}
+    OMS_PAGE_SIZE: ${OMS_PAGE_SIZE}
+    WMS_LOGIN_URL: ${WMS_LOGIN_URL}
+    WMS_INBOUND_URL: ${WMS_INBOUND_URL}
+    WMS_USERNAME: ${WMS_USERNAME}
+    WMS_PASSWORD: ${WMS_PASSWORD}
+    WMS_STORERKEY: ${WMS_STORERKEY}
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+    - ./airflow/config:/opt/airflow/config
+    - ./services:/opt/airflow/project/services
+  user: "${AIRFLOW_UID:-50000}:0"
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  depends_on:
+    airflow-postgres:
+      condition: service_healthy
+
+services:
+  django:
+    build:
+      context: .
+      dockerfile: Dockerfile.django
+    env_file: .env
+    ports:
+      - "${DJANGO_BIND_ADDR:-127.0.0.1}:8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  airflow-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${AIRFLOW_POSTGRES_USER:-airflow}
+      POSTGRES_PASSWORD: ${AIRFLOW_POSTGRES_PASSWORD:-airflow}
+      POSTGRES_DB: ${AIRFLOW_POSTGRES_DB:-airflow}
+    volumes:
+      - airflow-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create --username "$${AIRFLOW_ADMIN_USER}" --password "$${AIRFLOW_ADMIN_PASSWORD}" --firstname Airflow --lastname Admin --role Admin --email airflow@example.local || true
+    environment:
+      <<: *airflow-env
+      AIRFLOW_ADMIN_USER: ${AIRFLOW_ADMIN_USER:-airflow}
+      AIRFLOW_ADMIN_PASSWORD: ${AIRFLOW_ADMIN_PASSWORD:-airflow}
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "${AIRFLOW_BIND_ADDR:-127.0.0.1}:${AIRFLOW_HOST_PORT:-8080}:8080"
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+
+volumes:
+  airflow-postgres-data:

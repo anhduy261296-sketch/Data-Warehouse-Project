@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Chi tiết DMS xuất kho{% endblock %}
+{% block early_loading %}<script>Loading.show("Đang tải dữ liệu...");</script>{% endblock %}
+{% block content %}
+
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Chi tiết đơn hàng DMS xuất kho (nguồn OMS_ORDERS)</h6>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-bordered" id="detailDmsXuatKhoTable" width="100%" cellspacing="0">
+        <thead>
+          <tr>
+            <th>Status Sync</th>
+            <th>Mã đơn hàng</th>
+            <th>SKU</th>
+            <th>Số lượng</th>
+            <th>Thành tiền</th>
+            <th>Khách hàng</th>
+            <th>Kho</th>
+            <th>Kênh bán</th>
+            <th>Trạng thái OMS</th>
+            <th>Ngày tạo</th>
+            <th>Cửa hàng</th>
+            <th>Nhân viên</th>
+            <th>SĐT</th>
+            <th>Địa chỉ</th>
+            <th>PT thanh toán</th>
+            <th>Order Type</th>
+            <th>Outbound Type</th>
+            <th>Trạng thái nhận</th>
+            <th>Ngày giao</th>
+            <th>Ngày nhận thực tế</th>
+            <th>Barcode</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  $(function () {
+    loadDetailTable("detailDmsXuatKhoTable", CONFIG.DETAIL_DMS_XUATKHO_REPORT, [
+      DETAIL_STATUS_SYNC_COLUMN,
+      { data: "order_code", title: "Mã đơn hàng" },
+      { data: "sku", title: "SKU" },
+      { data: "quantity", title: "Số lượng", className: "text-right" },
+      DETAIL_AMOUNT_COLUMN("amount", "Thành tiền"),
+      { data: "customer_name", title: "Khách hàng" },
+      { data: "warehouse_code", title: "Kho" },
+      { data: "sales_channel", title: "Kênh bán" },
+      { data: "oms_status", title: "Trạng thái OMS" },
+      DETAIL_DATETIME_COLUMN("created_date", "Ngày tạo"),
+      { data: "shop_name", title: "Cửa hàng", visible: false },
+      { data: "employee_name", title: "Nhân viên", visible: false },
+      { data: "phone", title: "SĐT", visible: false },
+      { data: "full_address", title: "Địa chỉ", visible: false },
+      { data: "payment_method", title: "PT thanh toán", visible: false },
+      { data: "order_type", title: "Order Type", visible: false },
+      { data: "outbound_order_type", title: "Outbound Type", visible: false },
+      { data: "receiving_status", title: "Trạng thái nhận", visible: false },
+      DETAIL_DATETIME_COLUMN("shipped_date", "Ngày giao", false),
+      DETAIL_DATETIME_COLUMN("actual_delivery_date", "Ngày nhận thực tế", false),
+      { data: "barcode", title: "Barcode", visible: false },
+    ], CONFIG.DETAIL_DMS_XUATKHO_EXPORT, { dateFilter: true });
+  });
+</script>
+{% endblock %}

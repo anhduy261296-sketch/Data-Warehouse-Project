@@ -1,0 +1,6 @@
+# The provider is used by DAGs to connect to the business SQL Server.
+apache-airflow-providers-microsoft-mssql==4.7.1
+# Needed by dms_postgres_to_sqlserver.py to read from the external DMS PostgreSQL.
+apache-airflow-providers-postgres==5.13.1
+# Needed by sap_sales_delivery.py to read from the external SAP HANA.
+hdbcli==2.29.27

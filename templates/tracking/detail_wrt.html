@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Chi tiết WRT{% endblock %}
+{% block early_loading %}<script>Loading.show("Đang tải dữ liệu...");</script>{% endblock %}
+{% block content %}
+
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Chi tiết đơn hàng WRT (nguồn WRT_SO)</h6>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-bordered" id="detailWrtTable" width="100%" cellspacing="0">
+        <thead>
+          <tr>
+            <th>Status Sync</th>
+            <th>Mã đơn hàng</th>
+            <th>SKU</th>
+            <th>Số lượng</th>
+            <th>Thành tiền</th>
+            <th>Khách hàng</th>
+            <th>Kho</th>
+            <th>Kênh bán</th>
+            <th>Trạng thái WRT</th>
+            <th>Ngày posting</th>
+            <th>Nguồn</th>
+            <th>Mã đơn ngoài</th>
+            <th>Ghi chú</th>
+            <th>Tiền tệ</th>
+            <th>Tiền thuế</th>
+            <th>% Thuế</th>
+            <th>Status Code</th>
+            <th>Status Code 2</th>
+            <th>Seller</th>
+            <th>Cập nhật lúc</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  $(function () {
+    loadDetailTable("detailWrtTable", CONFIG.DETAIL_WRT_REPORT, [
+      DETAIL_STATUS_SYNC_COLUMN,
+      { data: "order_code", title: "Mã đơn hàng" },
+      { data: "sku", title: "SKU" },
+      { data: "quantity", title: "Số lượng", className: "text-right" },
+      DETAIL_AMOUNT_COLUMN("amount", "Thành tiền"),
+      { data: "customer_code", title: "Khách hàng" },
+      { data: "warehouse_code", title: "Kho" },
+      { data: "sales_channel", title: "Kênh bán" },
+      { data: "order_status", title: "Trạng thái WRT" },
+      DETAIL_DATETIME_COLUMN("posting_date", "Ngày posting"),
+      { data: "source", title: "Nguồn", visible: false },
+      { data: "external_order_key", title: "Mã đơn ngoài", visible: false },
+      { data: "note", title: "Ghi chú", visible: false },
+      { data: "currency", title: "Tiền tệ", visible: false },
+      DETAIL_AMOUNT_COLUMN("vat_amount", "Tiền thuế", false),
+      { data: "vat_percent", title: "% Thuế", visible: false },
+      { data: "status_code", title: "Status Code", visible: false },
+      { data: "status_code2", title: "Status Code 2", visible: false },
+      { data: "attributes_seller", title: "Seller", visible: false },
+      DETAIL_DATETIME_COLUMN("last_dt", "Cập nhật lúc", false),
+    ], CONFIG.DETAIL_WRT_EXPORT, { dateFilter: true });
+  });
+</script>
+{% endblock %}
