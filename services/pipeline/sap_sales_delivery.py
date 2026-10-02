@@ -8,10 +8,9 @@ STAGING_TABLE = 'SAP_SO'
 FINAL_TABLE = 'SAP_SO_All'
 LOG_TABLE = 'SAP_SO_Load_Log'
 PENDING_TABLE = 'SAP_SO_Pending'
-MERGE_KEY_COLUMNS = ('U_SONo', 'ItemCode', 'Type')
+MERGE_KEY_COLUMNS = ('U_SONo', 'ItemCode', 'Type', 'U_ItemWarrPeriod2', 'U_ItemWarrPeriod3')
 DOC_DATE_COLUMN = 'DocDate'
 PENDING_AR_COLUMN = 'ARDocDate'
-AMOUNT_TIEBREAK_COLUMN = 'TotalAfVAT'
 
 def _fetch_day(source_conn: Any, day: str) -> tuple[list[str], list[tuple[Any, ...]]]:
     cursor = source_conn.cursor()
@@ -36,14 +35,27 @@ def _insert_into_staging(target_conn: Any, columns: Sequence[str], rows: Sequenc
     cursor.executemany(insert_sql, list(rows))
 
 def _merge_staging_into_final(target_conn: Any, columns: Sequence[str]) -> None:
+    """MERGE staging vao bang chinh, giu nguyen gia tri goc tu nguon (khong
+    cong don/sua doi gi). MERGE_KEY_COLUMNS da mo rong them
+    U_ItemWarrPeriod2/3 (xem case S44492, S43119: SAP tach 1 SKU thanh
+    nhieu dong chung tu con theo ky han bao hanh khac nhau - truoc day
+    khoa chi co U_SONo+ItemCode+Type nen bi coi la trung, ROW_NUMBER chi
+    giu 1 dong lam mat du lieu that; gio voi khoa day du hon, cac dong
+    nay khong con trung nhau nua, moi dong duoc giu nguyen ven). ROW_NUMBER
+    o day chi con xu ly truong hop PULL TRUNG (vd full-pull + repull cho
+    pending cung 1 ngay bi chong) - tiebreak uu tien dong co ARDocDate."""
     non_key_columns = [c for c in columns if c not in MERGE_KEY_COLUMNS]
-    on_clause = ' AND '.join((f'target.[{c}] = source.[{c}]' for c in MERGE_KEY_COLUMNS))
+    # So sanh an toan voi NULL: 2 cot bao hanh co the NULL (vd don "Tra
+    # hang" khong co ky han bao hanh) - NULL = NULL tra ve UNKNOWN trong
+    # SQL nen MERGE se khong nhan dien duoc dong da ton tai, co INSERT
+    # trung roi dung unique index. Phai coi 2 ben cung NULL la khop nhau.
+    on_clause = ' AND '.join((f'(target.[{c}] = source.[{c}] OR (target.[{c}] IS NULL AND source.[{c}] IS NULL))' for c in MERGE_KEY_COLUMNS))
     set_clause = ', '.join((f'target.[{c}] = source.[{c}]' for c in non_key_columns))
     insert_cols = ', '.join((f'[{c}]' for c in columns))
     insert_values = ', '.join((f'source.[{c}]' for c in columns))
     all_cols = ', '.join((f'[{c}]' for c in columns))
     partition_cols = ', '.join((f'[{c}]' for c in MERGE_KEY_COLUMNS))
-    merge_sql = f'\n        MERGE {TARGET_SCHEMA}.{FINAL_TABLE} AS target\n        USING (\n            SELECT {all_cols}\n            FROM (\n                SELECT {all_cols},\n                       ROW_NUMBER() OVER (\n                           PARTITION BY {partition_cols}\n                           ORDER BY CASE WHEN [{PENDING_AR_COLUMN}] IS NOT NULL THEN 0 ELSE 1 END,\n                                    CASE WHEN TRY_CONVERT(DECIMAL(18,2), [{AMOUNT_TIEBREAK_COLUMN}]) <> 0 THEN 0 ELSE 1 END\n                       ) AS _rn\n                FROM {TARGET_SCHEMA}.{STAGING_TABLE}\n            ) _deduped\n            WHERE _rn = 1\n        ) AS source\n        ON {on_clause}\n        WHEN MATCHED THEN\n            UPDATE SET {set_clause}\n        WHEN NOT MATCHED THEN\n            INSERT ({insert_cols}) VALUES ({insert_values});\n    '
+    merge_sql = f'\n        MERGE {TARGET_SCHEMA}.{FINAL_TABLE} AS target\n        USING (\n            SELECT {all_cols}\n            FROM (\n                SELECT {all_cols},\n                       ROW_NUMBER() OVER (\n                           PARTITION BY {partition_cols}\n                           ORDER BY CASE WHEN [{PENDING_AR_COLUMN}] IS NOT NULL THEN 0 ELSE 1 END\n                       ) AS _rn\n                FROM {TARGET_SCHEMA}.{STAGING_TABLE}\n            ) _deduped\n            WHERE _rn = 1\n        ) AS source\n        ON {on_clause}\n        WHEN MATCHED THEN\n            UPDATE SET {set_clause}\n        WHEN NOT MATCHED THEN\n            INSERT ({insert_cols}) VALUES ({insert_values});\n    '
     cursor = target_conn.cursor()
     cursor.execute(merge_sql)
 

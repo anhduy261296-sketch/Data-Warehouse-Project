@@ -1,0 +1,35 @@
+
+IF EXISTS (
+    SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'SAP_SO_All' AND COLUMN_NAME = 'U_ItemWarrPeriod2'
+      AND CHARACTER_MAXIMUM_LENGTH = -1
+)
+BEGIN
+    ALTER TABLE dbo.SAP_SO_All ALTER COLUMN U_ItemWarrPeriod2 VARCHAR(20);
+END
+
+IF EXISTS (
+    SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'SAP_SO_All' AND COLUMN_NAME = 'U_ItemWarrPeriod3'
+      AND CHARACTER_MAXIMUM_LENGTH = -1
+)
+BEGIN
+    ALTER TABLE dbo.SAP_SO_All ALTER COLUMN U_ItemWarrPeriod3 VARCHAR(20);
+END
+
+IF EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE object_id = OBJECT_ID('dbo.SAP_SO_All') AND name = 'UX_SAP_SO_All_SONo_ItemCode_Type'
+)
+BEGIN
+    DROP INDEX UX_SAP_SO_All_SONo_ItemCode_Type ON dbo.SAP_SO_All;
+END
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE object_id = OBJECT_ID('dbo.SAP_SO_All') AND name = 'UX_SAP_SO_All_SONo_ItemCode_Type_Warr'
+)
+BEGIN
+    CREATE UNIQUE INDEX UX_SAP_SO_All_SONo_ItemCode_Type_Warr
+        ON dbo.SAP_SO_All (U_SONo, ItemCode, Type, U_ItemWarrPeriod2, U_ItemWarrPeriod3);
+END
