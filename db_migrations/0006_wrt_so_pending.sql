@@ -1,0 +1,9 @@
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'WRT_SO_Pending')
+BEGIN
+    CREATE TABLE dbo.WRT_SO_Pending (
+        OrderCode VARCHAR(500) NOT NULL PRIMARY KEY,
+        PostingDate DATE NOT NULL,
+        FirstSeenAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        LastCheckedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END
