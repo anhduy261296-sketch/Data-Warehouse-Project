@@ -35,20 +35,9 @@ def _insert_into_staging(target_conn: Any, columns: Sequence[str], rows: Sequenc
     cursor.executemany(insert_sql, list(rows))
 
 def _merge_staging_into_final(target_conn: Any, columns: Sequence[str]) -> None:
-    """MERGE staging vao bang chinh, giu nguyen gia tri goc tu nguon (khong
-    cong don/sua doi gi). MERGE_KEY_COLUMNS da mo rong them
-    U_ItemWarrPeriod2/3 (xem case S44492, S43119: SAP tach 1 SKU thanh
-    nhieu dong chung tu con theo ky han bao hanh khac nhau - truoc day
-    khoa chi co U_SONo+ItemCode+Type nen bi coi la trung, ROW_NUMBER chi
-    giu 1 dong lam mat du lieu that; gio voi khoa day du hon, cac dong
-    nay khong con trung nhau nua, moi dong duoc giu nguyen ven). ROW_NUMBER
-    o day chi con xu ly truong hop PULL TRUNG (vd full-pull + repull cho
-    pending cung 1 ngay bi chong) - tiebreak uu tien dong co ARDocDate."""
+   
     non_key_columns = [c for c in columns if c not in MERGE_KEY_COLUMNS]
-    # So sanh an toan voi NULL: 2 cot bao hanh co the NULL (vd don "Tra
-    # hang" khong co ky han bao hanh) - NULL = NULL tra ve UNKNOWN trong
-    # SQL nen MERGE se khong nhan dien duoc dong da ton tai, co INSERT
-    # trung roi dung unique index. Phai coi 2 ben cung NULL la khop nhau.
+
     on_clause = ' AND '.join((f'(target.[{c}] = source.[{c}] OR (target.[{c}] IS NULL AND source.[{c}] IS NULL))' for c in MERGE_KEY_COLUMNS))
     set_clause = ', '.join((f'target.[{c}] = source.[{c}]' for c in non_key_columns))
     insert_cols = ', '.join((f'[{c}]' for c in columns))
