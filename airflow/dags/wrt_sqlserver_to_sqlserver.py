@@ -12,6 +12,7 @@ from services.pipeline.wrt_sales import sync_wrt_sales
 LOCAL_TZ = 'Asia/Ho_Chi_Minh'
 WRT_SQLSERVER_CONNECTION = 'wrt_sqlserver'
 SQLSERVER_CONNECTION = 'sqlserver_tracking'
+LOOKBACK_DAYS = 7
 
 def _window_from_context(**context: object) -> tuple[str, str]:
     dag_run = context.get('dag_run')
@@ -24,7 +25,8 @@ def _window_from_context(**context: object) -> tuple[str, str]:
         return (str(start_at), str(end_at))
     interval_end = pendulum.instance(context['data_interval_end']).in_timezone(LOCAL_TZ)
     source_day = interval_end.subtract(days=1)
-    return (source_day.start_of('day').format('YYYY-MM-DD HH:mm:ss'), source_day.end_of('day').format('YYYY-MM-DD HH:mm:ss'))
+    window_start = source_day.subtract(days=LOOKBACK_DAYS - 1)
+    return (window_start.start_of('day').format('YYYY-MM-DD HH:mm:ss'), source_day.end_of('day').format('YYYY-MM-DD HH:mm:ss'))
 
 def load_wrt_sales(**context: object) -> None:
     start_at, end_at = _window_from_context(**context)
