@@ -7,3 +7,4 @@ staticfiles/
 airflow/
 .git/
 .vscode/
+services/pipeline/data/

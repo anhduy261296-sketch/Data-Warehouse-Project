@@ -36,6 +36,9 @@ def _login_oms() -> str:
     refresh_token = _get_stored_refresh_token()
     if not refresh_token:
         raise RuntimeError('Chua co OMS_REFRESH_TOKEN - can dang nhap thu cong 1 lan qua trinh duyet de lay refresh_token ban dau (xem OMS_REFRESH_TOKEN trong .env).')
+    writable_target = TOKEN_STORE_PATH if TOKEN_STORE_PATH.exists() else TOKEN_STORE_PATH.parent
+    if not os.access(writable_target, os.W_OK):
+        raise RuntimeError(f'Khong co quyen ghi {writable_target} ')
     response = requests.post(OMS_TOKEN_URL, data={'grant_type': 'refresh_token', 'refresh_token': refresh_token, 'client_id': OMS_CLIENT_ID}, headers={'Content-Type': 'application/x-www-form-urlencoded'}, timeout=30)
     response.raise_for_status()
     payload = response.json()
