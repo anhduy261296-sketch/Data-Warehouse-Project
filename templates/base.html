@@ -23,6 +23,7 @@
       rel="stylesheet"
     />
     <link href="{% static 'css/reconciliation.css' %}" rel="stylesheet" />
+    <link href="{% static 'css/recon_inventory.css' %}" rel="stylesheet" />
     <link href="{% static 'css/loading.css' %}" rel="stylesheet" />
     <link href="{% static 'css/detail.css' %}" rel="stylesheet" />
     <script src="{% static 'js/utils/loading.js' %}"></script>
@@ -76,6 +77,9 @@
               </a>
               <a class="collapse-item" href="{% url 'recon-wrt' %}" data-loading>
                 Đơn hàng WRT
+              </a>
+              <a class="collapse-item" href="{% url 'recon-inventory' %}" data-loading>
+                Tồn kho SAP-WMS
               </a>
             </div>
           </div>

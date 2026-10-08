@@ -11,7 +11,7 @@ WMS_INBOUND_URL = os.environ.get('WMS_INBOUND_URL', 'https://poms-be.smartlogix.
 WMS_USERNAME = os.environ.get('WMS_USERNAME', '')
 WMS_PASSWORD = os.environ.get('WMS_PASSWORD', '')
 WMS_STORERKEY = os.environ.get('WMS_STORERKEY', 'PGI')
-WMS_INBOUND_FIELD_NAMES = ['adddate', 'datereceived', 'syncstatus', 'syncmess', 'syncdate', 'qtyreceivedpcs', 'qtyreceivedcs', 'qtyreceivedpl', 'packuom8', 'otherunit1', 'packuom9', 'otherunit2', 'manageimei', 'manageimeiout', 'stdlength', 'stdwidth', 'stdheigth', 'putawayzone']
+WMS_INBOUND_FIELD_NAMES = ['adddate', 'receiptkey', 'storerkey', 'type', 'suppliercode', 'sku', 'status', 'externreceiptkey', 'externalreceiptkey2', 'masterreceipt', 'pokey', 'pokey2', 'fromwhseid', 'expectedreceiptdate', 'receiptdate', 'approve', 'businessunitorder', 'invorg', 'company', 'supplier_address', 'taxcode', 'buyer', 'consigneekey', 'consigneename', 'destname', 'destcode', 'shipto', 'notifypartykey', 'carriercode', 'carriername1', 'trailernumber', 'drivername', 'tripid', 'transportationmode', 'transportationservice', 'begintime', 'endtime', 'vesselcode', 'vesselname', 'gacdate', 'door', 'id_declaration', 'declarationplace', 'declarationdate', 'declarationtype', 'documenttime', 'plantcode', 'cabcode', 'division', 'billoflading', 'contract', 'containerkey', 'containertype', 'seal', 'invoice_no_sai', 'transportcharges', 'invoiceno', 'syncstatus', 'syncmess', 'syncdate', 'notes', 'notes2', 'droplist1', 'droplist2', 'droplist3', 'droplist4', 'droplist5', 'droplist6', 'droplist7', 'droplist8', 'droplist9', 'droplist10', 'susr1', 'susr2', 'susr3', 'susr4', 'susr5', 'susr6', 'susr7', 'susr8', 'susr9', 'susr10', 'susr11', 'susr12', 'susr13', 'susr14', 'susr15', 'susr16', 'susr17', 'susr18', 'skudesc', 'upccode', 'denominator', 'uom', 'toloc', 'category', 'conditioncode', 'qtyexpectedpcs', 'qtyreceivedpcs', 'qtyexpectedcs', 'qtyreceivedcs', 'qtyexpectedpl', 'qtyreceivedpl', 'percentshelflifeatreceived', 'unitprice', 'price', 'LENGTH', 'width', 'height', 'cube', 'grosswgt', 'netwgt', 'cubeexpected', 'grosswgtexpected', 'netwgtexpected', 'percentage', 'unitid', 'cartonid', 'palletid', 'lottable01', 'lottable02', 'lottable03', 'lottable04', 'lottable05', 'lottable06', 'lottable07', 'lottable08', 'lottable09', 'lottable10', 'lottable11', 'lottable12', 'datereceived', 'noteitem', 'addwho', 'editwho', 'sku_susr1', 'sku_susr2', 'sku_susr3', 'sku_susr4', 'sku_susr5', 'sku_susr6', 'sku_susr7', 'sku_susr8', 'sku_susr9', 'sku_susr10', 'masterunit', 'innerpack', 'pallet', 'qtyexpected_otherunit1', 'qtyreceived_otherunit1', 'qtyexpected_otherunit2', 'qtyreceived_otherunit2', 'stdcube', 'stdnetwgt', 'stdgrosswgt', 'skugroup', 'qtyevenexpectedcs', 'qtyoddexpectedpcs', 'qtyevenreceivedcs', 'qtyoddreceivedpcs', 'acreage', 'susr1_rd', 'susr2_rd', 'susr3_rd', 'susr4_rd', 'susr5_rd', 'packuom8', 'otherunit1', 'packuom9', 'otherunit2', 'manageimei', 'manageimeiout', 'stdlength', 'stdwidth', 'stdheigth', 'putawayzone']
 TARGET_SCHEMA = 'dbo'
 TARGET_TABLE = 'WMS_INBOUND'
 LOG_TABLE = 'WMS_INBOUND_Load_Log'
@@ -38,14 +38,25 @@ def _is_server_busy(exc: requests.exceptions.HTTPError) -> bool:
         return False
     return 'server is busy' in exc.response.text.lower()
 
+_TOKEN_CACHE: dict[str, str] = {}
+_MAX_RELOGINS = 3
+_RELOGIN_DELAY_SEC = 5
+
 def _fetch_inbound_raw(token: str, whseid: str, from_date: str, to_date: str) -> tuple[list[dict], int | None]:
     busy_retries = 0
     other_retries = 0
+    relogins = 0
     while True:
         try:
-            return _fetch_inbound_raw_once(token, whseid, from_date, to_date)
+            return _fetch_inbound_raw_once(_TOKEN_CACHE.get('token') or token, whseid, from_date, to_date)
         except requests.exceptions.HTTPError as exc:
             status = exc.response.status_code if exc.response is not None else None
+            if status == 401 and relogins < _MAX_RELOGINS:
+                relogins += 1
+                logger.warning('WMS inbound kho %s [%s -> %s]: token bi tu choi (401) - dang nhap lai (lan %d/%d). Neu lap lai lien tuc, kiem tra co noi khac dang dang nhap cung tai khoan WMS khong.', whseid, from_date, to_date, relogins, _MAX_RELOGINS)
+                time.sleep(_RELOGIN_DELAY_SEC * relogins)
+                _TOKEN_CACHE['token'] = _login()
+                continue
             if _is_server_busy(exc):
                 busy_retries += 1
                 if busy_retries > _BUSY_MAX_RETRIES:
@@ -102,12 +113,13 @@ def _merge_rows(target_conn: Any, whseid: str, rows: list[dict]) -> None:
         for key in row:
             if key in _IGNORED_RESPONSE_FIELDS:
                 continue
-            if key not in seen:
-                seen.add(key)
+            if key.lower() not in seen:
+                seen.add(key.lower())
                 columns.append(key)
     cursor = target_conn.cursor()
     for row in rows:
-        values = {c: row.get(c) for c in columns}
+        row_ci = {k.lower(): v for k, v in row.items()}
+        values = {c: row_ci.get(c.lower()) for c in columns}
         set_clause = ', '.join((f'[{c}] = %s' for c in columns))
         insert_cols = ', '.join((f'[{c}]' for c in columns))
         insert_placeholders = ', '.join(('%s' for _ in columns))
@@ -178,9 +190,15 @@ def _daterange_desc(start_at: str, end_at: str) -> list[tuple[str, str]]:
         d -= dt.timedelta(days=1)
     return windows
 
+def _delete_window(target_conn: Any, whseid: str, from_date: str, to_date: str) -> None:
+    cursor = target_conn.cursor()
+    cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE _whseid = %s AND adddate >= %s AND adddate < DATEADD(day, 1, %s)', (whseid, from_date[:10], to_date[:10]))
+
 def _sync_one_window(target_conn: Any, token: str, whseid: str, from_date: str, to_date: str) -> int:
     try:
         rows = _fetch_inbound(token, whseid, from_date, to_date)
+        if rows:
+            _delete_window(target_conn, whseid, from_date, to_date)
         _merge_rows(target_conn, whseid, rows)
         target_conn.commit()
         _log_run(target_conn, whseid, from_date, to_date, len(rows), 'SUCCESS')

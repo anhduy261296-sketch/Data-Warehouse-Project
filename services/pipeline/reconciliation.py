@@ -57,6 +57,67 @@ def _log_refresh(target_conn: Any, table_name: str, row_count: int, status: str)
     cursor = target_conn.cursor()
     cursor.execute(f'\n        INSERT INTO {TARGET_SCHEMA}.{LOG_TABLE} (table_name, row_count, status, refreshed_at)\n        VALUES (%s, %s, %s, SYSUTCDATETIME())\n        ', (table_name, row_count, status))
 
+INVENTORY_TABLE = 'RECON_INVENTORY'
+NON_WMS_WAREHOUSES = ('W101', 'W114', 'W999')
+LOC_BASED_WAREHOUSES = ('W998',)
+_WMS_STATUS_ITEM_EXPR = f"CASE WHEN 'W' + SUBSTRING(_whseid, 3, 10) IN ({', '.join((f"'{w}'" for w in LOC_BASED_WAREHOUSES))}) THEN ISNULL(loc, '') ELSE ISNULL(status, '') END"
+_INVENTORY_SQL = f"""
+WITH S AS (
+    SELECT ItemCode, WhsCode, StatusItem, MAX(ItemName) AS ItemName, MAX(WhsName) AS WhsName,
+           SUM(OnHand) AS Qty, MAX(InvntryUom) AS Uom
+    FROM dbo.SAP_INVENTORY
+    GROUP BY ItemCode, WhsCode, StatusItem
+),
+W AS (
+    SELECT sku AS ItemCode, 'W' + SUBSTRING(_whseid, 3, 10) AS WhsCode, {_WMS_STATUS_ITEM_EXPR} AS StatusItem,
+           MAX(description) AS ItemName, SUM(TRY_CONVERT(DECIMAL(21,6), qty)) AS Qty, MAX(uom) AS Uom
+    FROM dbo.WMS_INVENTORY
+    GROUP BY sku, _whseid, {_WMS_STATUS_ITEM_EXPR}
+),
+WHS AS (
+    SELECT WhsCode, MAX(WhsName) AS WhsName FROM dbo.SAP_INVENTORY GROUP BY WhsCode
+)
+INSERT INTO dbo.{INVENTORY_TABLE} (StatusSync, ItemCode, ItemName, WhsCode, WhsName, StatusItem, SapQty, WmsQty, DiffQty, InvntryUom)
+SELECT
+    CASE
+        WHEN s.ItemCode IS NOT NULL AND w.ItemCode IS NOT NULL
+            THEN CASE WHEN s.Qty = w.Qty THEN N'Khớp' ELSE N'Lệch' END
+        WHEN s.WhsCode IN ({', '.join((f"'{w}'" for w in NON_WMS_WAREHOUSES))}) THEN N'Không quản lý trên WMS'
+        WHEN w.ItemCode IS NULL THEN N'Chỉ có SAP'
+        ELSE N'Chỉ có WMS'
+    END,
+    COALESCE(s.ItemCode, w.ItemCode),
+    COALESCE(s.ItemName, w.ItemName),
+    COALESCE(s.WhsCode, w.WhsCode),
+    COALESCE(s.WhsName, whs.WhsName),
+    COALESCE(s.StatusItem, w.StatusItem),
+    s.Qty,
+    w.Qty,
+    ABS(ISNULL(s.Qty, 0) - ISNULL(w.Qty, 0)),
+    COALESCE(s.Uom, w.Uom)
+FROM S s
+FULL OUTER JOIN W w ON w.ItemCode = s.ItemCode AND w.WhsCode = s.WhsCode AND w.StatusItem = s.StatusItem
+LEFT JOIN WHS whs ON whs.WhsCode = COALESCE(s.WhsCode, w.WhsCode);
+"""
+
+def refresh_inventory_reconciliation(target_conn: Any, **_ignored: Any) -> int:
+    cursor = target_conn.cursor()
+    try:
+        cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{INVENTORY_TABLE}')
+        cursor.execute(_INVENTORY_SQL)
+        cursor.execute(f'SELECT COUNT(*) FROM {TARGET_SCHEMA}.{INVENTORY_TABLE}')
+        row_count = cursor.fetchone()[0]
+        _log_refresh(target_conn, INVENTORY_TABLE, row_count, 'SUCCESS')
+        target_conn.commit()
+    except Exception:
+        target_conn.rollback()
+        _log_refresh(target_conn, INVENTORY_TABLE, 0, 'FAILED')
+        target_conn.commit()
+        logger.exception('Refresh %s that bai', INVENTORY_TABLE)
+        raise
+    logger.info('Da refresh %s: %d dong', INVENTORY_TABLE, row_count)
+    return row_count
+
 def refresh_all_reconciliation_tables(target_conn: Any, **_ignored: Any) -> dict[str, int]:
     results: dict[str, int] = {}
     for table_name in _TABLES:

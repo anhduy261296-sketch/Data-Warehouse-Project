@@ -11,7 +11,7 @@ WMS_OUTBOUND_URL = os.environ.get('WMS_OUTBOUND_URL', 'https://poms-be.smartlogi
 WMS_USERNAME = os.environ.get('WMS_USERNAME', '')
 WMS_PASSWORD = os.environ.get('WMS_PASSWORD', '')
 WMS_STORERKEY = os.environ.get('WMS_STORERKEY', 'PGI')
-WMS_OUTBOUND_FIELD_NAMES = ['adddate', 'storerkey', 'type', 'status', 'actualshipdate', 'lpnid', 'conditioncode', 'fromloc', 'loc', 'qtyallocatedpcs', 'qtyallocatedcs', 'qtyallocatedpl', 'qtypickedpcs', 'qtypickedcs', 'qtypickedpl', 'qtypackedpcs', 'qtypackedcase', 'qtypackedpallet', 'shippedqtypcs', 'qtyshippedcs', 'qtyshippedpl', 'qtypickdetail_cs', 'qtypickdetail_pallet', 'qtypickdetail_pcs', 'lottable01', 'lottable02', 'lottable03', 'lottable04', 'lottable05', 'lottable06', 'lottable07', 'lottable08', 'lottable09', 'lottable10', 'lottable11', 'lottable12', 'fromunitid', 'fromcartonid', 'frompalletid', 'unitid', 'cartonid', 'palletid', 'goodsstatus', 'pickdetaildate', 'pickdetaildatetime']
+WMS_OUTBOUND_FIELD_NAMES = ['adddate', 'storerkey', 'type', 'status', 'actualshipdate', 'lpnid', 'conditioncode', 'fromloc', 'loc', 'qtyallocatedpcs', 'qtyallocatedcs', 'qtyallocatedpl', 'qtypickedpcs', 'qtypickedcs', 'qtypickedpl', 'qtypackedpcs', 'qtypackedcase', 'qtypackedpallet', 'shippedqtypcs', 'qtyshippedcs', 'qtyshippedpl', 'qtypickdetail_cs', 'qtypickdetail_pallet', 'qtypickdetail_pcs', 'lottable01', 'lottable02', 'lottable03', 'lottable04', 'lottable05', 'lottable06', 'lottable07', 'lottable08', 'lottable09', 'lottable10', 'lottable11', 'lottable12', 'fromunitid', 'fromcartonid', 'frompalletid', 'unitid', 'cartonid', 'palletid', 'goodsstatus', 'pickdetaildate', 'pickdetaildatetime', 'requestedshipdate']
 WMS_OUTBOUND_PAGE_SIZE = 200
 TARGET_SCHEMA = 'dbo'
 TARGET_TABLE = 'WMS_OUTBOUND'
@@ -48,14 +48,26 @@ def _fetch_outbound_raw_once(token: str, whseid: str, from_date: str, to_date: s
         raise RuntimeError(f"WMS outbound response khong co mang 'data': {str(payload)[:500]}")
     return (rows, payload.get('total'))
 
+_TOKEN_CACHE: dict[str, str] = {}
+_MAX_RELOGINS = 3
+_RELOGIN_DELAY_SEC = 5
+
 def _fetch_outbound_raw(token: str, whseid: str, from_date: str, to_date: str) -> tuple[list[dict], int | None]:
     busy_retries = 0
     other_retries = 0
+    relogins = 0
     while True:
         try:
-            return _fetch_outbound_raw_once(token, whseid, from_date, to_date)
+            return _fetch_outbound_raw_once(_TOKEN_CACHE.get('token') or token, whseid, from_date, to_date)
         except requests.exceptions.RequestException as exc:
             is_http_error = isinstance(exc, requests.exceptions.HTTPError)
+            status = exc.response.status_code if is_http_error and exc.response is not None else None
+            if status == 401 and relogins < _MAX_RELOGINS:
+                relogins += 1
+                logger.warning('WMS outbound kho %s [%s -> %s]: token bi tu choi (401) - dang nhap lai (lan %d/%d). Neu lap lai lien tuc, kiem tra co noi khac dang dang nhap cung tai khoan WMS khong.', whseid, from_date, to_date, relogins, _MAX_RELOGINS)
+                time.sleep(_RELOGIN_DELAY_SEC * relogins)
+                _TOKEN_CACHE['token'] = _login()
+                continue
             if is_http_error and _is_server_busy(exc):
                 busy_retries += 1
                 if busy_retries > _BUSY_MAX_RETRIES:
@@ -193,10 +205,16 @@ def _daterange_desc(start_at: str, end_at: str) -> list[tuple[str, str]]:
         d -= dt.timedelta(days=1)
     return windows
 
+def _delete_window(target_conn: Any, whseid: str, from_date: str, to_date: str) -> None:
+    cursor = target_conn.cursor()
+    cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE _whseid = %s AND adddate >= %s AND adddate < DATEADD(day, 1, %s)', (whseid, from_date[:10], to_date[:10]))
+
 def _sync_one_window(target_conn: Any, token: str, whseid: str, from_date: str, to_date: str) -> int:
     try:
         rows = _fetch_outbound(token, whseid, from_date, to_date)
         rows = _assign_dup_seq(rows)
+        if rows:
+            _delete_window(target_conn, whseid, from_date, to_date)
         _merge_rows(target_conn, whseid, rows)
         target_conn.commit()
         _log_run(target_conn, whseid, from_date, to_date, len(rows), 'SUCCESS')

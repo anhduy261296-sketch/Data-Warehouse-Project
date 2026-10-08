@@ -1,33 +1,41 @@
 from __future__ import annotations
 import logging
-from decimal import ROUND_HALF_UP, Decimal
+from collections import defaultdict
+from decimal import Decimal
 from typing import Any, Sequence
 logger = logging.getLogger(__name__)
-SOURCE_CALL = 'CALL "PGI_GOLIVE"."BTS_RPT_R502_KT"(?, ?, ?)'
-REPORT_TYPE = '2'
-START_DATE = '2026-06-28'
+WAREHOUSE_QUERY = '\nSELECT w."ItemCode", i."ItemName", w."WhsCode", h."WhsName", w."OnHand", i."InvntryUom"\nFROM "PGI_GOLIVE"."OITW" w\nJOIN "PGI_GOLIVE"."OITM" i ON i."ItemCode" = w."ItemCode"\nJOIN "PGI_GOLIVE"."OWHS" h ON h."WhsCode" = w."WhsCode"\nWHERE w."OnHand" <> 0\n'
+BIN_QUERY = '\nSELECT q."ItemCode", q."WhsCode", b."BinCode", q."OnHandQty"\nFROM "PGI_GOLIVE"."OIBQ" q\nJOIN "PGI_GOLIVE"."OBIN" b ON b."AbsEntry" = q."BinAbs"\nWHERE q."OnHandQty" <> 0\n'
 TARGET_SCHEMA = 'dbo'
 TARGET_TABLE = 'SAP_INVENTORY'
 STAGING_TABLE = 'SAP_INVENTORY_Staging'
 LOG_TABLE = 'SAP_INVENTORY_Load_Log'
 MIN_ROW_RATIO = 0.9
 MAX_SQL_PARAMS = 2090
-COLUMNS = ('LoaiCT', 'TenLoaiCT', 'SoCT', 'DocDate', 'SlpName', 'BoPhan', 'CreatedBy', 'SoCT_NhapXuat', 'DocDate_NhapXuat', 'DocType', 'DocEntry', 'DocLineNum', 'BaseType', 'BaseEntry', 'BaseLine', 'IN_WhsCode', 'IN_WhsName', 'IN_BinCode', 'OUT_WhsCode', 'OUT_WhsName', 'OUT_BinCode', 'U_ItemProducer', 'NSX', 'ItmsGrpCod', 'ItmsGrpNam', 'ItemCode', 'U_PGICode', 'ItemName', 'InvntryUom', 'DistNumber', 'InStock', 'Cost', 'TransValue', 'Comments', 'CardCode', 'CardName', 'U_IMNo')
-COST_QUANTUM = Decimal('1e-18')
+COLUMNS = ('ItemCode', 'ItemName', 'WhsCode', 'WhsName', 'StatusItem', 'OnHand', 'InvntryUom')
 
-def _fetch_rows(source_conn: Any, start_date: str, end_date: str) -> list[tuple[Any, ...]]:
+def status_item_from_bin(bin_code: str | None) -> str:
+    if not bin_code:
+        return ''
+    return bin_code.rsplit('-', 1)[-1]
+
+def _fetch_rows(source_conn: Any) -> list[tuple[Any, ...]]:
     cursor = source_conn.cursor()
-    cursor.execute(SOURCE_CALL, (start_date, end_date, REPORT_TYPE))
-    columns = tuple((desc[0] for desc in cursor.description))
-    if columns != COLUMNS:
-        raise RuntimeError(f'Cot tra ve tu {SOURCE_CALL} khac voi bang {TARGET_TABLE} - kiem tra lai procedure. Nhan duoc: {columns}')
-    cost_idx = COLUMNS.index('Cost')
+    cursor.execute(WAREHOUSE_QUERY)
+    warehouse_rows = cursor.fetchall()
+    cursor.execute(BIN_QUERY)
+    bin_qty: dict[tuple[str, str], dict[str, Decimal]] = defaultdict(lambda: defaultdict(Decimal))
+    for item_code, whs_code, bin_code, qty in cursor.fetchall():
+        bin_qty[item_code, whs_code][status_item_from_bin(bin_code)] += Decimal(qty)
     rows = []
-    for row in cursor.fetchall():
-        row = list(row)
-        if isinstance(row[cost_idx], Decimal):
-            row[cost_idx] = row[cost_idx].quantize(COST_QUANTUM, rounding=ROUND_HALF_UP)
-        rows.append(tuple(row))
+    for item_code, item_name, whs_code, whs_name, on_hand, uom in warehouse_rows:
+        by_status = bin_qty.get((item_code, whs_code), {})
+        for status_item, qty in by_status.items():
+            if qty:
+                rows.append((item_code, item_name, whs_code, whs_name, status_item, qty, uom))
+        remainder = Decimal(on_hand) - sum(by_status.values(), Decimal(0))
+        if remainder:
+            rows.append((item_code, item_name, whs_code, whs_name, '', remainder, uom))
     return rows
 
 def _count(target_conn: Any, table: str) -> int:
@@ -55,26 +63,26 @@ def _replace_target_from_staging(target_conn: Any) -> None:
     cursor.execute(f'INSERT INTO {TARGET_SCHEMA}.{TARGET_TABLE} ({quoted_cols}) SELECT {quoted_cols} FROM {TARGET_SCHEMA}.{STAGING_TABLE}')
     target_conn.commit()
 
-def _log(target_conn: Any, start_date: str, end_date: str, row_count: int, status: str, message: str | None=None) -> None:
+def _log(target_conn: Any, row_count: int, status: str, message: str | None=None) -> None:
     cursor = target_conn.cursor()
-    cursor.execute(f'INSERT INTO {TARGET_SCHEMA}.{LOG_TABLE} (start_at, end_at, row_count, status, message) VALUES (%s, %s, %s, %s, %s)', (start_date, end_date, row_count, status, message))
+    cursor.execute(f'INSERT INTO {TARGET_SCHEMA}.{LOG_TABLE} (row_count, status, message) VALUES (%s, %s, %s)', (row_count, status, message))
     target_conn.commit()
 
-def sync_sap_inventory(source_conn: Any, target_conn: Any, *, end_date: str, start_date: str=START_DATE, force: bool=False, **_ignored: Any) -> int:
+def sync_sap_inventory(source_conn: Any, target_conn: Any, *, force: bool=False, **_ignored: Any) -> int:
     try:
-        rows = _fetch_rows(source_conn, start_date, end_date)
+        rows = _fetch_rows(source_conn)
         _load_staging(target_conn, rows)
         staged = _count(target_conn, STAGING_TABLE)
         if staged == 0:
-            raise RuntimeError('SAP tra ve 0 dong - nghi nguon loi, giu nguyen bang chinh.')
+            raise RuntimeError('SAP tra ve 0 dong ton kho - nghi nguon loi, giu nguyen bang chinh.')
         current = _count(target_conn, TARGET_TABLE)
         if not force and current and staged < current * MIN_ROW_RATIO:
             raise RuntimeError(f'So dong moi ({staged}) giam qua {round((1 - MIN_ROW_RATIO) * 100)}% so voi hien tai ({current}) - nghi nguon loi, giu nguyen bang chinh. Chay lai voi force=True neu chac chan dung.')
         _replace_target_from_staging(target_conn)
     except Exception as exc:
         target_conn.rollback()
-        _log(target_conn, start_date, end_date, 0, 'FAILED', str(exc)[:1000])
+        _log(target_conn, 0, 'FAILED', str(exc)[:1000])
         raise
-    _log(target_conn, start_date, end_date, staged, 'SUCCESS')
-    logger.info('Da nap %d dong vao %s.%s (%s -> %s)', staged, TARGET_SCHEMA, TARGET_TABLE, start_date, end_date)
+    _log(target_conn, staged, 'SUCCESS')
+    logger.info('Da nap %d dong ton kho vao %s.%s', staged, TARGET_SCHEMA, TARGET_TABLE)
     return staged

@@ -3,7 +3,7 @@ from openpyxl.utils import get_column_letter
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
-from .detail_report import DETAIL_CONFIGS, EMPLOYEE_REPORT_CONFIG_DMS, EMPLOYEE_REPORT_CONFIG_OMS, RECON_CONFIGS, DetailReportConfig, export_detail_report_rows, get_distinct_so_status, run_detail_report
+from .detail_report import DETAIL_CONFIGS, EMPLOYEE_REPORT_CONFIG_DMS, EMPLOYEE_REPORT_CONFIG_OMS, INVENTORY_CONFIG, RECON_CONFIGS, DetailReportConfig, export_detail_report_rows, get_distinct_so_status, get_inventory_detail, get_inventory_meta, run_detail_report
 from .SystemsTracking import get_report
 
 def export_detail_report_excel(config: DetailReportConfig, params: dict, filename: str) -> HttpResponse:
@@ -70,6 +70,26 @@ def recon_wrt_export(request):
 
 def recon_wrt_so_status_options(request):
     return JsonResponse({'options': get_distinct_so_status(RECON_CONFIGS['wrt'])})
+
+def recon_inventory_page(request):
+    return render(request, 'tracking/recon_inventory.html')
+
+def recon_inventory_report(request):
+    return JsonResponse(run_detail_report(INVENTORY_CONFIG, request.GET))
+
+def recon_inventory_export(request):
+    return export_detail_report_excel(INVENTORY_CONFIG, request.GET, 'data_tracking_inventory.xlsx')
+
+def recon_inventory_meta(request):
+    return JsonResponse(get_inventory_meta())
+
+def recon_inventory_detail(request):
+    item_code = (request.GET.get('item_code') or '').strip()
+    whs_code = (request.GET.get('whs_code') or '').strip()
+    status_item = (request.GET.get('status_item') or '').strip()
+    if not item_code or not whs_code:
+        return JsonResponse({'error': 'Thieu item_code hoac whs_code'}, status=400)
+    return JsonResponse(get_inventory_detail(item_code, whs_code, status_item))
 
 def detail_ecom_page(request):
     return render(request, 'tracking/detail_ecom.html')

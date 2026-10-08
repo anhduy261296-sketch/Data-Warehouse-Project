@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Tồn kho SAP-WMS{% endblock %}
+{% block early_loading %}<script>Loading.show("Đang tải dữ liệu...");</script>{% endblock %}
+{% block content %}
+<style>
+  .inv-detail-sap, .inv-detail-wms { border-radius: 4px; padding: 8px 10px; height: 100%; }
+  .inv-detail-sap { background: #eef8f0; border: 1px solid #b7dfc1; }
+  .inv-detail-wms { background: #edf4fc; border: 1px solid #b6d3f2; }
+  .inv-detail-sap .inv-detail-title { color: #1e7e34; }
+  .inv-detail-wms .inv-detail-title { color: #1565c0; }
+  .inv-detail-sap thead th { background: #d4edda; color: #155724; }
+  .inv-detail-wms thead th { background: #d6e9f8; color: #0d47a1; }
+  .inv-detail-sap table, .inv-detail-wms table { background: #fff; }
+</style>
+
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Đối chiếu tồn kho SAP - WMS</h6>
+    <div class="small text-muted mt-1" id="inventorySnapshotInfo">Đang tải thông tin cập nhật...</div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-bordered" id="reconInventoryTable" width="100%" cellspacing="0">
+        <thead>
+          <tr>
+            <th>Đối chiếu</th>
+            <th>Mã hàng</th>
+            <th>Tên hàng</th>
+            <th>Kho</th>
+            <th>Tên kho</th>
+            <th>Trạng thái</th>
+            <th>SAP tồn</th>
+            <th>WMS tồn</th>
+            <th>Chênh lệch</th>
+            <th>ĐVT</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    
+  </div>
+</div>
+
+<div class="modal fade" id="inventoryDetailModal" tabindex="-1" role="dialog" aria-labelledby="inventoryDetailTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h6 class="modal-title font-weight-bold text-primary" id="inventoryDetailTitle"></h6>
+          <div class="small text-muted" id="inventoryDetailSummary"></div>
+        </div>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="modal-body" id="inventoryDetailBody"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  const INVENTORY_STATUS_BADGE = {
+    "Khớp": "badge-success",
+    "Lệch": "badge-danger",
+    "Chỉ có SAP": "badge-warning",
+    "Chỉ có WMS": "badge-info",
+    "Không quản lý trên WMS": "badge-secondary",
+  };
+
+  function utcToVn(value) {
+    if (!value) return "—";
+    return formatDateTime(/[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : value + "Z");
+  }
+
+  function escapeHtml(value) {
+    return $("<div>").text(value === null || value === undefined ? "" : value).html();
+  }
+
+  function inventoryFilterParams() {
+    return {
+      status_sync: $("#inventoryStatusFilter").val() || "",
+      whs_code: $("#inventoryWhsFilter").val() || "",
+    };
+  }
+
+  function renderInventoryDetail(payload) {
+    const sapRows = (payload.sap || []).map((r) =>
+      `<tr><td>${escapeHtml(r.doc_no)}</td><td>${formatDateTime(r.doc_date)}</td>` +
+      `<td>${escapeHtml(r.doc_type)}</td><td class="text-right">${formatAmount(r.qty)}</td></tr>`).join("");
+    const wmsRows = (payload.wms || []).map((r) =>
+      `<tr><td>${escapeHtml(r.doc_no)}</td><td>${formatDateTime(r.doc_date)}</td>` +
+      `<td>${escapeHtml(r.doc_type)}</td><td class="text-right">${formatAmount(r.qty)}</td></tr>`).join("");
+    const empty = (cols) => `<tr><td colspan="${cols}" class="text-center text-muted">Không có dữ liệu</td></tr>`;
+    return `
+      <div class="row">
+        <div class="col-lg-6 mb-2">
+          <div class="inv-detail-sap">
+            <div class="inv-detail-title font-weight-bold mb-1">SAP - phiếu nhập/xuất</div>
+            <table class="table table-sm table-bordered mb-0">
+              <thead><tr><th>Số chứng từ</th><th>Ngày chứng từ</th><th>Loại</th><th>Số lượng (+nhập / -xuất)</th></tr></thead>
+              <tbody>${sapRows || empty(4)}</tbody>
+            </table>
+          </div>
+        </div>
+        <div class="col-lg-6 mb-2">
+          <div class="inv-detail-wms">
+            <div class="inv-detail-title font-weight-bold mb-1">WMS - phiếu nhập/xuất</div>
+            <table class="table table-sm table-bordered mb-0">
+              <thead><tr><th>Số chứng từ</th><th>Ngày chứng từ</th><th>Loại</th><th>Số lượng (+nhập / -xuất)</th></tr></thead>
+              <tbody>${wmsRows || empty(4)}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  $(function () {
+    const metaRequest = $.getJSON(`${CONFIG.API_BASE}${CONFIG.RECON_INVENTORY_META}`);
+
+    const table = $("#reconInventoryTable").DataTable({
+      serverSide: true,
+      processing: true,
+      ajax: {
+        url: `${CONFIG.API_BASE}${CONFIG.RECON_INVENTORY_REPORT}`,
+        data: function (d) {
+          Object.assign(d, inventoryFilterParams());
+        },
+      },
+      columns: [
+        {
+          data: "status_sync",
+          render: (data) => `<span class="badge ${INVENTORY_STATUS_BADGE[data] || "badge-light"}">${escapeHtml(data)}</span>`,
+        },
+        { data: "item_code" },
+        { data: "item_name" },
+        { data: "whs_code" },
+        { data: "whs_name" },
+        { data: "status_item", render: (d) => (d ? escapeHtml(d) : "—") },
+        { data: "sap_qty", className: "text-right", render: (d) => formatAmount(d) },
+        { data: "wms_qty", className: "text-right", render: (d) => formatAmount(d) },
+        {
+          data: "diff_qty",
+          className: "text-right",
+          render: (d) => `<a href="#" class="inv-diff-link font-weight-bold" title="Xem chi tiết phiếu nhập/xuất">${formatAmount(d)}</a>`,
+        },
+        { data: "uom" },
+      ],
+      order: [],
+      dom:
+        "<'row align-items-center'<'col-sm-12 d-flex justify-content-end align-items-center'" +
+        "<'inventory-whs-filter mr-2'><'inventory-status-filter mr-2'>fB>>" +
+        "<'row'<'col-sm-12't>>" +
+        "<'row align-items-center'<'col-sm-6'i>" +
+        "<'col-sm-6 d-flex justify-content-end align-items-center'lp>>",
+      buttons: [
+        {
+          text: EXPORT_EXCEL_ICON,
+          titleAttr: "Xuất Excel",
+          className: "btn btn-sm bg-white border shadow-sm d-inline-flex align-items-center justify-content-center detail-export-btn",
+          action: function () {
+            const url = new URL(`${CONFIG.API_BASE}${CONFIG.RECON_INVENTORY_EXPORT}`, window.location.origin);
+            const searchValue = table.search();
+            if (searchValue) url.searchParams.set("search[value]", searchValue);
+            Object.entries(inventoryFilterParams()).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
+            window.location.href = url.toString();
+          },
+        },
+      ],
+      language: { lengthMenu: "_MENU_" },
+      initComplete: function () {
+        Loading.hide();
+      },
+    });
+
+    const $status = $('<select id="inventoryStatusFilter" class="form-control form-control-sm" title="Mặc định ẩn: Không quản lý trên WMS">' +
+      '<option value="">Tất cả (trừ không quản lý trên WMS)</option></select>');
+    const $whs = $('<select id="inventoryWhsFilter" class="form-control form-control-sm"><option value="">Tất cả kho</option></select>');
+    $(".inventory-status-filter").append($status);
+    $(".inventory-whs-filter").append($whs);
+    $status.add($whs).on("change", () => table.draw());
+
+    metaRequest.done(function (meta) {
+      (meta.statuses || []).forEach((s) => $status.append($("<option>").attr("value", s).text(s)));
+      (meta.warehouses || []).forEach((w) =>
+        $whs.append($("<option>").attr("value", w.code).text(w.name ? `${w.code} - ${w.name}` : w.code)));
+      $("#inventorySnapshotInfo").text(
+        `Tồn SAP cập nhật ${utcToVn(meta.sap_snapshot_at)} · ` +
+        `Tồn WMS cập nhật ${utcToVn(meta.wms_snapshot_at)} · ` +
+        `Đối chiếu cập nhật ${utcToVn(meta.recon_refreshed_at)}`);
+    }).fail(function () {
+      $("#inventorySnapshotInfo").text("Không tải được thông tin cập nhật.");
+    });
+
+    let detailRequestId = 0;
+    $("#reconInventoryTable tbody").on("click", "a.inv-diff-link", function (e) {
+      e.preventDefault();
+      const data = table.row($(this).closest("tr")).data();
+      if (!data) return;
+      const requestId = ++detailRequestId;
+      $("#inventoryDetailTitle").text(`${data.item_code} - ${data.item_name || ""}`);
+      $("#inventoryDetailSummary").text(
+        `Kho ${data.whs_code}${data.whs_name ? " - " + data.whs_name : ""} · Status Item ${data.status_item || "—"} · ` +
+        `SAP tồn ${formatAmount(data.sap_qty)} · WMS tồn ${formatAmount(data.wms_qty)} · Chênh lệch ${formatAmount(data.diff_qty)}`);
+      $("#inventoryDetailBody").html('<div class="text-muted p-3 text-center">Đang tải chi tiết...</div>');
+      $("#inventoryDetailModal").modal("show");
+      $.getJSON(`${CONFIG.API_BASE}${CONFIG.RECON_INVENTORY_DETAIL}`, { item_code: data.item_code, whs_code: data.whs_code, status_item: data.status_item || "" })
+        .done((payload) => { if (requestId === detailRequestId) $("#inventoryDetailBody").html(renderInventoryDetail(payload)); })
+        .fail(() => { if (requestId === detailRequestId) $("#inventoryDetailBody").html('<div class="text-danger p-3">Không tải được chi tiết.</div>'); });
+    });
+  });
+</script>
+{% endblock %}

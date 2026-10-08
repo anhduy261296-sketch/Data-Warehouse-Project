@@ -38,3 +38,12 @@ a.page-link {
     color: #fff;
     background-color: #61c81c;
 }
+.table {
+    color: #333;
+}
+table.dataTable thead th {
+    background-color: #faf3f3;
+    color: #6b2a2a;
+    font-weight: 600;
+    border-bottom: 2px solid #e8cfcf;
+}

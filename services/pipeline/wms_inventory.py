@@ -51,17 +51,29 @@ def _fetch_inventory_once(token: str, whseid: str) -> tuple[list[dict], int | No
         raise RuntimeError(f"WMS inventory response khong co mang 'data': {str(payload)[:500]}")
     return (rows, payload.get('total'))
 
+_TOKEN_CACHE: dict[str, str] = {}
+_MAX_RELOGINS = 3
+_RELOGIN_DELAY_SEC = 5
+
 def _fetch_inventory(token: str, whseid: str) -> list[dict]:
     busy_retries = 0
     other_retries = 0
+    relogins = 0
     while True:
         try:
-            rows, total = _fetch_inventory_once(token, whseid)
+            rows, total = _fetch_inventory_once(_TOKEN_CACHE.get('token') or token, whseid)
             if total is not None and total != len(rows):
                 logger.warning('WMS inventory kho %s: total=%s nhung chi nhan %d dong - API khong ho tro chia cua so cho Inventory, du lieu co the thieu.', whseid, total, len(rows))
             return rows
         except requests.exceptions.RequestException as exc:
             is_http_error = isinstance(exc, requests.exceptions.HTTPError)
+            status = exc.response.status_code if is_http_error and exc.response is not None else None
+            if status == 401 and relogins < _MAX_RELOGINS:
+                relogins += 1
+                logger.warning('WMS inventory kho %s: token bi tu choi (401) - dang nhap lai (lan %d/%d).', whseid, relogins, _MAX_RELOGINS)
+                time.sleep(_RELOGIN_DELAY_SEC * relogins)
+                _TOKEN_CACHE['token'] = _login()
+                continue
             if is_http_error and _is_server_busy(exc):
                 busy_retries += 1
                 if busy_retries > _BUSY_MAX_RETRIES:
