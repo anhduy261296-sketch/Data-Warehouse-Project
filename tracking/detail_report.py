@@ -1,5 +1,6 @@
 from __future__ import annotations
 import datetime
+import time
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
@@ -154,52 +155,110 @@ def get_inventory_meta() -> dict[str, Any]:
         sap_at, wms_at, recon_at = cursor.fetchone()
         cursor.execute('SELECT DISTINCT WhsCode, WhsName FROM dbo.RECON_INVENTORY ORDER BY WhsCode')
         warehouses = [{'code': code, 'name': name} for code, name in cursor.fetchall()]
-    return {'sap_snapshot_at': _json_safe(sap_at), 'wms_snapshot_at': _json_safe(wms_at), 'recon_refreshed_at': _json_safe(recon_at), 'warehouses': warehouses, 'statuses': list(INVENTORY_STATUS_VALUES)}
+    return {'sap_snapshot_at': _json_safe(sap_at), 'wms_snapshot_at': _json_safe(wms_at), 'recon_refreshed_at': _json_safe(recon_at), 'warehouses': warehouses, 'statuses': list(INVENTORY_STATUS_VALUES), 'summary': get_inventory_summary()}
+
+_INVENTORY_DIFF_STATUSES = ('Lệch', 'Chỉ có SAP', 'Chỉ có WMS')
+
+def get_inventory_summary() -> dict[str, Any]:
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT ISNULL(SUM(SapQty), 0), ISNULL(SUM(WmsQty), 0) FROM dbo.RECON_INVENTORY WHERE StatusSync <> %s', [INVENTORY_CONFIG.default_hidden_status])
+        sap_total, wms_total = cursor.fetchone()
+    diff = abs(sap_total - wms_total)
+    ratio = diff / sap_total * 100 if sap_total else Decimal(0)
+    return {'sap_total': _json_safe(sap_total), 'wms_total': _json_safe(wms_total), 'diff_total': _json_safe(diff), 'diff_ratio_pct': _json_safe(ratio)}
+
+def get_inventory_diff_list() -> dict[str, Any]:
+    placeholders = ', '.join(('%s' for _ in _INVENTORY_DIFF_STATUSES))
+    with connection.cursor() as cursor:
+        cursor.execute(f'''
+            SELECT ItemCode, ItemName, WhsCode, StatusItem, SapQty, WmsQty, ISNULL(SapQty, 0) - ISNULL(WmsQty, 0) AS NetDiff
+            FROM dbo.RECON_INVENTORY
+            WHERE StatusSync IN ({placeholders})
+            ORDER BY ABS(ISNULL(SapQty, 0) - ISNULL(WmsQty, 0)) DESC, ItemCode, WhsCode, StatusItem
+            ''', list(_INVENTORY_DIFF_STATUSES))
+        rows = cursor.fetchall()
+    sap_more, wms_more = [], []
+    for item_code, item_name, whs_code, status_item, sap_qty, wms_qty, net in rows:
+        row = {'item_code': item_code, 'item_name': item_name, 'whs_code': whs_code, 'status_item': status_item, 'sap_qty': _json_safe(sap_qty), 'wms_qty': _json_safe(wms_qty), 'diff_qty': _json_safe(abs(net))}
+        (sap_more if net > 0 else wms_more).append(row)
+    return {'sap_more': sap_more, 'wms_more': wms_more}
 
 def _status_after_dash(col: str) -> str:
     return f"CASE WHEN {col} IS NULL THEN '' WHEN CHARINDEX('-', {col}) = 0 THEN {col} ELSE RIGHT({col}, CHARINDEX('-', REVERSE({col})) - 1) END"
 
-def get_inventory_detail(item_code: str, whs_code: str, status_item: str, max_rows: int=200) -> dict[str, Any]:
+_DOC_TYPE_CACHE: dict[str, Any] = {'at': 0.0, 'names': {}}
+_DOC_TYPE_CACHE_SEC = 600
+
+def _sap_doc_type_names(cursor: Any) -> dict[str, str]:
+    # Danh mục LoaiCT -> TenLoaiCT gần như không đổi; quét cả SAP_INOUT mỗi lần mở popup là thừa.
+    now = time.monotonic()
+    if not _DOC_TYPE_CACHE['names'] or now - _DOC_TYPE_CACHE['at'] > _DOC_TYPE_CACHE_SEC:
+        cursor.execute('SELECT LoaiCT, MAX(TenLoaiCT) FROM dbo.SAP_INOUT GROUP BY LoaiCT')
+        _DOC_TYPE_CACHE['names'] = dict(cursor.fetchall())
+        _DOC_TYPE_CACHE['at'] = now
+    return _DOC_TYPE_CACHE['names']
+
+INVENTORY_DETAIL_PAGE_SIZE = 200
+INVENTORY_DETAIL_MAX_ROWS = 20000
+
+def _fetch_page(cursor: Any, sql: str, params: list[Any]) -> tuple[list[dict], int]:
+    cursor.execute(sql, params)
+    cols = [d[0] for d in cursor.description]
+    rows = [dict(zip(cols, row)) for row in cursor.fetchall()]
+    total = rows[0].pop('total_rows') if rows else 0
+    for row in rows[1:]:
+        row.pop('total_rows', None)
+    return rows, total
+
+def get_inventory_detail(item_code: str, whs_code: str, status_item: str, *, side: str='', offset: int=0, page_size: int=INVENTORY_DETAIL_PAGE_SIZE) -> dict[str, Any]:
+    """Chứng từ SAP/WMS của 1 dòng đối chiếu, mới nhất trước, phân trang theo từng bên.
+
+    side='' lấy trang đầu của cả 2 bên; side='sap' / 'wms' lấy tiếp 1 bên từ offset (page_size dòng; "Xem tất cả" truyền INVENTORY_DETAIL_MAX_ROWS).
+    """
     wms_whse = 'WH' + whs_code[1:] if whs_code.startswith('W') else whs_code
     loc_based = whs_code in LOC_BASED_WAREHOUSES
     inbound_status_col = 't.toloc' if loc_based else 't.conditioncode'
     outbound_status_col = 't.fromloc' if loc_based else 't.conditioncode'
     in_status = _status_after_dash('t.IN_BinCode')
     out_status = _status_after_dash('t.OUT_BinCode')
+    result: dict[str, Any] = {}
     with connection.cursor() as cursor:
-        cursor.execute(f"""
-            SELECT TOP {max_rows} t.SoCT_NhapXuat AS doc_no, t.DocDate_NhapXuat AS doc_date, t.TenLoaiCT AS doc_type,
-                   CASE WHEN t.IN_WhsCode = %s AND {in_status} = %s THEN t.InStock ELSE -t.InStock END AS qty
-            FROM dbo.SAP_INOUT t
-            WHERE t.ItemCode = %s
-              AND ((t.IN_WhsCode = %s AND {in_status} = %s) OR (t.OUT_WhsCode = %s AND {out_status} = %s))
-            ORDER BY t.DocDate_NhapXuat DESC, t.SoCT_NhapXuat DESC
-            """, [whs_code, status_item, item_code, whs_code, status_item, whs_code, status_item])
-        sap_cols = [d[0] for d in cursor.description]
-        sap_rows = [dict(zip(sap_cols, row)) for row in cursor.fetchall()]
-        cursor.execute(f"""
-            SELECT TOP {max_rows} doc_no, doc_date, doc_type, qty FROM (
-                SELECT t.externreceiptkey AS doc_no, TRY_CONVERT(DATETIME2, ISNULL(t.datereceived, t.adddate)) AS doc_date, t.type AS doc_type,
-                       TRY_CONVERT(DECIMAL(21,6), t.qtyreceivedpcs) AS qty
-                FROM dbo.WMS_INBOUND t
-                WHERE t.sku = %s AND t._whseid = %s AND ISNULL({inbound_status_col}, '') = %s AND TRY_CONVERT(DECIMAL(21,6), t.qtyreceivedpcs) <> 0
-                UNION ALL
-                SELECT t.externorderkey, MAX(TRY_CONVERT(DATETIME2, ISNULL(t.actualshipdate, t.adddate))), MAX(t.type),
-                       -MAX(TRY_CONVERT(DECIMAL(21,6), t.shippedqtypcs))
-                FROM dbo.WMS_OUTBOUND t
-                WHERE t.sku = %s AND t._whseid = %s AND ISNULL({outbound_status_col}, '') = %s AND TRY_CONVERT(DECIMAL(21,6), t.shippedqtypcs) <> 0
-                GROUP BY t.externorderkey, t.orderkey, t.orderlinenumber
-            ) x
-            ORDER BY doc_date DESC, doc_no DESC
-            """, [item_code, wms_whse, status_item, item_code, wms_whse, status_item])
-        wms_cols = [d[0] for d in cursor.description]
-        wms_rows = [dict(zip(wms_cols, row)) for row in cursor.fetchall()]
-        cursor.execute('SELECT LoaiCT, MAX(TenLoaiCT) FROM dbo.SAP_INOUT GROUP BY LoaiCT')
-        type_names = dict(cursor.fetchall())
-    for row in wms_rows:
-        code = row.get('doc_type') or ''
-        row['doc_type'] = type_names.get(code) or type_names.get('GR' + code) or type_names.get('GI' + code) or code
-    for row in [*sap_rows, *wms_rows]:
-        for key, value in row.items():
-            row[key] = _json_safe(value)
-    return {'sap': sap_rows, 'wms': wms_rows}
+        if side in ('', 'sap'):
+            rows, total = _fetch_page(cursor, f"""
+                SELECT t.SoCT_NhapXuat AS doc_no, t.DocDate_NhapXuat AS doc_date, t.TenLoaiCT AS doc_type,
+                       CASE WHEN t.IN_WhsCode = %s AND {in_status} = %s THEN t.InStock ELSE -t.InStock END AS qty,
+                       COUNT(*) OVER () AS total_rows
+                FROM dbo.SAP_INOUT t
+                WHERE t.ItemCode = %s
+                  AND ((t.IN_WhsCode = %s AND {in_status} = %s) OR (t.OUT_WhsCode = %s AND {out_status} = %s))
+                ORDER BY t.DocDate_NhapXuat DESC, t.SoCT_NhapXuat DESC, t.DocType, t.DocEntry, t.DocLineNum
+                OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
+                """, [whs_code, status_item, item_code, whs_code, status_item, whs_code, status_item, offset, page_size])
+            result['sap'], result['sap_total'] = rows, total
+        if side in ('', 'wms'):
+            rows, total = _fetch_page(cursor, f"""
+                SELECT doc_no, doc_date, doc_type, qty, COUNT(*) OVER () AS total_rows FROM (
+                    SELECT t.externreceiptkey AS doc_no, TRY_CONVERT(DATETIME2, ISNULL(t.datereceived, t.adddate)) AS doc_date, t.type AS doc_type,
+                           TRY_CONVERT(DECIMAL(21,6), t.qtyreceivedpcs) AS qty, 'I' AS src, t._row_id AS row_key
+                    FROM dbo.WMS_INBOUND t
+                    WHERE t.sku = %s AND t._whseid = %s AND ISNULL({inbound_status_col}, '') = %s AND TRY_CONVERT(DECIMAL(21,6), t.qtyreceivedpcs) <> 0
+                    UNION ALL
+                    SELECT t.externorderkey, MAX(TRY_CONVERT(DATETIME2, ISNULL(t.actualshipdate, t.adddate))), MAX(t.type),
+                           -MAX(TRY_CONVERT(DECIMAL(21,6), t.shippedqtypcs)), 'O', MIN(t._row_id)
+                    FROM dbo.WMS_OUTBOUND t
+                    WHERE t.sku = %s AND t._whseid = %s AND ISNULL({outbound_status_col}, '') = %s AND TRY_CONVERT(DECIMAL(21,6), t.shippedqtypcs) <> 0
+                    GROUP BY t.externorderkey, t.orderkey, t.orderlinenumber
+                ) x
+                ORDER BY doc_date DESC, doc_no DESC, src, row_key
+                OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
+                """, [item_code, wms_whse, status_item, item_code, wms_whse, status_item, offset, page_size])
+            type_names = _sap_doc_type_names(cursor)
+            for row in rows:
+                code = row.get('doc_type') or ''
+                row['doc_type'] = type_names.get(code) or type_names.get('GR' + code) or type_names.get('GI' + code) or code
+            result['wms'], result['wms_total'] = rows, total
+    for key in ('sap', 'wms'):
+        for row in result.get(key, []):
+            for col, value in row.items():
+                row[col] = _json_safe(value)
+    return result

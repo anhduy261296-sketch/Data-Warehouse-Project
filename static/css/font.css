@@ -1,0 +1,6 @@
+/* Font chung toàn web (Google Fonts "Be Vietnam Pro" được nạp trong <head>). */
+body,
+.tooltip,
+.popover {
+    font-family: "Be Vietnam Pro", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", Arial, sans-serif;
+}

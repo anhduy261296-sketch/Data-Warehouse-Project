@@ -3,7 +3,7 @@ from openpyxl.utils import get_column_letter
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
-from .detail_report import DETAIL_CONFIGS, EMPLOYEE_REPORT_CONFIG_DMS, EMPLOYEE_REPORT_CONFIG_OMS, INVENTORY_CONFIG, RECON_CONFIGS, DetailReportConfig, export_detail_report_rows, get_distinct_so_status, get_inventory_detail, get_inventory_meta, run_detail_report
+from .detail_report import DETAIL_CONFIGS, INVENTORY_DETAIL_MAX_ROWS, INVENTORY_DETAIL_PAGE_SIZE, EMPLOYEE_REPORT_CONFIG_DMS, EMPLOYEE_REPORT_CONFIG_OMS, INVENTORY_CONFIG, RECON_CONFIGS, DetailReportConfig, export_detail_report_rows, get_distinct_so_status, get_inventory_detail, get_inventory_diff_list, get_inventory_meta, run_detail_report
 from .SystemsTracking import get_report
 
 def export_detail_report_excel(config: DetailReportConfig, params: dict, filename: str) -> HttpResponse:
@@ -89,7 +89,44 @@ def recon_inventory_detail(request):
     status_item = (request.GET.get('status_item') or '').strip()
     if not item_code or not whs_code:
         return JsonResponse({'error': 'Thieu item_code hoac whs_code'}, status=400)
-    return JsonResponse(get_inventory_detail(item_code, whs_code, status_item))
+    side = request.GET.get('side') or ''
+    if side not in ('', 'sap', 'wms'):
+        return JsonResponse({'error': 'side phai la sap hoac wms'}, status=400)
+    try:
+        offset = max(0, int(request.GET.get('offset') or 0))
+    except ValueError:
+        return JsonResponse({'error': 'offset khong hop le'}, status=400)
+    page_size = INVENTORY_DETAIL_MAX_ROWS if request.GET.get('all') == '1' else INVENTORY_DETAIL_PAGE_SIZE
+    return JsonResponse(get_inventory_detail(item_code, whs_code, status_item, side=side, offset=offset, page_size=page_size))
+
+def recon_inventory_diff_list(request):
+    return JsonResponse(get_inventory_diff_list())
+
+_DIFF_EXPORT_COLUMNS = (('item_code', 'Mã hàng', 14), ('item_name', 'Tên hàng', 50), ('whs_code', 'Kho', 10), ('status_item', 'Trạng thái', 14), ('sap_qty', 'SAP', 12), ('wms_qty', 'WMS', 12), ('diff_qty', 'Lệch', 12))
+
+def recon_inventory_diff_export(request):
+    data = get_inventory_diff_list()
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+    bold = openpyxl.styles.Font(bold=True)
+    for key, title in (('sap_more', 'SAP nhiều hơn WMS'), ('wms_more', 'WMS nhiều hơn SAP')):
+        ws = wb.create_sheet(title)
+        ws.append([header for _, header, _ in _DIFF_EXPORT_COLUMNS])
+        for cell in ws[1]:
+            cell.font = bold
+        rows = data[key]
+        for row in rows:
+            ws.append([row.get(field) for field, _, _ in _DIFF_EXPORT_COLUMNS])
+        ws.append(['Tổng', f'{len(rows)} dòng', None, None, None, None, sum((r['diff_qty'] or 0 for r in rows))])
+        for cell in ws[ws.max_row]:
+            cell.font = bold
+        for idx, (_, _, width) in enumerate(_DIFF_EXPORT_COLUMNS, start=1):
+            ws.column_dimensions[get_column_letter(idx)].width = width
+        ws.freeze_panes = 'A2'
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="ton_kho_lech_sap_wms.xlsx"'
+    wb.save(response)
+    return response
 
 def detail_ecom_page(request):
     return render(request, 'tracking/detail_ecom.html')
