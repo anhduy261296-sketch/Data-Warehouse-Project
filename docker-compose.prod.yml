@@ -16,7 +16,6 @@ services:
   airflow-scheduler:
     <<: *restart
 
-  # HTTPS phía trước Django: https://data.pgi.com.vn -> django:8000 (xem deploy/caddy/Caddyfile)
   caddy:
     <<: *restart
     image: caddy:2-alpine

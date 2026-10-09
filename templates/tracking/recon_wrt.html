@@ -44,8 +44,6 @@
       DETAIL_DATETIME_COLUMN("order_date", "Ngày đơn hàng"),
       RECON_REFRESHED_AT_COLUMN,
     ], CONFIG.RECON_WRT_EXPORT).then(function () {
-      // Rieng trang nay co them dropdown loc SO Status (theo yeu cau nguoi
-      // dung 2026-09-28) - xem static/js/reconciliation.js.
       addSoStatusFilter("reconWrtTable", CONFIG.RECON_WRT_SO_STATUS_OPTIONS);
     });
   });

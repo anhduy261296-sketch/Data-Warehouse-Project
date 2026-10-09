@@ -1,5 +1,3 @@
--- Index phủ cho popup chi tiết Tồn kho SAP-WMS: đọc thẳng từ index, không phải tra ngược bảng gốc (bảng rộng).
-
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_SAP_INOUT_ItemCode_Detail' AND object_id = OBJECT_ID('dbo.SAP_INOUT'))
     CREATE INDEX IX_SAP_INOUT_ItemCode_Detail ON dbo.SAP_INOUT (ItemCode)
         INCLUDE (IN_WhsCode, IN_BinCode, OUT_WhsCode, OUT_BinCode, InStock, SoCT_NhapXuat, DocDate_NhapXuat, TenLoaiCT, DocType, DocEntry, DocLineNum);

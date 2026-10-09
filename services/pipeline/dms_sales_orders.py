@@ -42,11 +42,6 @@ def _log_window(target_conn: Any, start_at: str, end_at: str, row_count: int, st
     cursor.execute(f'\n        INSERT INTO {TARGET_SCHEMA}.{LOG_TABLE} (start_at, end_at, row_count, status, loaded_at)\n        VALUES (%s, %s, %s, %s, SYSUTCDATETIME())\n        ', (start_at, end_at, row_count, status))
 
 def _sync_pending_table(target_conn: Any, columns: Sequence[str], rows: Sequence[Sequence[Any]]) -> None:
-    """Cap nhat DMS_SO_Pending tu cac dong vua fetch duoc (window moi hoac
-    window recheck deu goi ham nay). Don nao OrderStatus (moi nhat trong lo
-    dong vua fetch) thuoc TERMINAL_STATUSES (done/cancel/refused) thi xoa
-    khoi pending (khong can check lai nua); con lai (to_approve/sale/...)
-    thi upsert vao pending de lan sau recheck tiep."""
     if not rows:
         return
     try:
@@ -88,9 +83,6 @@ def _get_pending_days(target_conn: Any, before_date: str) -> list[str]:
     return result
 
 def _sync_window(source_conn: Any, target_conn: Any, start_at: str, end_at: str) -> tuple[list[str], list[tuple[Any, ...]]]:
-    """Xoa + fetch + insert lai TOAN BO 1 khoang (dung cho recheck pending -
-    khac voi sync_dms_sales_orders chinh van giu idempotent-skip cho window
-    moi, vi recheck can ghi de du lieu cu da loi thoi)."""
     columns, rows = _fetch_source_rows(source_conn, start_at, end_at)
     _delete_window(target_conn, start_at, end_at)
     _insert_rows(target_conn, columns, rows)
@@ -116,9 +108,6 @@ def sync_dms_sales_orders(source_conn: Any, target_conn: Any, *, start_at: str, 
     else:
         logger.info('Window %s -> %s da load roi, bo qua insert moi (idempotent) - van se recheck cac ngay con pending.', start_at, end_at)
 
-    # Recheck cac ngay CU (truoc window hien tai) con don chua terminal -
-    # xoa + pull lai NGUYEN NGAY do tu nguon song de cap nhat status moi
-    # nhat (to_approve/sale co the da thanh done/cancel/refused).
     window_start_date = start_at[:10]
     for day in _get_pending_days(target_conn, window_start_date):
         day_start = f'{day} 00:00:00'

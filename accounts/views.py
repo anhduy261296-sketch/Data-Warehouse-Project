@@ -15,7 +15,6 @@ def _client_ip(request):
     return request.META.get('REMOTE_ADDR')
 
 def _is_locked_out(username, ip_address):
-    """Chống dò mật khẩu: quá nhiều lần sai gần đây theo (tài khoản + IP) hoặc theo riêng IP."""
     since = timezone.now() - timedelta(minutes=settings.LOGIN_LOCKOUT_MINUTES)
     failed = LoginActivityLog.objects.filter(action=LoginActivityLog.ACTION_LOGIN_FAILED, created_at__gte=since, ip_address=ip_address)
     if failed.count() >= settings.LOGIN_LOCKOUT_IP_ATTEMPTS:
@@ -40,7 +39,6 @@ def login_view(request):
             login(request, user)
             LoginActivityLog.objects.create(user=user, username_attempted=username, action=LoginActivityLog.ACTION_LOGIN_SUCCESS, ip_address=ip_address, user_agent=user_agent)
             next_url = request.POST.get('next') or ''
-            # Chỉ cho quay về trang trong hệ thống (chặn link "next" trỏ ra website lạ).
             if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
                 next_url = 'recon-ecom'
             return redirect(next_url)

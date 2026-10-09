@@ -39,9 +39,6 @@ class Command(BaseCommand):
         for f in pending:
             sql = f.read_text(encoding="utf-8")
             self.stdout.write(f"Ap dung {f.name} ...")
-            # Boc trong 1 transaction: neu file loi giua chung, khong ghi
-            # nhan la "da ap dung" va dung lai ngay (khong chay tiep file
-            # sau) - deploy (CD) se thay lenh nay tra ve loi va dung pipeline.
             with transaction.atomic():
                 with connection.cursor() as cursor:
                     cursor.execute(sql)

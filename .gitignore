@@ -26,7 +26,6 @@ airflow/__pycache__/
 
 services/pipeline/data/
 
-# Chứng chỉ HTTPS (private key) - chỉ chép tay lên server, không commit
 deploy/caddy/certs/*
 !deploy/caddy/certs/.gitkeep
 

@@ -27,14 +27,11 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STORAGES = {'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'}, 'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage' if not DEBUG else 'django.contrib.staticfiles.storage.StaticFilesStorage'}}
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',') if origin.strip()]
 if os.getenv('HTTPS_ENABLED', 'False').lower() in {'1', 'true', 'yes'}:
-    # Chạy sau reverse proxy HTTPS (Caddy, deploy/caddy/Caddyfile).
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    # HSTS: bắt trình duyệt luôn dùng HTTPS. Bắt đầu nhỏ (1 giờ), chạy ổn rồi tăng lên 31536000 (1 năm).
     SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '3600'))
 SESSION_COOKIE_AGE = int(os.getenv('SESSION_COOKIE_AGE', str(60 * 60 * 24 * 14)))
-# Chống dò mật khẩu (accounts/views.py): khóa tạm sau N lần sai trong LOGIN_LOCKOUT_MINUTES phút.
 LOGIN_LOCKOUT_ATTEMPTS = int(os.getenv('LOGIN_LOCKOUT_ATTEMPTS', '5'))
 LOGIN_LOCKOUT_IP_ATTEMPTS = int(os.getenv('LOGIN_LOCKOUT_IP_ATTEMPTS', '20'))
 LOGIN_LOCKOUT_MINUTES = int(os.getenv('LOGIN_LOCKOUT_MINUTES', '15'))

@@ -1,14 +1,9 @@
-
-
 IF EXISTS (
     SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
     WHERE TABLE_NAME = 'OMS_ORDERS' AND COLUMN_NAME = 'employee_code'
       AND DATA_TYPE = 'nvarchar' AND CHARACTER_MAXIMUM_LENGTH = -1
 )
 BEGIN
-    -- Doi tu NVARCHAR(MAX) sang NVARCHAR(50) - NVARCHAR(MAX) khong the lam
-    -- key column cua index. Da xac nhan do dai thuc te toi da 6 ky tu, an
-    -- toan khong mat du lieu.
     ALTER TABLE dbo.OMS_ORDERS ALTER COLUMN employee_code NVARCHAR(50);
 END
 

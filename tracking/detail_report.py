@@ -190,7 +190,6 @@ _DOC_TYPE_CACHE: dict[str, Any] = {'at': 0.0, 'names': {}}
 _DOC_TYPE_CACHE_SEC = 600
 
 def _sap_doc_type_names(cursor: Any) -> dict[str, str]:
-    # Danh mục LoaiCT -> TenLoaiCT gần như không đổi; quét cả SAP_INOUT mỗi lần mở popup là thừa.
     now = time.monotonic()
     if not _DOC_TYPE_CACHE['names'] or now - _DOC_TYPE_CACHE['at'] > _DOC_TYPE_CACHE_SEC:
         cursor.execute('SELECT LoaiCT, MAX(TenLoaiCT) FROM dbo.SAP_INOUT GROUP BY LoaiCT')
@@ -211,10 +210,6 @@ def _fetch_page(cursor: Any, sql: str, params: list[Any]) -> tuple[list[dict], i
     return rows, total
 
 def get_inventory_detail(item_code: str, whs_code: str, status_item: str, *, side: str='', offset: int=0, page_size: int=INVENTORY_DETAIL_PAGE_SIZE) -> dict[str, Any]:
-    """Chứng từ SAP/WMS của 1 dòng đối chiếu, mới nhất trước, phân trang theo từng bên.
-
-    side='' lấy trang đầu của cả 2 bên; side='sap' / 'wms' lấy tiếp 1 bên từ offset (page_size dòng; "Xem tất cả" truyền INVENTORY_DETAIL_MAX_ROWS).
-    """
     wms_whse = 'WH' + whs_code[1:] if whs_code.startswith('W') else whs_code
     loc_based = whs_code in LOC_BASED_WAREHOUSES
     inbound_status_col = 't.toloc' if loc_based else 't.conditioncode'

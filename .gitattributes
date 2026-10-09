@@ -1,3 +1,2 @@
-# Script chạy trong container Linux: luôn giữ xuống dòng LF (Windows autocrlf làm hỏng shebang)
 *.sh text eol=lf
 Caddyfile text eol=lf

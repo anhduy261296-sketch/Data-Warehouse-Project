@@ -16,9 +16,7 @@
   .inv-detail-sap .table-responsive, .inv-detail-wms .table-responsive { background: #fff; }
   .inv-wide-modal .modal-dialog { max-width: min(96vw, 1680px); }
   .inv-detail-sap .nw, .inv-detail-wms .nw { white-space: nowrap; }
-  /* Ô bảng (td) không tôn trọng max-width khi bảng tự co giãn -> giới hạn bằng thẻ bên trong. */
   .inv-name-text { display: block; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* Bảng trong 2 popup (chi tiết từng dòng + danh sách lệch tổng tồn): chữ nhỏ hơn để xem được nhiều cột/dòng. */
   .inv-wide-modal .inv-detail-sap table, .inv-wide-modal .inv-detail-wms table { font-size: 0.75rem; }
   .inv-detail-more { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 0.82rem; }
 </style>
@@ -418,7 +416,7 @@
     $("#invDiffCard").on("click", function (e) {
       e.preventDefault();
       $("#inventoryDiffModal").modal("show");
-      if (diffListRequest) return; // danh sách theo snapshot, chỉ tải 1 lần mỗi lần mở trang
+      if (diffListRequest) return;
       $("#inventoryDiffBody").html('<div class="text-muted p-3 text-center">Đang tải danh sách lệch...</div>');
       diffListRequest = $.getJSON(`${CONFIG.API_BASE}${CONFIG.RECON_INVENTORY_DIFF_LIST}`)
         .done((payload) => {

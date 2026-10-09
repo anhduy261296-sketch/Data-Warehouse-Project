@@ -2,7 +2,6 @@ span.badge {
     font-size: 14px;
 }
 
-/* Vùng thống kê + chart: màu SAP/WMS theo popup chi tiết (font chung lấy từ font.css) */
 .inv-stat-card {
     background: #fff;
     border: 1px solid #eceef2;
