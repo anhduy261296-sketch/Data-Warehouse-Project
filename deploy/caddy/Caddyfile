@@ -1,0 +1,35 @@
+# Reverse proxy HTTPS cho web Django (chỉ chạy ở chế độ prod: docker-compose.prod.yml).
+#
+#   https://data.pgi.com.vn  ->  django:8000
+#   http://...  (mọi host)   ->  chuyển sang https://data.pgi.com.vn
+#
+# Biến môi trường (đặt trong .env, docker compose truyền vào container caddy):
+#   SITE_DOMAIN     tên miền, mặc định data.pgi.com.vn
+#   CADDY_TLS_ARGS  mặc định dùng chứng chỉ IT cấp (wildcard *.pgi.com.vn) đặt trong deploy/caddy/certs/:
+#                     /certs/fullchain.crt /certs/privkey.key
+#                   Đặt CADDY_TLS_ARGS=internal để chạy thử khi chưa có chứng chỉ (trình duyệt sẽ cảnh báo).
+
+https://{$SITE_DOMAIN:data.pgi.com.vn} {
+	tls {$CADDY_TLS_ARGS:/certs/fullchain.crt /certs/privkey.key}
+
+	encode gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy same-origin
+		-Server
+	}
+
+	# Trang quản trị Django chỉ mở trong mạng nội bộ; từ internet trả 404.
+	@admin_from_internet {
+		path /admin /admin/*
+		not remote_ip private_ranges
+	}
+	respond @admin_from_internet 404
+
+	reverse_proxy django:8000
+}
+
+http:// {
+	redir https://{$SITE_DOMAIN:data.pgi.com.vn}{uri} permanent
+}
