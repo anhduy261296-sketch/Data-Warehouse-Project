@@ -231,6 +231,47 @@ def _group_docs(rows: list[tuple]) -> dict[str, dict[str, Any]]:
             doc['doc_date'] = doc_date
     return {key: doc for key, doc in grouped.items() if doc['qty'] != 0}
 
+STATUS_CHANGE_LABEL = 'Chuyển trạng thái'
+STATUS_CHANGE_MATCH_DAYS = 3
+
+def _wms_status_change_rows(cursor: Any, item_code: str, whs_code: str, wms_whse: str, status_item: str) -> list[tuple]:
+    cursor.execute(f"""
+        SELECT TOP {INVENTORY_DETAIL_MAX_ROWS} t.status, t.tostatus, t.trantype, t.sourcekey, t.tolpnid, DATEADD(hour, 7, t.adddate),
+               CASE WHEN t.tostatus = %s THEN t.qty ELSE -t.qty END,
+               (SELECT TOP 1 i.externreceiptkey FROM dbo.WMS_INBOUND i WHERE i._whseid = t._whseid AND i.lpnid = t.tolpnid)
+        FROM dbo.WMS_TRANSACTION t
+        WHERE t.sku = %s AND t._whseid = %s AND ISNULL(t.tostatus, '') <> '' AND t.status <> t.tostatus AND (t.status = %s OR t.tostatus = %s)
+        ORDER BY t.adddate DESC
+        """, [status_item, item_code, wms_whse, status_item, status_item])
+    rows = []
+    for from_status, to_status, trantype, sourcekey, lpnid, doc_date, qty, receipt in cursor.fetchall():
+        doc_no = f'{whs_code}_{receipt}' if receipt else (sourcekey or lpnid)
+        rows.append((doc_no, doc_date, f'{STATUS_CHANGE_LABEL} · {from_status} → {to_status} ({trantype})', qty))
+    return rows
+
+def _pair_status_changes(sap_docs: dict[str, dict], wms_docs: dict[str, dict]) -> list[tuple[str, str]]:
+    def is_change(doc: dict) -> bool:
+        return (doc.get('doc_type') or '').startswith(STATUS_CHANGE_LABEL)
+    sap_left = sorted((k for k, d in sap_docs.items() if k not in wms_docs and is_change(d)), key=lambda k: sap_docs[k]['doc_date'] or datetime.datetime.min)
+    wms_left = [k for k, d in wms_docs.items() if k not in sap_docs and is_change(d)]
+    pairs = []
+    for sap_key in sap_left:
+        sap = sap_docs[sap_key]
+        if sap['doc_date'] is None:
+            continue
+        best, best_gap = None, None
+        for wms_key in wms_left:
+            wms = wms_docs[wms_key]
+            if wms['qty'] != sap['qty'] or wms['doc_date'] is None:
+                continue
+            gap = abs((wms['doc_date'].date() - sap['doc_date'].date()).days)
+            if gap <= STATUS_CHANGE_MATCH_DAYS and (best_gap is None or gap < best_gap):
+                best, best_gap = wms_key, gap
+        if best is not None:
+            pairs.append((sap_key, best))
+            wms_left.remove(best)
+    return pairs
+
 def _sort_by_date(docs: list[dict[str, Any]], key: str='doc_date') -> list[dict[str, Any]]:
     return sorted(docs, key=lambda d: (d[key] is not None, d[key] or datetime.datetime.min, d['doc_no'] or ''), reverse=True)
 
@@ -271,15 +312,19 @@ def get_inventory_detail(item_code: str, whs_code: str, status_item: str) -> dic
             """, [item_code, wms_whse, *wms_status_params, item_code, wms_whse, *wms_status_params])
         wms_rows = cursor.fetchall()
         names, sales = _sap_doc_types(cursor)
+        change_rows = [] if status_free else _wms_status_change_rows(cursor, item_code, whs_code, wms_whse, status_item)
     sap_rows = [(doc_no, doc_date, _sap_doc_label(doc_type, type_name, in_whs, out_whs), qty) for doc_no, doc_date, doc_type, type_name, in_whs, out_whs, qty in sap_rows]
-    wms_rows = [(doc_no, doc_date, _wms_doc_label(src, code, names, sales), qty) for doc_no, doc_date, src, code, qty in wms_rows]
+    wms_rows = [(doc_no, doc_date, _wms_doc_label(src, code, names, sales), qty) for doc_no, doc_date, src, code, qty in wms_rows] + change_rows
     sap_docs, wms_docs = _group_docs(sap_rows), _group_docs(wms_rows)
+    matches = [(key, key) for key in sap_docs.keys() & wms_docs.keys()] + _pair_status_changes(sap_docs, wms_docs)
     both = []
-    for key in sap_docs.keys() & wms_docs.keys():
-        sap, wms = sap_docs[key], wms_docs[key]
-        both.append({'doc_no': key, 'sap_date': sap['doc_date'], 'wms_date': wms['doc_date'], 'doc_date': sap['doc_date'] or wms['doc_date'], 'doc_type': sap['doc_type'] or wms['doc_type'], 'sap_qty': sap['qty'], 'wms_qty': wms['qty'], 'diff_qty': abs(sap['qty'] - wms['qty'])})
-    sap_only = [doc for key, doc in sap_docs.items() if key not in wms_docs]
-    wms_only = [doc for key, doc in wms_docs.items() if key not in sap_docs]
+    for sap_key, wms_key in matches:
+        sap, wms = sap_docs[sap_key], wms_docs[wms_key]
+        both.append({'doc_no': sap_key, 'wms_doc_no': wms['doc_no'] if wms_key != sap_key else None, 'sap_date': sap['doc_date'], 'wms_date': wms['doc_date'], 'doc_date': sap['doc_date'] or wms['doc_date'], 'doc_type': sap['doc_type'] or wms['doc_type'], 'wms_doc_type': wms['doc_type'], 'sap_qty': sap['qty'], 'wms_qty': wms['qty'], 'diff_qty': abs(sap['qty'] - wms['qty'])})
+    matched_sap = {k for k, _ in matches}
+    matched_wms = {k for _, k in matches}
+    sap_only = [doc for key, doc in sap_docs.items() if key not in matched_sap]
+    wms_only = [doc for key, doc in wms_docs.items() if key not in matched_wms]
     result = {'both': _sort_by_date(both), 'sap_only': _sort_by_date(sap_only), 'wms_only': _sort_by_date(wms_only), 'truncated': len(sap_rows) >= INVENTORY_DETAIL_MAX_ROWS or len(wms_rows) >= INVENTORY_DETAIL_MAX_ROWS}
     for key in ('both', 'sap_only', 'wms_only'):
         result[key] = [{col: _json_safe(value) for col, value in doc.items()} for doc in result[key]]

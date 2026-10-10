@@ -221,8 +221,9 @@
     const num = (v, bold) => `<td class="text-right nw${bold ? " font-weight-bold" : ""}">${formatAmount(v)}</td>`;
     const docHeaders = [{ text: "Số chứng từ", cls: "nw" }, { text: "Ngày chứng từ", cls: "nw" }, { text: "Loại" }, { text: "SL (+/-)", cls: "nw" }];
     const bothRows = both.map((r) =>
-      `<tr${r.diff_qty ? ' class="inv-row-diff"' : ""}><td class="nw">${escapeHtml(r.doc_no)}</td><td class="nw">${bothDate(r)}</td>` +
-      `<td>${escapeHtml(r.doc_type)}</td>${num(r.sap_qty)}${num(r.wms_qty)}${num(r.diff_qty, true)}</tr>`).join("");
+      `<tr${r.diff_qty ? ' class="inv-row-diff"' : ""}><td class="nw">${escapeHtml(r.doc_no)}${r.wms_doc_no ? `<div class="text-muted small">WMS: ${escapeHtml(r.wms_doc_no)}</div>` : ""}</td>` +
+      `<td class="nw">${bothDate(r)}</td>` +
+      `<td>${escapeHtml(r.doc_type)}${r.wms_doc_type && r.wms_doc_type !== r.doc_type ? `<div class="text-muted small">WMS: ${escapeHtml(r.wms_doc_type)}</div>` : ""}</td>${num(r.sap_qty)}${num(r.wms_qty)}${num(r.diff_qty, true)}</tr>`).join("");
     const sapRows = sapOnly.map((r) =>
       `<tr><td class="nw">${escapeHtml(r.doc_no)}</td><td class="nw">${sapDate(r.doc_date)}</td><td>${escapeHtml(r.doc_type)}</td>${num(r.qty, true)}</tr>`).join("");
     const wmsRows = wmsOnly.map((r) =>

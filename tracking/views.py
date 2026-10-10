@@ -94,7 +94,7 @@ def recon_inventory_detail(request):
     return JsonResponse(get_inventory_detail(item_code, whs_code, status_item))
 
 _DETAIL_EXPORT_SHEETS = (
-    ('both', 'Hai bên có', (('doc_no', 'Số chứng từ', 24), ('sap_date', 'Ngày', 12), ('wms_date', 'Ngày WMS', 12), ('doc_type', 'Loại', 30), ('sap_qty', 'SAP', 10), ('wms_qty', 'WMS', 10), ('diff_qty', 'Lệch', 10))),
+    ('both', 'Hai bên có', (('doc_no', 'Số chứng từ', 24), ('wms_doc_no', 'Số chứng từ WMS', 24), ('sap_date', 'Ngày', 12), ('wms_date', 'Ngày WMS', 12), ('doc_type', 'Loại', 30), ('wms_doc_type', 'Loại WMS', 30), ('sap_qty', 'SAP', 10), ('wms_qty', 'WMS', 10), ('diff_qty', 'Lệch', 10))),
     ('sap_only', 'SAP có WMS không', (('doc_no', 'Số chứng từ', 24), ('doc_date', 'Ngày chứng từ', 14), ('doc_type', 'Loại', 30), ('qty', 'SL (+/-)', 10))),
     ('wms_only', 'WMS có SAP không', (('doc_no', 'Số chứng từ', 24), ('doc_date', 'Ngày chứng từ', 14), ('doc_type', 'Loại', 30), ('qty', 'SL (+/-)', 10))),
 )
