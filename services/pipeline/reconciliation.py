@@ -58,15 +58,17 @@ def _log_refresh(target_conn: Any, table_name: str, row_count: int, status: str)
     cursor.execute(f'\n        INSERT INTO {TARGET_SCHEMA}.{LOG_TABLE} (table_name, row_count, status, refreshed_at)\n        VALUES (%s, %s, %s, SYSUTCDATETIME())\n        ', (table_name, row_count, status))
 
 INVENTORY_TABLE = 'RECON_INVENTORY'
-NON_WMS_WAREHOUSES = ('W101', 'W114', 'W999')
-LOC_BASED_WAREHOUSES = ('W998',)
-_WMS_STATUS_ITEM_EXPR = f"CASE WHEN 'W' + SUBSTRING(_whseid, 3, 10) IN ({', '.join((f"'{w}'" for w in LOC_BASED_WAREHOUSES))}) THEN ISNULL(loc, '') ELSE ISNULL(status, '') END"
+NON_WMS_WAREHOUSES = ('W101', 'W999')
+STATUS_FREE_WAREHOUSES = ('W114', 'W998')
+_STATUS_FREE_SQL = ', '.join((f"'{w}'" for w in STATUS_FREE_WAREHOUSES))
+_SAP_STATUS_ITEM_EXPR = f"CASE WHEN WhsCode IN ({_STATUS_FREE_SQL}) THEN '' ELSE StatusItem END"
+_WMS_STATUS_ITEM_EXPR = f"CASE WHEN 'W' + SUBSTRING(_whseid, 3, 10) IN ({_STATUS_FREE_SQL}) THEN '' ELSE ISNULL(status, '') END"
 _INVENTORY_SQL = f"""
 WITH S AS (
-    SELECT ItemCode, WhsCode, StatusItem, MAX(ItemName) AS ItemName, MAX(WhsName) AS WhsName,
+    SELECT ItemCode, WhsCode, {_SAP_STATUS_ITEM_EXPR} AS StatusItem, MAX(ItemName) AS ItemName, MAX(WhsName) AS WhsName,
            SUM(OnHand) AS Qty, MAX(InvntryUom) AS Uom
     FROM dbo.SAP_INVENTORY
-    GROUP BY ItemCode, WhsCode, StatusItem
+    GROUP BY ItemCode, WhsCode, {_SAP_STATUS_ITEM_EXPR}
 ),
 W AS (
     SELECT sku AS ItemCode, 'W' + SUBSTRING(_whseid, 3, 10) AS WhsCode, {_WMS_STATUS_ITEM_EXPR} AS StatusItem,

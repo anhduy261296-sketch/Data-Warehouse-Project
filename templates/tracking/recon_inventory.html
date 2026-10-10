@@ -4,21 +4,29 @@
 {% block early_loading %}<script>Loading.show("Đang tải dữ liệu...");</script>{% endblock %}
 {% block content %}
 <style>
-  .inv-detail-sap, .inv-detail-wms { border-radius: 4px; padding: 8px 10px; height: 100%; }
+  .inv-detail-both, .inv-detail-sap, .inv-detail-wms { border-radius: 4px; padding: 8px 10px; height: 100%; }
+  .inv-detail-both { background: #fff8e6; border: 1px solid #efd9a2; }
   .inv-detail-sap { background: #eef8f0; border: 1px solid #b7dfc1; }
   .inv-detail-wms { background: #edf4fc; border: 1px solid #b6d3f2; }
+  .inv-detail-both .inv-detail-title { color: #9a6700; }
   .inv-detail-sap .inv-detail-title { color: #1e7e34; }
   .inv-detail-wms .inv-detail-title { color: #1565c0; }
+  .inv-detail-both thead th { background: #fbe8b8; color: #7a5200; }
   .inv-detail-sap thead th { background: #d4edda; color: #155724; }
   .inv-detail-wms thead th { background: #d6e9f8; color: #0d47a1; }
-  .inv-detail-sap table, .inv-detail-wms table { background: #fff; font-size: 0.85rem; }
-  .inv-detail-sap .table thead th, .inv-detail-wms .table thead th { padding-right: 0.5rem !important; }
-  .inv-detail-sap .table-responsive, .inv-detail-wms .table-responsive { background: #fff; }
-  .inv-wide-modal .modal-dialog { max-width: min(96vw, 1680px); }
-  .inv-detail-sap .nw, .inv-detail-wms .nw { white-space: nowrap; }
+  .inv-detail-block table, .inv-detail-block .table-responsive { background: #fff; }
+  .inv-detail-block table { font-size: 0.75rem; }
+  .inv-detail-block .table thead th { padding-right: 0.5rem !important; }
+  .inv-detail-block .nw { white-space: nowrap; }
+  .inv-detail-block .table-responsive { max-height: 45vh; overflow-y: auto; }
+  .inv-detail-block thead th { position: sticky; top: 0; z-index: 2; box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.12); }
+  .inv-wide-modal .modal-header > div:first-child { flex: 1 1 auto; min-width: 0; }
+  .inv-modal-tools { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; margin-left: 16px; margin-right: 12px; align-self: center; }
+  .inv-modal-tools .detail-export-btn { white-space: nowrap; }
+  .inv-modal-search { width: 240px; }
+  .inv-detail-block tr.inv-row-diff td { background: #fff3cd; }
   .inv-name-text { display: block; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .inv-wide-modal .inv-detail-sap table, .inv-wide-modal .inv-detail-wms table { font-size: 0.75rem; }
-  .inv-detail-more { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; font-size: 0.82rem; }
+  .inv-wide-modal .modal-dialog { max-width: min(86vw, 1512px); }
 </style>
 
 <div class="card shadow mb-4 inv-summary">
@@ -108,7 +116,11 @@
           <h6 class="modal-title font-weight-bold text-primary" id="inventoryDetailTitle"></h6>
           <div class="small text-muted" id="inventoryDetailSummary"></div>
         </div>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+        <div class="inv-modal-tools">
+          <input type="search" class="form-control form-control-sm inv-modal-search" placeholder="Tìm trong các bảng..." aria-label="Tìm trong các bảng" />
+          <a href="#" id="inventoryDetailExport" class="btn btn-sm bg-white border shadow-sm d-inline-flex align-items-center detail-export-btn" title="Xuất Excel 3 bảng chứng từ"></a>
+        </div>
+        <button type="button" class="close ml-0" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
       </div>
       <div class="modal-body" id="inventoryDetailBody"></div>
     </div>
@@ -123,7 +135,10 @@
           <h6 class="modal-title font-weight-bold text-primary" id="inventoryDiffTitle">Danh sách lệch tồn kho - tất cả kho</h6>
           <div class="small text-muted" id="inventoryDiffSummary"></div>
         </div>
-        <a href="#" id="inventoryDiffExport" class="btn btn-sm bg-white border shadow-sm d-inline-flex align-items-center align-self-center ml-auto mr-3 detail-export-btn" title="Xuất Excel danh sách lệch của 2 hệ thống"></a>
+        <div class="inv-modal-tools">
+          <input type="search" class="form-control form-control-sm inv-modal-search" placeholder="Tìm trong các bảng..." aria-label="Tìm trong các bảng" />
+          <a href="#" id="inventoryDiffExport" class="btn btn-sm bg-white border shadow-sm d-inline-flex align-items-center detail-export-btn" title="Xuất Excel danh sách lệch của 2 hệ thống"></a>
+        </div>
         <button type="button" class="close ml-0" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
       </div>
       <div class="modal-body" id="inventoryDiffBody"></div>
@@ -158,45 +173,72 @@
     };
   }
 
-  function inventoryDetailRow(side, r) {
-    const date = side === "sap" ? formatDateTime(r.doc_date).slice(0, 10) : formatDateTime(r.doc_date);
-    return `<tr><td class="nw">${escapeHtml(r.doc_no)}</td><td class="nw">${date}</td>` +
-      `<td>${escapeHtml(r.doc_type)}</td><td class="text-right nw">${formatAmount(r.qty)}</td></tr>`;
-  }
-
-  function renderInventoryDetail() {
-    const block = (side, cls, title) => `
-        <div class="col-lg-6 mb-2">
-          <div class="${cls}">
+  function inventoryBlock(cls, title, headers, rowsHtml, colClass) {
+    return `
+        <div class="${colClass} mb-3">
+          <div class="inv-detail-block ${cls}">
             <div class="inv-detail-title font-weight-bold mb-1">${title}</div>
             <div class="table-responsive"><table class="table table-sm table-bordered mb-0">
-              <thead><tr><th class="nw">Số chứng từ</th><th class="nw">Ngày chứng từ</th><th>Loại</th><th class="nw" title="+ nhập / - xuất">Số lượng (+/-)</th></tr></thead>
-              <tbody id="invDetail-${side}-body"></tbody>
+              <thead><tr>${headers.map((h) => `<th class="${h.cls || ""}">${h.text}</th>`).join("")}</tr></thead>
+              <tbody>${rowsHtml || `<tr><td colspan="${headers.length}" class="text-center text-muted">Không có dữ liệu</td></tr>`}</tbody>
             </table></div>
-            <div class="inv-detail-more" id="invDetail-${side}-more"></div>
           </div>
         </div>`;
-    return `<div class="row">${block("sap", "inv-detail-sap", "SAP - phiếu nhập/xuất")}${block("wms", "inv-detail-wms", "WMS - phiếu nhập/xuất")}</div>`;
   }
 
-  function appendInventoryDetail(state, side, rows, total) {
-    state.loaded[side] += rows.length;
-    state.total[side] = total;
-    const $body = $(`#invDetail-${side}-body`);
-    if (!state.loaded[side]) {
-      $body.html('<tr><td colspan="4" class="text-center text-muted">Không có dữ liệu</td></tr>');
-    } else {
-      $body.append(rows.map((r) => inventoryDetailRow(side, r)).join(""));
-    }
-    const more = state.loaded[side] < total
-      ? `<button type="button" class="btn btn-sm btn-outline-secondary inv-detail-more-btn" data-side="${side}">Xem tất cả</button>`
-      : "";
-    $(`#invDetail-${side}-more`).html(
-      total ? `<span class="text-muted">Hiển thị ${VN_NUMBER_FMT(state.loaded[side])} / ${VN_NUMBER_FMT(total)} chứng từ</span>${more}` : "");
+  function blockTitle(label, rows, field, totalLabel) {
+    const total = rows.reduce((s, r) => s + (r[field] || 0), 0);
+    return `${label} · ${totalLabel || "tổng"} ${VN_NUMBER.format(total)}`;
+  }
+
+  function bothTitle(label, rows) {
+    const sap = rows.reduce((s, r) => s + (r.sap_qty || 0), 0);
+    const wms = rows.reduce((s, r) => s + (r.wms_qty || 0), 0);
+    return `${label} · tổng SAP ${VN_NUMBER.format(sap)} · tổng WMS ${VN_NUMBER.format(wms)}`;
+  }
+
+  function diffFormula(payload) {
+    const sum = (rows, f) => (rows || []).reduce((s, r) => s + (r[f] || 0), 0);
+    const bothSap = sum(payload.both, "sap_qty");
+    const bothWms = sum(payload.both, "wms_qty");
+    const sapOnly = sum(payload.sap_only, "sap_qty");
+    const wmsOnly = sum(payload.wms_only, "wms_qty");
+    const f = (v) => VN_NUMBER.format(v);
+    return `Số lượng chênh lệch tổng tồn = ` +
+      `= | (${f(bothSap)} − ${f(bothWms)}) + ${f(sapOnly)} − ${f(wmsOnly)} | = ${f(Math.abs(bothSap - bothWms + sapOnly - wmsOnly))}`;
+  }
+
+  function renderInventoryDetail(payload) {
+    const both = payload.both || [];
+    const sapOnly = payload.sap_only || [];
+    const wmsOnly = payload.wms_only || [];
+    const sapDate = (v) => (v ? formatDateTime(v).slice(0, 10) : "—");
+    const bothDate = (r) => {
+      const sap = sapDate(r.sap_date);
+      const wms = sapDate(r.wms_date);
+      return sap === wms || wms === "—" ? sap : `${sap}<div class="text-muted small">WMS: ${wms}</div>`;
+    };
+    const num = (v, bold) => `<td class="text-right nw${bold ? " font-weight-bold" : ""}">${formatAmount(v)}</td>`;
+    const docHeaders = [{ text: "Số chứng từ", cls: "nw" }, { text: "Ngày chứng từ", cls: "nw" }, { text: "Loại" }, { text: "SL (+/-)", cls: "nw" }];
+    const bothRows = both.map((r) =>
+      `<tr${r.diff_qty ? ' class="inv-row-diff"' : ""}><td class="nw">${escapeHtml(r.doc_no)}</td><td class="nw">${bothDate(r)}</td>` +
+      `<td>${escapeHtml(r.doc_type)}</td>${num(r.sap_qty)}${num(r.wms_qty)}${num(r.diff_qty, true)}</tr>`).join("");
+    const sapRows = sapOnly.map((r) =>
+      `<tr><td class="nw">${escapeHtml(r.doc_no)}</td><td class="nw">${sapDate(r.doc_date)}</td><td>${escapeHtml(r.doc_type)}</td>${num(r.qty, true)}</tr>`).join("");
+    const wmsRows = wmsOnly.map((r) =>
+      `<tr><td class="nw">${escapeHtml(r.doc_no)}</td><td class="nw">${sapDate(r.doc_date)}</td><td>${escapeHtml(r.doc_type)}</td>${num(r.qty, true)}</tr>`).join("");
+    const note = payload.truncated ? '<div class="small text-danger mb-2">Mã hàng có quá nhiều chứng từ, chỉ hiển thị một phần.</div>' : "";
+    return note + '<div class="row">' +
+      inventoryBlock("inv-detail-both", bothTitle("Chứng từ có ở 2 bên", both),
+        [{ text: "Số chứng từ", cls: "nw" }, { text: "Ngày", cls: "nw" }, { text: "Loại" },
+         { text: "SAP", cls: "nw" }, { text: "WMS", cls: "nw" }, { text: "Lệch", cls: "nw" }],
+        bothRows, "col-12") +
+      inventoryBlock("inv-detail-sap", blockTitle("SAP có, WMS không có", sapOnly, "qty"), docHeaders, sapRows, "col-lg-6") +
+      inventoryBlock("inv-detail-wms", blockTitle("WMS có, SAP không có", wmsOnly, "qty"), docHeaders, wmsRows, "col-lg-6") +
+      "</div>";
   }
 
   const VN_NUMBER = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
-  const VN_NUMBER_FMT = (v) => VN_NUMBER.format(v || 0);
   const VN_PERCENT = new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
   const INV_CHART_FONT = '"Be Vietnam Pro", "Segoe UI", sans-serif';
@@ -307,27 +349,23 @@
   }
 
   function renderInventoryDiffList(payload) {
-    const block = (rows, cls, title) => {
-      const total = rows.reduce((s, r) => s + (r.diff_qty || 0), 0);
-      const body = rows.map((r) =>
-        `<tr><td class="nw">${escapeHtml(r.item_code)}</td><td><span class="inv-name-text" title="${escapeHtml(r.item_name)}">${escapeHtml(r.item_name)}</span></td>` +
-        `<td class="nw">${escapeHtml(r.whs_code)}</td><td class="nw">${r.status_item ? escapeHtml(r.status_item) : "—"}</td>` +
-        `<td class="text-right nw">${formatAmount(r.sap_qty)}</td><td class="text-right nw">${formatAmount(r.wms_qty)}</td>` +
-        `<td class="text-right nw font-weight-bold">${formatAmount(r.diff_qty)}</td></tr>`).join("");
-      return `
-        <div class="col-lg-6 mb-2">
-          <div class="${cls}">
-            <div class="inv-detail-title font-weight-bold mb-1">${title} · ${rows.length} dòng · tổng ${VN_NUMBER.format(total)}</div>
-            <div class="table-responsive">
-              <table class="table table-sm table-bordered mb-0">
-                <thead><tr><th class="nw">Mã hàng</th><th>Tên hàng</th><th>Kho</th><th class="nw">Trạng thái</th><th>SAP</th><th>WMS</th><th>Lệch</th></tr></thead>
-                <tbody>${body || '<tr><td colspan="7" class="text-center text-muted">Không có dữ liệu</td></tr>'}</tbody>
-              </table>
-            </div>
-          </div>
-        </div>`;
-    };
-    return `<div class="row">${block(payload.sap_more || [], "inv-detail-sap", "SAP nhiều hơn WMS")}${block(payload.wms_more || [], "inv-detail-wms", "WMS nhiều hơn SAP")}</div>`;
+    const both = payload.both || [];
+    const sapOnly = payload.sap_only || [];
+    const wmsOnly = payload.wms_only || [];
+    const num = (v, bold) => `<td class="text-right nw${bold ? " font-weight-bold" : ""}">${formatAmount(v)}</td>`;
+    const itemCells = (r) =>
+      `<td class="nw">${escapeHtml(r.item_code)}</td><td><span class="inv-name-text" title="${escapeHtml(r.item_name)}">${escapeHtml(r.item_name)}</span></td>` +
+      `<td class="nw">${escapeHtml(r.whs_code)}</td><td class="nw">${r.status_item ? escapeHtml(r.status_item) : "—"}</td>`;
+    const itemHeaders = [{ text: "Mã hàng", cls: "nw" }, { text: "Tên hàng" }, { text: "Kho" }, { text: "Trạng thái", cls: "nw" }];
+    return '<div class="row">' +
+      inventoryBlock("inv-detail-both", bothTitle("Hai bên có", both),
+        [...itemHeaders, { text: "SAP", cls: "nw" }, { text: "WMS", cls: "nw" }, { text: "Lệch", cls: "nw" }],
+        both.map((r) => `<tr>${itemCells(r)}${num(r.sap_qty)}${num(r.wms_qty)}${num(r.diff_qty, true)}</tr>`).join(""), "col-12") +
+      inventoryBlock("inv-detail-sap", blockTitle("SAP có, WMS không có", sapOnly, "sap_qty"), [...itemHeaders, { text: "SL", cls: "nw" }],
+        sapOnly.map((r) => `<tr>${itemCells(r)}${num(r.sap_qty, true)}</tr>`).join(""), "col-lg-6") +
+      inventoryBlock("inv-detail-wms", blockTitle("WMS có, SAP không có", wmsOnly, "wms_qty"), [...itemHeaders, { text: "SL", cls: "nw" }],
+        wmsOnly.map((r) => `<tr>${itemCells(r)}${num(r.wms_qty, true)}</tr>`).join(""), "col-lg-6") +
+      "</div>";
   }
 
   $(function () {
@@ -411,6 +449,18 @@
     $("#inventoryDiffExport")
       .attr("href", `${CONFIG.API_BASE}${CONFIG.RECON_INVENTORY_DIFF_EXPORT}`)
       .html(`${EXPORT_EXCEL_ICON}<span class="ml-1">Xuất Excel</span>`);
+    $("#inventoryDetailExport").html(`${EXPORT_EXCEL_ICON}<span class="ml-1">Xuất Excel</span>`);
+
+    const normalizeSearch = (v) => (v || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d").toLowerCase();
+    function applyModalSearch($modal) {
+      const term = normalizeSearch($modal.find(".inv-modal-search").val()).trim();
+      $modal.find(".modal-body tbody tr").each(function () {
+        const $tr = $(this);
+        if ($tr.children("td[colspan]").length) return;
+        $tr.toggle(!term || normalizeSearch($tr.text()).includes(term));
+      });
+    }
+    $(".inv-modal-search").on("input", function () { applyModalSearch($(this).closest(".modal")); });
 
     let diffListRequest = null;
     $("#invDiffCard").on("click", function (e) {
@@ -420,9 +470,9 @@
       $("#inventoryDiffBody").html('<div class="text-muted p-3 text-center">Đang tải danh sách lệch...</div>');
       diffListRequest = $.getJSON(`${CONFIG.API_BASE}${CONFIG.RECON_INVENTORY_DIFF_LIST}`)
         .done((payload) => {
-          $("#inventoryDiffSummary").text(
-            "Mỗi dòng là một mã hàng + kho + trạng thái lệch giữa 2 hệ thống. Số lượng lệch = |Tổng lệch SAP − Tổng lệch WMS|.");
+          $("#inventoryDiffSummary").text(diffFormula(payload));
           $("#inventoryDiffBody").html(renderInventoryDiffList(payload));
+          applyModalSearch($("#inventoryDiffModal"));
         })
         .fail(() => {
           diffListRequest = null;
@@ -431,8 +481,6 @@
     });
 
     let detailRequestId = 0;
-    let detailState = null;
-    const detailUrl = `${CONFIG.API_BASE}${CONFIG.RECON_INVENTORY_DETAIL}`;
     $("#reconInventoryTable tbody").on("click", "a.inv-diff-link", function (e) {
       e.preventDefault();
       const data = table.row($(this).closest("tr")).data();
@@ -440,32 +488,16 @@
       const requestId = ++detailRequestId;
       $("#inventoryDetailTitle").text(`${data.item_code} - ${data.item_name || ""}`);
       $("#inventoryDetailSummary").text(
-        `Kho ${data.whs_code}${data.whs_name ? " - " + data.whs_name : ""} · Status Item ${data.status_item || "—"} · ` +
+        `Kho ${data.whs_code}${data.whs_name ? " - " + data.whs_name : ""} · Trạng thái ${data.status_item || "—"} · ` +
         `SAP tồn ${formatAmount(data.sap_qty)} · WMS tồn ${formatAmount(data.wms_qty)} · Chênh lệch ${formatAmount(data.diff_qty)}`);
       $("#inventoryDetailBody").html('<div class="text-muted p-3 text-center">Đang tải chi tiết...</div>');
+      $("#inventoryDetailModal").find(".inv-modal-search").val("");
+      const detailParams = { item_code: data.item_code, whs_code: data.whs_code, status_item: data.status_item || "" };
+      $("#inventoryDetailExport").attr("href", `${CONFIG.API_BASE}${CONFIG.RECON_INVENTORY_DETAIL_EXPORT}?${$.param(detailParams)}`);
       $("#inventoryDetailModal").modal("show");
-      const params = { item_code: data.item_code, whs_code: data.whs_code, status_item: data.status_item || "" };
-      $.getJSON(detailUrl, params)
-        .done((payload) => {
-          if (requestId !== detailRequestId) return;
-          detailState = { requestId, params, loaded: { sap: 0, wms: 0 }, total: { sap: 0, wms: 0 } };
-          $("#inventoryDetailBody").html(renderInventoryDetail());
-          appendInventoryDetail(detailState, "sap", payload.sap || [], payload.sap_total || 0);
-          appendInventoryDetail(detailState, "wms", payload.wms || [], payload.wms_total || 0);
-        })
+      $.getJSON(`${CONFIG.API_BASE}${CONFIG.RECON_INVENTORY_DETAIL}`, detailParams)
+        .done((payload) => { if (requestId === detailRequestId) $("#inventoryDetailBody").html(renderInventoryDetail(payload)); })
         .fail(() => { if (requestId === detailRequestId) $("#inventoryDetailBody").html('<div class="text-danger p-3">Không tải được chi tiết.</div>'); });
-    });
-
-    $("#inventoryDetailBody").on("click", ".inv-detail-more-btn", function () {
-      const state = detailState;
-      if (!state || state.requestId !== detailRequestId) return;
-      const side = $(this).data("side");
-      const $btn = $(this).prop("disabled", true).text("Đang tải...");
-      $.getJSON(detailUrl, { ...state.params, side, offset: state.loaded[side], all: 1 })
-        .done((payload) => {
-          if (state.requestId === detailRequestId) appendInventoryDetail(state, side, payload[side] || [], payload[`${side}_total`] || 0);
-        })
-        .fail(() => $btn.prop("disabled", false).text("Thử lại"));
     });
   });
 </script>

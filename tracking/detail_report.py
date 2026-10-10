@@ -145,9 +145,9 @@ def _status_tracking_join(table: str, key_col: str, recon_type: str) -> str:
     return f"LEFT JOIN {STATUS_TRACKING_TABLE} st ON st.BusinessKey = t.{key_col} AND st.ReconType = '{recon_type}'"
 DETAIL_CONFIGS: dict[str, DetailReportConfig] = {'ecom': DetailReportConfig(table='dbo.OMS_ORDERS', where=_ECOM_ORDER_FILTER, columns=_OMS_ORDERS_COLUMNS, join_sql=_status_tracking_join('dbo.OMS_ORDERS', 'order_number', 'ECOM'), status_sync_expr='st.StatusSync', date_expr='TRY_CONVERT(DATETIME2, t.created_date)'), 'dms-xuatkho': DetailReportConfig(table='dbo.OMS_ORDERS', where=_DMS_XUATKHO_ORDER_FILTER, columns=_OMS_ORDERS_COLUMNS, join_sql=_status_tracking_join('dbo.OMS_ORDERS', 'order_number', 'DMS_XUATKHO'), status_sync_expr='st.StatusSync', date_expr='TRY_CONVERT(DATETIME2, t.created_date)'), 'dms-duyet': DetailReportConfig(table='dbo.DMS_SO', where=_DMS_DUYET_ORDER_FILTER, join_sql=_status_tracking_join('dbo.DMS_SO', 'OrderCode', 'DMS_DUYET'), status_sync_expr='st.StatusSync', date_expr='t.DocDate', columns=[DetailColumn('st.StatusSync', 'status_sync', orderable=False), DetailColumn('t.OrderCode', 'order_code', searchable=True), DetailColumn('t.ItemCode', 'item_code', searchable=True), DetailColumn('t.Sku', 'sku'), DetailColumn('t.Quantity', 'quantity'), DetailColumn('t.UnitPrice', 'unit_price'), DetailColumn('t.TotalAmtInclVAT', 'amount'), DetailColumn('t.CustomerCode', 'customer_code', searchable=True), DetailColumn('t.WarehouseCode', 'warehouse_code'), DetailColumn('t.OrderStatus', 'order_status'), DetailColumn('t.OMSStatus', 'oms_status'), DetailColumn('t.DocDate', 'doc_date'), DetailColumn('t.SaleEmployeeCode', 'sale_employee_code'), DetailColumn('t.SalesChannelCode', 'sales_channel_code'), DetailColumn('t.CreateDate', 'create_date'), DetailColumn('t.SynDate', 'syn_date'), DetailColumn('t.TaxCode', 'tax_code'), DetailColumn('t.UnitCode', 'unit_code'), DetailColumn('t.Type', 'type'), DetailColumn('t.KeyOrder', 'key_order'), DetailColumn('t.Source', 'source')]), 'wrt': DetailReportConfig(table='dbo.WRT_SO', where=_WRT_ORDER_FILTER, join_sql=_status_tracking_join('dbo.WRT_SO', 'order_number', 'WRT'), status_sync_expr='st.StatusSync', date_expr='t.postingDate', columns=[DetailColumn('st.StatusSync', 'status_sync', orderable=False), DetailColumn('t.order_number', 'order_code', searchable=True), DetailColumn('t.logistic_sku', 'sku', searchable=True), DetailColumn('t.quantity', 'quantity'), DetailColumn('t.TotalAmt', 'amount'), DetailColumn('t.customer_code', 'customer_code', searchable=True), DetailColumn('t.warehouse_code', 'warehouse_code'), DetailColumn('t.sales_channel', 'sales_channel'), DetailColumn('t.OrderStatus', 'order_status'), DetailColumn('t.postingDate', 'posting_date'), DetailColumn('t.Source', 'source'), DetailColumn('t.external_order_key', 'external_order_key'), DetailColumn('t.note', 'note'), DetailColumn('t.currency', 'currency'), DetailColumn('t.VATamount', 'vat_amount'), DetailColumn('t.VATpercent', 'vat_percent'), DetailColumn('t.statusCode', 'status_code'), DetailColumn('t.statusCode2', 'status_code2'), DetailColumn('t.attributes_seller', 'attributes_seller'), DetailColumn('t.LastDt', 'last_dt')])}
 RECON_CONFIGS: dict[str, DetailReportConfig] = {'ecom': DetailReportConfig(table='dbo.RECON_ECOM', where='1=1', date_expr='t.OrderDate', columns=[DetailColumn('t.StatusSync', 'status_sync', orderable=False, title='Status Sync'), DetailColumn('t.OrderCode', 'order_code', searchable=True, title='Mã đơn hàng'), DetailColumn('t.OmsWmsAmount', 'oms_wms_amount', title='OMS/WMS'), DetailColumn('t.SapAmount', 'sap_amount', title='SAP'), DetailColumn('t.WrtAmount', 'wrt_amount', title='WRT'), DetailColumn('t.SoStatus', 'so_status', title='SO Status'), DetailColumn('t.OrderDate', 'order_date', title='Ngày đơn hàng'), DetailColumn('t.RefreshedAt', 'refreshed_at', title='Cập nhật lúc')]), 'dms-duyet': DetailReportConfig(table='dbo.RECON_DMS_DUYET', where='1=1', date_expr='t.OrderDate', columns=[DetailColumn('t.StatusSync', 'status_sync', orderable=False, title='Status Sync'), DetailColumn('t.OrderCode', 'order_code', searchable=True, title='Mã đơn hàng'), DetailColumn('t.DmsAmount', 'dms_amount', title='DMS'), DetailColumn('t.OmsWmsAmount', 'oms_wms_amount', title='OMS/WMS'), DetailColumn('t.SapAmount', 'sap_amount', title='SAP'), DetailColumn('t.SoStatus', 'so_status', title='SO Status'), DetailColumn('t.OrderDate', 'order_date', title='Ngày đơn hàng'), DetailColumn('t.RefreshedAt', 'refreshed_at', title='Cập nhật lúc')]), 'dms-xuatkho': DetailReportConfig(table='dbo.RECON_DMS_XUATKHO', where='1=1', date_expr='t.OrderDate', columns=[DetailColumn('t.StatusSync', 'status_sync', orderable=False, title='Status Sync'), DetailColumn('t.OrderCode', 'order_code', searchable=True, title='Mã đơn hàng'), DetailColumn('t.DmsAmount', 'dms_amount', title='DMS'), DetailColumn('t.OmsWmsAmount', 'oms_wms_amount', title='OMS/WMS'), DetailColumn('t.SapAmount', 'sap_amount', title='SAP'), DetailColumn('t.WrtAmount', 'wrt_amount', title='WRT'), DetailColumn('t.SoStatus', 'so_status', title='SO Status'), DetailColumn('t.OrderDate', 'order_date', title='Ngày đơn hàng'), DetailColumn('t.RefreshedAt', 'refreshed_at', title='Cập nhật lúc')]), 'wrt': DetailReportConfig(table='dbo.RECON_WRT', where='1=1', date_expr='t.OrderDate', columns=[DetailColumn('t.StatusSync', 'status_sync', orderable=False, title='Status Sync'), DetailColumn('t.OrderCode', 'order_code', searchable=True, title='Mã đơn hàng'), DetailColumn('t.OmsWmsAmount', 'oms_wms_amount', title='OMS/WMS'), DetailColumn('t.SapAmount', 'sap_amount', title='SAP'), DetailColumn('t.WrtAmount', 'wrt_amount', title='WRT'), DetailColumn('t.SoStatus', 'so_status', title='SO Status'), DetailColumn('t.Type', 'type', title='Loại'), DetailColumn('t.OrderDate', 'order_date', title='Ngày đơn hàng'), DetailColumn('t.RefreshedAt', 'refreshed_at', title='Cập nhật lúc')])}
-LOC_BASED_WAREHOUSES = ('W998',)
+STATUS_FREE_WAREHOUSES = ('W114', 'W998')
 INVENTORY_STATUS_VALUES = ('Khớp', 'Lệch', 'Chỉ có SAP', 'Chỉ có WMS', 'Không quản lý trên WMS')
-INVENTORY_CONFIG = DetailReportConfig(table='dbo.RECON_INVENTORY', where='1=1', status_values=INVENTORY_STATUS_VALUES, default_hidden_status='Không quản lý trên WMS', default_order_sql="CASE t.StatusSync WHEN N'Lệch' THEN 0 WHEN N'Chỉ có SAP' THEN 1 WHEN N'Chỉ có WMS' THEN 2 WHEN N'Khớp' THEN 3 ELSE 4 END, ABS(t.DiffQty) DESC, t.ItemCode", filter_params=(('whs_code', 't.WhsCode'),), columns=[DetailColumn('t.StatusSync', 'status_sync', title='Status'), DetailColumn('t.ItemCode', 'item_code', searchable=True, title='ItemCode'), DetailColumn('t.ItemName', 'item_name', searchable=True, title='Tên hàng'), DetailColumn('t.WhsCode', 'whs_code', title='Kho'), DetailColumn('t.WhsName', 'whs_name', title='Tên kho'), DetailColumn('t.StatusItem', 'status_item', searchable=True, title='Status Item'), DetailColumn('t.SapQty', 'sap_qty', title='SAP tồn'), DetailColumn('t.WmsQty', 'wms_qty', title='WMS tồn'), DetailColumn('t.DiffQty', 'diff_qty', title='Chênh lệch'), DetailColumn('t.InvntryUom', 'uom', title='ĐVT')])
+INVENTORY_CONFIG = DetailReportConfig(table='dbo.RECON_INVENTORY', where='1=1', status_values=INVENTORY_STATUS_VALUES, default_hidden_status='Không quản lý trên WMS', default_order_sql="CASE t.StatusSync WHEN N'Lệch' THEN 0 WHEN N'Chỉ có SAP' THEN 1 WHEN N'Chỉ có WMS' THEN 2 WHEN N'Khớp' THEN 3 ELSE 4 END, ABS(t.DiffQty) DESC, t.ItemCode", filter_params=(('whs_code', 't.WhsCode'),), columns=[DetailColumn('t.StatusSync', 'status_sync', title='Status'), DetailColumn('t.ItemCode', 'item_code', searchable=True, title='ItemCode'), DetailColumn('t.ItemName', 'item_name', searchable=True, title='Tên hàng'), DetailColumn('t.WhsCode', 'whs_code', title='Kho'), DetailColumn('t.WhsName', 'whs_name', title='Tên kho'), DetailColumn('t.StatusItem', 'status_item', searchable=True, title='Trạng thái'), DetailColumn('t.SapQty', 'sap_qty', title='SAP tồn'), DetailColumn('t.WmsQty', 'wms_qty', title='WMS tồn'), DetailColumn('t.DiffQty', 'diff_qty', title='Chênh lệch'), DetailColumn('t.InvntryUom', 'uom', title='ĐVT')])
 
 def get_inventory_meta() -> dict[str, Any]:
     with connection.cursor() as cursor:
@@ -171,89 +171,116 @@ def get_inventory_diff_list() -> dict[str, Any]:
     placeholders = ', '.join(('%s' for _ in _INVENTORY_DIFF_STATUSES))
     with connection.cursor() as cursor:
         cursor.execute(f'''
-            SELECT ItemCode, ItemName, WhsCode, StatusItem, SapQty, WmsQty, ISNULL(SapQty, 0) - ISNULL(WmsQty, 0) AS NetDiff
+            SELECT StatusSync, ItemCode, ItemName, WhsCode, StatusItem, SapQty, WmsQty, ABS(ISNULL(SapQty, 0) - ISNULL(WmsQty, 0)) AS Diff
             FROM dbo.RECON_INVENTORY
             WHERE StatusSync IN ({placeholders})
-            ORDER BY ABS(ISNULL(SapQty, 0) - ISNULL(WmsQty, 0)) DESC, ItemCode, WhsCode, StatusItem
+            ORDER BY Diff DESC, ItemCode, WhsCode, StatusItem
             ''', list(_INVENTORY_DIFF_STATUSES))
         rows = cursor.fetchall()
-    sap_more, wms_more = [], []
-    for item_code, item_name, whs_code, status_item, sap_qty, wms_qty, net in rows:
-        row = {'item_code': item_code, 'item_name': item_name, 'whs_code': whs_code, 'status_item': status_item, 'sap_qty': _json_safe(sap_qty), 'wms_qty': _json_safe(wms_qty), 'diff_qty': _json_safe(abs(net))}
-        (sap_more if net > 0 else wms_more).append(row)
-    return {'sap_more': sap_more, 'wms_more': wms_more}
+    groups = {'Lệch': [], 'Chỉ có SAP': [], 'Chỉ có WMS': []}
+    for status_sync, item_code, item_name, whs_code, status_item, sap_qty, wms_qty, diff in rows:
+        groups[status_sync].append({'item_code': item_code, 'item_name': item_name, 'whs_code': whs_code, 'status_item': status_item, 'sap_qty': _json_safe(sap_qty), 'wms_qty': _json_safe(wms_qty), 'diff_qty': _json_safe(diff)})
+    return {'both': groups['Lệch'], 'sap_only': groups['Chỉ có SAP'], 'wms_only': groups['Chỉ có WMS']}
 
 def _status_after_dash(col: str) -> str:
     return f"CASE WHEN {col} IS NULL THEN '' WHEN CHARINDEX('-', {col}) = 0 THEN {col} ELSE RIGHT({col}, CHARINDEX('-', REVERSE({col})) - 1) END"
 
-_DOC_TYPE_CACHE: dict[str, Any] = {'at': 0.0, 'names': {}}
+_DOC_TYPE_CACHE: dict[str, Any] = {'at': 0.0, 'names': {}, 'sales': set()}
 _DOC_TYPE_CACHE_SEC = 600
+SAP_DOC_DIRECTION = {15: 'Bán ra', 16: 'Hàng hoàn', 20: 'Nhập mua', 21: 'Trả NCC', 59: 'Nhập khác', 60: 'Xuất khác'}
 
-def _sap_doc_type_names(cursor: Any) -> dict[str, str]:
+def _sap_doc_types(cursor: Any) -> tuple[dict[str, str], set[str]]:
     now = time.monotonic()
     if not _DOC_TYPE_CACHE['names'] or now - _DOC_TYPE_CACHE['at'] > _DOC_TYPE_CACHE_SEC:
-        cursor.execute('SELECT LoaiCT, MAX(TenLoaiCT) FROM dbo.SAP_INOUT GROUP BY LoaiCT')
-        _DOC_TYPE_CACHE['names'] = dict(cursor.fetchall())
+        cursor.execute('SELECT LoaiCT, MAX(TenLoaiCT), MAX(CASE WHEN DocType IN (15, 16) THEN 1 ELSE 0 END) FROM dbo.SAP_INOUT GROUP BY LoaiCT')
+        rows = cursor.fetchall()
+        _DOC_TYPE_CACHE['names'] = {code: name for code, name, _ in rows}
+        _DOC_TYPE_CACHE['sales'] = {code for code, _, is_sales in rows if is_sales}
         _DOC_TYPE_CACHE['at'] = now
-    return _DOC_TYPE_CACHE['names']
+    return _DOC_TYPE_CACHE['names'], _DOC_TYPE_CACHE['sales']
 
-INVENTORY_DETAIL_PAGE_SIZE = 200
+def _sap_doc_label(doc_type: int | None, type_name: str | None, in_whs: str | None, out_whs: str | None) -> str:
+    if doc_type == 67:
+        direction = 'Chuyển trạng thái' if in_whs and in_whs == out_whs else 'Chuyển kho'
+    else:
+        direction = SAP_DOC_DIRECTION.get(doc_type, 'Khác')
+    return f'{direction} · {type_name}' if type_name else direction
+
+def _wms_doc_label(src: str, code: str | None, names: dict[str, str], sales: set[str]) -> str:
+    code = code or ''
+    name = names.get(code) or names.get('GR' + code) or names.get('GI' + code) or code
+    if src == 'I':
+        direction = 'Hàng hoàn' if code in sales else 'Nhập'
+    else:
+        direction = 'Bán ra' if code in sales else 'Xuất'
+    return f'{direction} · {name}' if name else direction
+
 INVENTORY_DETAIL_MAX_ROWS = 20000
 
-def _fetch_page(cursor: Any, sql: str, params: list[Any]) -> tuple[list[dict], int]:
-    cursor.execute(sql, params)
-    cols = [d[0] for d in cursor.description]
-    rows = [dict(zip(cols, row)) for row in cursor.fetchall()]
-    total = rows[0].pop('total_rows') if rows else 0
-    for row in rows[1:]:
-        row.pop('total_rows', None)
-    return rows, total
+def _doc_key(doc_no: str | None) -> str:
+    doc_no = (doc_no or '').strip()
+    return doc_no[2:] if doc_no[:2] in ('I-', 'O-') else doc_no
 
-def get_inventory_detail(item_code: str, whs_code: str, status_item: str, *, side: str='', offset: int=0, page_size: int=INVENTORY_DETAIL_PAGE_SIZE) -> dict[str, Any]:
+def _group_docs(rows: list[tuple]) -> dict[str, dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+    for doc_no, doc_date, doc_type, qty in rows:
+        key = _doc_key(doc_no)
+        doc = grouped.setdefault(key, {'doc_no': doc_no, 'doc_date': doc_date, 'doc_type': doc_type, 'qty': Decimal(0)})
+        doc['qty'] += qty or 0
+        if doc_date and (doc['doc_date'] is None or doc_date > doc['doc_date']):
+            doc['doc_date'] = doc_date
+    return {key: doc for key, doc in grouped.items() if doc['qty'] != 0}
+
+def _sort_by_date(docs: list[dict[str, Any]], key: str='doc_date') -> list[dict[str, Any]]:
+    return sorted(docs, key=lambda d: (d[key] is not None, d[key] or datetime.datetime.min, d['doc_no'] or ''), reverse=True)
+
+def get_inventory_detail(item_code: str, whs_code: str, status_item: str) -> dict[str, Any]:
     wms_whse = 'WH' + whs_code[1:] if whs_code.startswith('W') else whs_code
-    loc_based = whs_code in LOC_BASED_WAREHOUSES
-    inbound_status_col = 't.toloc' if loc_based else 't.conditioncode'
-    outbound_status_col = 't.fromloc' if loc_based else 't.conditioncode'
-    in_status = _status_after_dash('t.IN_BinCode')
-    out_status = _status_after_dash('t.OUT_BinCode')
-    result: dict[str, Any] = {}
+    status_free = whs_code in STATUS_FREE_WAREHOUSES
+    if status_free:
+        in_match, in_params = 't.IN_WhsCode = %s', [whs_code]
+        out_match, out_params = 't.OUT_WhsCode = %s', [whs_code]
+        wms_status_sql, wms_status_params = '', []
+    else:
+        in_match, in_params = f"(t.IN_WhsCode = %s AND {_status_after_dash('t.IN_BinCode')} = %s)", [whs_code, status_item]
+        out_match, out_params = f"(t.OUT_WhsCode = %s AND {_status_after_dash('t.OUT_BinCode')} = %s)", [whs_code, status_item]
+        wms_status_sql, wms_status_params = "AND ISNULL(t.conditioncode, '') = %s", [status_item]
     with connection.cursor() as cursor:
-        if side in ('', 'sap'):
-            rows, total = _fetch_page(cursor, f"""
-                SELECT t.SoCT_NhapXuat AS doc_no, t.DocDate_NhapXuat AS doc_date, t.TenLoaiCT AS doc_type,
-                       CASE WHEN t.IN_WhsCode = %s AND {in_status} = %s THEN t.InStock ELSE -t.InStock END AS qty,
-                       COUNT(*) OVER () AS total_rows
-                FROM dbo.SAP_INOUT t
-                WHERE t.ItemCode = %s
-                  AND ((t.IN_WhsCode = %s AND {in_status} = %s) OR (t.OUT_WhsCode = %s AND {out_status} = %s))
-                ORDER BY t.DocDate_NhapXuat DESC, t.SoCT_NhapXuat DESC, t.DocType, t.DocEntry, t.DocLineNum
-                OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
-                """, [whs_code, status_item, item_code, whs_code, status_item, whs_code, status_item, offset, page_size])
-            result['sap'], result['sap_total'] = rows, total
-        if side in ('', 'wms'):
-            rows, total = _fetch_page(cursor, f"""
-                SELECT doc_no, doc_date, doc_type, qty, COUNT(*) OVER () AS total_rows FROM (
-                    SELECT t.externreceiptkey AS doc_no, TRY_CONVERT(DATETIME2, ISNULL(t.datereceived, t.adddate)) AS doc_date, t.type AS doc_type,
-                           TRY_CONVERT(DECIMAL(21,6), t.qtyreceivedpcs) AS qty, 'I' AS src, t._row_id AS row_key
-                    FROM dbo.WMS_INBOUND t
-                    WHERE t.sku = %s AND t._whseid = %s AND ISNULL({inbound_status_col}, '') = %s AND TRY_CONVERT(DECIMAL(21,6), t.qtyreceivedpcs) <> 0
-                    UNION ALL
-                    SELECT t.externorderkey, MAX(TRY_CONVERT(DATETIME2, ISNULL(t.actualshipdate, t.adddate))), MAX(t.type),
-                           -MAX(TRY_CONVERT(DECIMAL(21,6), t.shippedqtypcs)), 'O', MIN(t._row_id)
-                    FROM dbo.WMS_OUTBOUND t
-                    WHERE t.sku = %s AND t._whseid = %s AND ISNULL({outbound_status_col}, '') = %s AND TRY_CONVERT(DECIMAL(21,6), t.shippedqtypcs) <> 0
-                    GROUP BY t.externorderkey, t.orderkey, t.orderlinenumber
-                ) x
-                ORDER BY doc_date DESC, doc_no DESC, src, row_key
-                OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
-                """, [item_code, wms_whse, status_item, item_code, wms_whse, status_item, offset, page_size])
-            type_names = _sap_doc_type_names(cursor)
-            for row in rows:
-                code = row.get('doc_type') or ''
-                row['doc_type'] = type_names.get(code) or type_names.get('GR' + code) or type_names.get('GI' + code) or code
-            result['wms'], result['wms_total'] = rows, total
-    for key in ('sap', 'wms'):
-        for row in result.get(key, []):
-            for col, value in row.items():
-                row[col] = _json_safe(value)
+        cursor.execute(f"""
+            SELECT TOP {INVENTORY_DETAIL_MAX_ROWS} t.SoCT_NhapXuat, t.DocDate_NhapXuat, t.DocType, t.TenLoaiCT, t.IN_WhsCode, t.OUT_WhsCode,
+                   CASE WHEN {in_match} THEN t.InStock ELSE 0 END - CASE WHEN {out_match} THEN t.InStock ELSE 0 END
+            FROM dbo.SAP_INOUT t
+            WHERE t.ItemCode = %s AND ({in_match} OR {out_match})
+            ORDER BY t.DocDate_NhapXuat DESC
+            """, [*in_params, *out_params, item_code, *in_params, *out_params])
+        sap_rows = cursor.fetchall()
+        cursor.execute(f"""
+            SELECT TOP {INVENTORY_DETAIL_MAX_ROWS} doc_no, doc_date, src, doc_type, qty FROM (
+                SELECT t.externreceiptkey AS doc_no, TRY_CONVERT(DATETIME2, ISNULL(t.datereceived, t.adddate)) AS doc_date, 'I' AS src, t.type AS doc_type,
+                       TRY_CONVERT(DECIMAL(21,6), t.qtyreceivedpcs) AS qty
+                FROM dbo.WMS_INBOUND t
+                WHERE t.sku = %s AND t._whseid = %s {wms_status_sql} AND TRY_CONVERT(DECIMAL(21,6), t.qtyreceivedpcs) <> 0
+                UNION ALL
+                SELECT t.externorderkey, MAX(TRY_CONVERT(DATETIME2, ISNULL(t.actualshipdate, t.adddate))), 'O', MAX(t.type),
+                       -MAX(TRY_CONVERT(DECIMAL(21,6), t.shippedqtypcs))
+                FROM dbo.WMS_OUTBOUND t
+                WHERE t.sku = %s AND t._whseid = %s {wms_status_sql} AND TRY_CONVERT(DECIMAL(21,6), t.shippedqtypcs) <> 0
+                GROUP BY t.externorderkey, t.orderkey, t.orderlinenumber
+            ) x
+            ORDER BY doc_date DESC
+            """, [item_code, wms_whse, *wms_status_params, item_code, wms_whse, *wms_status_params])
+        wms_rows = cursor.fetchall()
+        names, sales = _sap_doc_types(cursor)
+    sap_rows = [(doc_no, doc_date, _sap_doc_label(doc_type, type_name, in_whs, out_whs), qty) for doc_no, doc_date, doc_type, type_name, in_whs, out_whs, qty in sap_rows]
+    wms_rows = [(doc_no, doc_date, _wms_doc_label(src, code, names, sales), qty) for doc_no, doc_date, src, code, qty in wms_rows]
+    sap_docs, wms_docs = _group_docs(sap_rows), _group_docs(wms_rows)
+    both = []
+    for key in sap_docs.keys() & wms_docs.keys():
+        sap, wms = sap_docs[key], wms_docs[key]
+        both.append({'doc_no': key, 'sap_date': sap['doc_date'], 'wms_date': wms['doc_date'], 'doc_date': sap['doc_date'] or wms['doc_date'], 'doc_type': sap['doc_type'] or wms['doc_type'], 'sap_qty': sap['qty'], 'wms_qty': wms['qty'], 'diff_qty': abs(sap['qty'] - wms['qty'])})
+    sap_only = [doc for key, doc in sap_docs.items() if key not in wms_docs]
+    wms_only = [doc for key, doc in wms_docs.items() if key not in sap_docs]
+    result = {'both': _sort_by_date(both), 'sap_only': _sort_by_date(sap_only), 'wms_only': _sort_by_date(wms_only), 'truncated': len(sap_rows) >= INVENTORY_DETAIL_MAX_ROWS or len(wms_rows) >= INVENTORY_DETAIL_MAX_ROWS}
+    for key in ('both', 'sap_only', 'wms_only'):
+        result[key] = [{col: _json_safe(value) for col, value in doc.items()} for doc in result[key]]
     return result
