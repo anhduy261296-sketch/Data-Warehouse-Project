@@ -1,29 +1,270 @@
+.login-page {
+    --pgi-red: #e3262f;
+    --pgi-red-dark: #c41c24;
+    --img-w: max(100vw, 177.78vh);
+    --img-h: max(100vh, 56.25vw);
+    --card-w: clamp(340px, calc(var(--img-w) * 0.215), 440px);
+    --card-left: min(calc(var(--img-w) * 0.764 - var(--card-w) / 2), calc(100vw - var(--card-w) - 16px));
+    --card-top: max(16px, calc(var(--img-h) * 0.255));
+    margin: 0;
+    min-height: 100vh;
+    background: #ffffff;
+    color: #222;
+}
 
-.bg-gradient-primary {
-    background: linear-gradient(
-        135deg,
-        #FFFFFF 0%,
-        #F8F9FA 100%
-    ) !important;
+.login-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-color: #ffffff;
     background-size: cover;
+    background-position: left top;
+    background-repeat: no-repeat;
+    pointer-events: none;
 }
 
-.btn-primary,
-.btn-primary:hover,
-.btn-primary:focus,
-.btn-primary:active,
-.btn-primary:not(:disabled):not(.disabled):active {
-  background-color: #820606;
-  background-image: linear-gradient(135deg, #820606 10%, #ecabab 100%) !important;
-  background-size: cover;
-  border-color: #820606;
+.login-logo {
+    display: none;
 }
 
-.btn-primary:hover {
-  filter: brightness(1.15);
+.login-wrapper {
+    position: relative;
+    z-index: 1;
+    box-sizing: border-box;
+    padding: var(--card-top) 16px 24px var(--card-left);
 }
 
-.btn-primary:focus,
-.btn-primary:not(:disabled):not(.disabled):active:focus {
-  box-shadow: 0 0 0 0.2rem rgba(130, 6, 6, 0.4);
+.login-card {
+    width: var(--card-w);
+    padding: 32px 34px 30px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.08);
+    box-sizing: border-box;
+}
+
+.login-title {
+    margin: 0;
+    text-align: center;
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: #1f1f1f;
+}
+
+.login-subtitle {
+    margin: 6px 0 22px;
+    text-align: center;
+    font-size: 0.92rem;
+    color: #666;
+}
+
+.login-alert {
+    margin-bottom: 14px;
+    padding: 9px 14px;
+    border-radius: 8px;
+    font-size: 0.86rem;
+    color: #b42318;
+    background: #fdecec;
+    border: 1px solid #f6c8c8;
+}
+
+.login-label {
+    display: block;
+    margin: 0 0 6px 4px;
+    font-size: 0.88rem;
+    color: #333;
+}
+
+.login-field {
+    position: relative;
+    margin-bottom: 14px;
+}
+
+.login-field input {
+    width: 100%;
+    height: 48px;
+    padding: 0 20px;
+    box-sizing: border-box;
+    font-size: 0.98rem;
+    color: #222;
+    background: #fff;
+    border: 1px solid #c9c9c9;
+    border-radius: 999px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.login-field input:focus {
+    border-color: var(--pgi-red);
+    box-shadow: 0 0 0 3px rgba(227, 38, 47, 0.12);
+}
+
+.login-field input#loginPassword {
+    padding-right: 52px;
+}
+
+.login-field input::-ms-reveal,
+.login-field input::-ms-clear {
+    display: none;
+}
+
+.login-toggle-password {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 6px 8px;
+    border: 0;
+    background: transparent;
+    color: #1b6fa6;
+    font-size: 1.02rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.login-toggle-password:hover,
+.login-toggle-password:focus {
+    color: #0d4f7a;
+    outline: none;
+}
+
+.login-captcha-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.login-captcha-input {
+    flex: 1 1 0;
+    min-width: 0;
+    margin-bottom: 0;
+}
+
+.login-captcha-input input {
+    letter-spacing: 0.3em;
+}
+
+.login-captcha-img {
+    flex: 0 0 auto;
+    height: 48px;
+    width: auto;
+    border-radius: 8px;
+    border: 1px solid #e3e3e3;
+    user-select: none;
+}
+
+.login-captcha-refresh {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 50%;
+    background: #f1f3f5;
+    color: #555;
+    cursor: pointer;
+}
+
+.login-captcha-refresh:hover,
+.login-captcha-refresh:focus {
+    background: #e6e9ec;
+    color: #222;
+    outline: none;
+}
+
+.login-submit {
+    display: block;
+    width: 100%;
+    height: 50px;
+    border: 0;
+    border-radius: 999px;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #fff;
+    background: var(--pgi-red);
+    box-shadow: 0 8px 18px rgba(227, 38, 47, 0.28);
+    cursor: pointer;
+    transition: background-color 0.15s, opacity 0.2s, box-shadow 0.2s, transform 0.15s;
+}
+
+.login-submit:hover:not(:disabled) {
+    background: var(--pgi-red-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px rgba(196, 28, 36, 0.38);
+}
+
+.login-submit:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 4px 10px rgba(196, 28, 36, 0.3);
+}
+
+.login-submit:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(227, 38, 47, 0.3);
+}
+
+.login-submit:disabled {
+    opacity: 0.4;
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+@media (max-height: 700px) and (min-width: 901px) {
+    .login-card {
+        padding: 22px 28px 22px;
+    }
+    .login-title {
+        font-size: 1.6rem;
+    }
+    .login-subtitle {
+        margin-bottom: 14px;
+    }
+    .login-field input,
+    .login-captcha-img {
+        height: 42px;
+    }
+    .login-submit {
+        height: 44px;
+    }
+}
+
+@media (max-width: 900px), (max-aspect-ratio: 3/2) {
+    .login-bg {
+        background-position: left top;
+        opacity: 0.55;
+        -webkit-mask-image: linear-gradient(to right, #000 45%, transparent 75%);
+        mask-image: linear-gradient(to right, #000 45%, transparent 75%);
+    }
+    .login-logo {
+        display: block;
+        width: 180px;
+        height: 75px;
+        margin: 0 auto 14px;
+        background-size: 1029px auto;
+        background-position: -694px -52px;
+        background-repeat: no-repeat;
+    }
+    .login-wrapper {
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 24px 16px;
+    }
+    .login-card {
+        width: 100%;
+        max-width: 420px;
+        background: rgba(255, 255, 255, 0.97);
+    }
+}
+
+@media (max-width: 420px) {
+    .login-card {
+        padding: 26px 18px;
+    }
+    .login-captcha-img {
+        height: 42px;
+    }
 }

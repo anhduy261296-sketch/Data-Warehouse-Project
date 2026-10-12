@@ -3,9 +3,11 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_not_required, login_required
+from django.http import HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from . import captcha
 from .models import LoginActivityLog
 
 def _client_ip(request):
@@ -33,7 +35,10 @@ def login_view(request):
         if _is_locked_out(username, ip_address):
             LoginActivityLog.objects.create(user=None, username_attempted=username, action=LoginActivityLog.ACTION_LOGIN_FAILED, ip_address=ip_address, user_agent=user_agent, detail='Locked out')
             messages.error(request, f'Đăng nhập sai quá nhiều lần. Vui lòng thử lại sau {settings.LOGIN_LOCKOUT_MINUTES} phút.')
-            return render(request, 'accounts/login.html', {'next': request.POST.get('next', '')}, status=429)
+            return render(request, 'accounts/login.html', {'next': request.POST.get('next', ''), 'username': username}, status=429)
+        if not captcha.check(request.session, request.POST.get('captcha', '')):
+            messages.error(request, 'Mã xác nhận không đúng hoặc đã hết hạn.')
+            return render(request, 'accounts/login.html', {'next': request.POST.get('next', ''), 'username': username})
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
@@ -44,7 +49,14 @@ def login_view(request):
             return redirect(next_url)
         LoginActivityLog.objects.create(user=None, username_attempted=username, action=LoginActivityLog.ACTION_LOGIN_FAILED, ip_address=ip_address, user_agent=user_agent, detail='Invalid username or password')
         messages.error(request, 'Sai tên đăng nhập hoặc mật khẩu.')
+        return render(request, 'accounts/login.html', {'next': request.POST.get('next', ''), 'username': username})
     return render(request, 'accounts/login.html', {'next': request.GET.get('next', '')})
+
+@login_not_required
+def login_captcha(request):
+    response = HttpResponse(captcha.render_svg(captcha.new_code(request.session)), content_type='image/svg+xml')
+    response['Cache-Control'] = 'no-store, max-age=0'
+    return response
 
 @login_required
 def logout_view(request):

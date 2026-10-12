@@ -10,10 +10,6 @@
       href="https://cdn.jsdelivr.net/npm/startbootstrap-sb-admin-2@4.1.4/vendor/fontawesome-free/css/all.min.css"
       rel="stylesheet"
     />
-    <link
-      href="https://cdn.jsdelivr.net/npm/startbootstrap-sb-admin-2@4.1.4/css/sb-admin-2.min.css"
-      rel="stylesheet"
-    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -24,53 +20,93 @@
     <link href="{% static 'css/loading.css' %}" rel="stylesheet" />
     <link href="{% static 'css/login.css' %}" rel="stylesheet" />
   </head>
-  <body class="bg-gradient-primary">
-    <div class="container">
-      <div class="row justify-content-center">
-        <div class="col-xl-5 col-lg-6 col-md-8" style="margin-top: 8rem;">
-          <div class="card o-hidden border-0 shadow-lg my-5">
-            <div class="card-body p-5">
-              <div class="text-center">
-                <h1 class="h4 text-gray-900 mb-4">Sign in</h1>
-              </div>
-              {% if messages %}
-                {% for message in messages %}
-                  <div class="alert alert-danger">{{ message }}</div>
-                {% endfor %}
-              {% endif %}
-              <form method="post" class="user" data-loading data-loading-message="Đang đăng nhập...">
-                {% csrf_token %}
-                <input type="hidden" name="next" value="{{ next }}" />
-                <div class="form-group">
-                  <input
-                    type="text"
-                    class="form-control form-control-user"
-                    name="username"
-                    placeholder="Tên đăng nhập"
-                    required
-                    autofocus
-                  />
-                </div>
-                <div class="form-group">
-                  <input
-                    type="password"
-                    class="form-control form-control-user"
-                    name="password"
-                    placeholder="Mật khẩu"
-                    required
-                  />
-                </div>
-                <button type="submit" class="btn btn-primary btn-user btn-block">
-                  Đăng nhập
-                </button>
-              </form>
-            </div>
+  <body class="login-page">
+    <div class="login-bg" style="background-image: url('{% static 'img/login-bg.jpg' %}')" aria-hidden="true"></div>
+    <main class="login-wrapper">
+      <section class="login-card">
+        <div class="login-logo" style="background-image: url('{% static 'img/login-bg.jpg' %}')" role="img" aria-label="PGI"></div>
+        <h2 class="login-title">Đăng nhập</h2>
+        <p class="login-subtitle">Hệ thống Data Warehouse PGI</p>
+
+        {% if messages %}
+          {% for message in messages %}
+            <div class="login-alert" role="alert"><i class="fas fa-exclamation-circle"></i> {{ message }}</div>
+          {% endfor %}
+        {% endif %}
+
+        <form method="post" data-loading data-loading-message="Đang đăng nhập..." autocomplete="on">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next }}" />
+
+          <label class="login-label" for="loginUsername">Tên đăng nhập</label>
+          <div class="login-field">
+            <input type="text" id="loginUsername" name="username" value="{{ username|default:'' }}" autocomplete="username" required {% if not username %}autofocus{% endif %} />
           </div>
-        </div>
-      </div>
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/startbootstrap-sb-admin-2@4.1.4/vendor/jquery/jquery.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/startbootstrap-sb-admin-2@4.1.4/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+          <label class="login-label" for="loginPassword">Mật khẩu</label>
+          <div class="login-field">
+            <input type="password" id="loginPassword" name="password" autocomplete="current-password" required {% if username %}autofocus{% endif %} />
+            <button type="button" class="login-toggle-password" id="loginTogglePassword" aria-label="Hiện mật khẩu" title="Hiện mật khẩu">
+              <i class="fas fa-eye"></i>
+            </button>
+          </div>
+
+          <label class="login-label" for="loginCaptcha">Mã xác nhận</label>
+          <div class="login-captcha-row">
+            <div class="login-field login-captcha-input">
+              <input type="text" id="loginCaptcha" name="captcha" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" required />
+            </div>
+            <img class="login-captcha-img" id="loginCaptchaImg" src="{% url 'login-captcha' %}" alt="Mã xác nhận" width="150" height="52" />
+            <button type="button" class="login-captcha-refresh" id="loginCaptchaRefresh" aria-label="Đổi mã khác" title="Đổi mã khác">
+              <i class="fas fa-sync-alt"></i>
+            </button>
+          </div>
+
+          <button type="submit" class="login-submit" id="loginSubmit" disabled>Đăng nhập</button>
+        </form>
+      </section>
+    </main>
+
     <script src="{% static 'js/utils/loading.js' %}"></script>
+    <script>
+      (function () {
+        const input = document.getElementById("loginPassword");
+        const toggle = document.getElementById("loginTogglePassword");
+        toggle.addEventListener("click", function () {
+          const show = input.type === "password";
+          input.type = show ? "text" : "password";
+          const label = show ? "Ẩn mật khẩu" : "Hiện mật khẩu";
+          toggle.setAttribute("aria-label", label);
+          toggle.title = label;
+          toggle.querySelector("i").className = show ? "fas fa-eye-slash" : "fas fa-eye";
+          input.focus();
+        });
+        input.form.addEventListener("submit", function () {
+          input.type = "password";
+        });
+
+
+        const submit = document.getElementById("loginSubmit");
+        const required = ["loginUsername", "loginPassword", "loginCaptcha"].map((id) => document.getElementById(id));
+        const updateSubmit = () => {
+          const ready = required.every((el) => el.value.trim() !== "") && /^[0-9]{4}$/.test(required[2].value.trim());
+          submit.disabled = !ready;
+          submit.title = ready ? "" : "Nhập đủ tên đăng nhập, mật khẩu và 4 số mã xác nhận";
+        };
+        required.forEach((el) => ["input", "change", "keyup"].forEach((ev) => el.addEventListener(ev, updateSubmit)));
+        window.addEventListener("load", () => setTimeout(updateSubmit, 300));
+        updateSubmit();
+
+        const img = document.getElementById("loginCaptchaImg");
+        const baseSrc = img.getAttribute("src");
+        document.getElementById("loginCaptchaRefresh").addEventListener("click", function () {
+          img.src = `${baseSrc}?t=${Date.now()}`;
+          const captchaInput = document.getElementById("loginCaptcha");
+          captchaInput.value = "";
+          captchaInput.focus();
+          updateSubmit();
+        });
+      })();
+    </script>
   </body>
 </html>
