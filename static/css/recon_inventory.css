@@ -90,3 +90,25 @@ a.inv-stat-click:hover {
     position: relative;
     height: 200px;
 }
+
+.inv-summary-row > [class*="col-"] {
+    display: flex;
+    flex-direction: column;
+}
+.inv-fill {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
+}
+.inv-chart-box.inv-fill {
+    justify-content: flex-start;
+}
+.inv-chart-box.inv-fill .inv-chart-canvas {
+    flex: 1 1 auto;
+    min-height: 200px;
+}
+a.inv-stat-card.inv-fill {
+    display: flex;
+}
