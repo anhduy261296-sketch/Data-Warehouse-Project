@@ -10,6 +10,7 @@
   .rpt-snapshot { font-size: 0.85rem; color: #6b7280; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 6px 12px; }
   .rpt-card { background: #fff; border: 1px solid #edf0f4; border-radius: 12px; box-shadow: 0 2px 8px rgba(16, 24, 40, 0.05); padding: 16px 18px; position: relative; height: 100%; }
   .rpt-card-title { font-weight: 700; color: #1f2430; font-size: 1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .rpt-card-title .btn i { color: inherit; }
   .rpt-card-title i { color: #820606; }
   .rpt-kpi { display: flex; align-items: center; gap: 14px; }
   .rpt-kpi-icon { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex: 0 0 auto; }
@@ -171,7 +172,10 @@
   </div>
 </div>
 <div class="rpt-card mb-3" id="rptLocCard">
-  <div class="rpt-card-title"><i class="fas fa-list-ul"></i> Chi tiết tồn kho theo trạng thái</div>
+  <div class="rpt-card-title justify-content-between flex-wrap">
+    <span><i class="fas fa-list-ul mr-2"></i>Chi tiết tồn kho theo trạng thái</span>
+    <a href="#" class="btn btn-sm btn-outline-secondary d-none rpt-busy-btn" id="rptLocExport" title="Xuất Excel bảng chi tiết (theo bộ lọc và thứ tự sắp xếp hiện tại)"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
+  </div>
   <div class="text-center text-muted py-4" id="rptLocHint"><i class="fas fa-filter mr-1"></i> Chọn nhóm hàng / kho / trạng thái ở trên, hoặc nhập từ khoá rồi bấm <b>Tìm kiếm</b> để xem chi tiết tồn theo trạng thái.</div>
   <div class="d-none" id="rptLocWrap"><table class="table table-bordered table-hover rpt-table" id="rptLocTable" width="100%"><thead><tr></tr></thead><tbody></tbody></table></div>
 </div>
@@ -201,7 +205,7 @@
     const SEARCH_HTML = '<i class="fas fa-search mr-1"></i> Tìm kiếm';
     function setBusy(on) {
       $("#rptSearch, #rptRefresh").prop("disabled", on);
-      $("#rptExport").toggleClass("disabled", on).attr("aria-disabled", on ? "true" : null);
+      $("#rptExport, #rptLocExport").toggleClass("disabled", on).attr("aria-disabled", on ? "true" : null);
       $("#rptSearch").html(on ? '<span class="spinner-border spinner-border-sm mr-1"></span> Đang tải...' : SEARCH_HTML);
     }
     // chi khoa nut khi tai do mo trang / Tim kiem / Lam moi; doi dropdown thi khong khoa de van bam Tim kiem duoc
@@ -315,6 +319,7 @@
     }
 
     let locTable = null;
+    let locFilters = null; // bo loc cua lan tai bang chi tiet gan nhat (phan trang/sap xep/xuat Excel dung lai)
     function buildLocTable() {
       locTable = $("#rptLocTable").DataTable({
         serverSide: true,
@@ -323,7 +328,7 @@
         pageLength: 10,
         dom: "<'table-responsive'tr><'d-flex justify-content-between align-items-center flex-wrap mt-2'i<'d-flex align-items-center rpt-pager'lp>>",
         order: [[0, "asc"]],
-        ajax: { url: `${API}by-location/`, data: (d) => Object.assign(d, filters()) },
+        ajax: { url: `${API}by-location/`, data: (d) => Object.assign(d, locFilters) },
         columns: [
           { data: "sku", title: "Mã hàng", className: "text-nowrap" },
           { data: "item_name", title: "Tên hàng", className: "rpt-name-cell", render: (v) => esc(v), createdCell: (td, v) => td.setAttribute("title", v || "") },
@@ -341,6 +346,7 @@
     function hasFilter() { return Object.values(filters()).some((v) => v); }
     // dua bang chi tiet ve trang thai ban dau: an bang, hien huong dan
     function resetLoc() {
+      $("#rptLocExport").addClass("d-none");
       $("#rptLocWrap").addClass("d-none");
       $("#rptLocHint").removeClass("d-none");
     }
@@ -354,7 +360,8 @@
       else buildSkuTable();
       if (fromSearch === true && hasFilter()) {
         $("#rptLocHint").addClass("d-none");
-        $("#rptLocWrap").removeClass("d-none");
+        $("#rptLocWrap, #rptLocExport").removeClass("d-none");
+        locFilters = filters();
         if (locTable) locTable.ajax.reload();
         else buildLocTable();
       } else if (fromSearch === true || fromSearch === "reset" || !hasFilter()) {
@@ -383,6 +390,17 @@
       }).fail(() => {
         $("#rptSnapshot").text("Không tải được");
         $(".rpt-card.is-loading").removeClass("is-loading");
+      });
+      // xuat Excel bang chi tiet: cung bo loc dang ap dung + cot/chieu sap xep hien tai cua bang
+      $("#rptLocExport").on("click", function (e) {
+        e.preventDefault();
+        if ($(this).hasClass("disabled") || !locTable) return;
+        const url = new URL(`${API}by-location/export/`, window.location.origin);
+        Object.entries(locFilters || {}).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
+        const [col, dir] = locTable.order()[0] || [0, "asc"];
+        url.searchParams.set("sort", locTable.settings().init().columns[col].data);
+        url.searchParams.set("dir", dir);
+        window.location.href = url.toString();
       });
       $("#rptFilter").on("submit", (e) => { e.preventDefault(); lock(); loadAll(true); });
       // dropdown: bang chi tiet tai luon cung cac vung khac (1 lan); o nhap thi phai bam Tim kiem

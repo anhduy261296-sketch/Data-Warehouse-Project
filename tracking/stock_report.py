@@ -27,7 +27,8 @@ def _filters(params: Any) -> tuple[str, list[Any]]:
     q = (params.get('q') or '').strip()
     if q:
         like = f'%{q}%'
-        where.append('(w.sku LIKE %s OR w.description LIKE %s OR w.sku IN (SELECT ItemCode FROM dbo.SAP_ITEMS WHERE ItemName LIKE %s OR Barcode LIKE %s OR PgiCode LIKE %s))')
+        # EXISTS theo PK ItemCode: moi dong ton chi seek 1 item (IN + OR LIKE lam SQL Server chon plan quet SAP_ITEMS lap lai)
+        where.append('(w.sku LIKE %s OR w.description LIKE %s OR EXISTS (SELECT 1 FROM dbo.SAP_ITEMS si WHERE si.ItemCode = w.sku AND (si.ItemName LIKE %s OR si.Barcode LIKE %s OR si.PgiCode LIKE %s)))')
         args += [like] * 5
     group = (params.get('group') or '').strip()
     if group:
@@ -169,6 +170,25 @@ def get_by_warehouse(params: Any) -> dict[str, Any]:
 
 _LOCATION_SORTABLE = {'sku': 'sku', 'item_name': 'item_name', 'whs': 'whs', 'status': 'status', 'qty': 'qty'}
 
+def _location_order(params: Any) -> str:
+    sort_key = params.get(f"columns[{params.get('order[0][column]', '')}][data]", '') or params.get('sort', '')
+    order_col = _LOCATION_SORTABLE.get(sort_key, 'sku')
+    order_dir = 'DESC' if (params.get('order[0][dir]') or params.get('dir')) == 'desc' else 'ASC'
+    return ', '.join([f'{order_col} {order_dir}', *(c for c in ('sku', 'whs', 'status') if c != order_col)])
+
+def _location_sql(where: str, order_sql: str) -> str:
+    return f"""
+        ;WITH a AS (
+            SELECT w.sku, w._whseid AS whs, ISNULL(w.status, '') AS status, MAX(w.description) AS wms_name,
+                   MAX(w.uom) AS wms_uom, SUM({_QTY}) AS qty
+            {_FROM} WHERE {where} GROUP BY w.sku, w._whseid, w.status
+        )
+        SELECT a.sku AS sku, ISNULL(i.ItemName, a.wms_name) AS item_name, a.whs AS whs, a.status AS status,
+               a.qty, {_UOM} AS uom
+        FROM a LEFT JOIN dbo.SAP_ITEMS i ON i.ItemCode = a.sku {_UOM_JOIN}
+        ORDER BY {order_sql} OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
+        """
+
 def get_by_location(params: Any) -> dict[str, Any]:
     """Ton chi tiet theo SKU x kho x trang thai (DataTables server-side)."""
     where, args = _filters(params)
@@ -178,10 +198,7 @@ def get_by_location(params: Any) -> dict[str, Any]:
         draw = int(params.get('draw') or 0)
     except ValueError:
         start, length, draw = (0, 10, 0)
-    sort_key = params.get(f"columns[{params.get('order[0][column]', '')}][data]", '')
-    order_col = _LOCATION_SORTABLE.get(sort_key, 'sku')
-    order_dir = 'DESC' if params.get('order[0][dir]') == 'desc' else 'ASC'
-    order_sql = ', '.join([f'{order_col} {order_dir}', *(c for c in ('sku', 'whs', 'status') if c != order_col)])
+    order_sql = _location_order(params)
     with connection.cursor() as cursor:
         names = {w['code']: w['name'] for w in _warehouses(cursor)}
         cursor.execute(f'SELECT COUNT(*) FROM (SELECT 1 AS x {_FROM} WHERE {where} GROUP BY w.sku, w._whseid, w.status) t', args)
@@ -191,21 +208,22 @@ def get_by_location(params: Any) -> dict[str, Any]:
             total = cursor.fetchone()[0]
         else:
             total = filtered
-        cursor.execute(f"""
-            ;WITH a AS (
-                SELECT w.sku, w._whseid AS whs, ISNULL(w.status, '') AS status, MAX(w.description) AS wms_name,
-                       MAX(w.uom) AS wms_uom, SUM({_QTY}) AS qty
-                {_FROM} WHERE {where} GROUP BY w.sku, w._whseid, w.status
-            )
-            SELECT a.sku AS sku, ISNULL(i.ItemName, a.wms_name) AS item_name, a.whs AS whs, a.status AS status,
-                   a.qty, {_UOM} AS uom
-            FROM a LEFT JOIN dbo.SAP_ITEMS i ON i.ItemCode = a.sku {_UOM_JOIN}
-            ORDER BY {order_sql} OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
-            """, [*args, start, length])
+        cursor.execute(_location_sql(where, order_sql), [*args, start, length])
         data = _rows(cursor)
     for row in data:
         row['whs_name'] = names.get(row['whs'], row['whs'])
     return {'draw': draw, 'recordsTotal': total, 'recordsFiltered': filtered, 'data': data}
+
+def export_by_location(params: Any) -> list[dict[str, Any]]:
+    """Xuat Excel bang chi tiet SKU x kho x trang thai, cung bo loc + thu tu sap xep voi bang."""
+    where, args = _filters(params)
+    with connection.cursor() as cursor:
+        names = {w['code']: w['name'] for w in _warehouses(cursor)}
+        cursor.execute(_location_sql(where, _location_order(params)), [*args, 0, EXPORT_MAX_ROWS])
+        data = _rows(cursor)
+    for row in data:
+        row['whs_name'] = names.get(row['whs'], row['whs'])
+    return data
 
 def get_by_group(params: Any) -> dict[str, Any]:
     where, args = _filters(params)

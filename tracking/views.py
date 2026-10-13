@@ -228,6 +228,24 @@ def report_inventory_by_warehouse(request):
 def report_inventory_by_location(request):
     return JsonResponse(stock_report.get_by_location(request.GET))
 
+def report_inventory_by_location_export(request):
+    rows = stock_report.export_by_location(request.GET)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Ton kho theo kho - trang thai'
+    ws.append(['Mã hàng', 'Tên hàng', 'Kho', 'Tên kho', 'Trạng thái', 'WMS', 'ĐVT'])
+    for cell in ws[1]:
+        cell.font = openpyxl.styles.Font(bold=True)
+    for row in rows:
+        ws.append([row['sku'], row['item_name'], row['whs'], row['whs_name'], row['status'], row['qty'], row['uom']])
+    for idx, width in enumerate([14, 60, 10, 32, 12, 12, 8], start=1):
+        ws.column_dimensions[get_column_letter(idx)].width = width
+    ws.freeze_panes = 'A2'
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="ton_kho_theo_kho_va_trang_thai.xlsx"'
+    wb.save(response)
+    return response
+
 def report_inventory_by_group(request):
     return JsonResponse(stock_report.get_by_group(request.GET))
 
