@@ -25,6 +25,9 @@ x-airflow-common: &airflow-common
     WMS_USERNAME: ${WMS_USERNAME}
     WMS_PASSWORD: ${WMS_PASSWORD}
     WMS_STORERKEY: ${WMS_STORERKEY}
+    SAP_API_BASE_URL: ${SAP_API_BASE_URL:-https://apierp.pgi.com.vn:64288}
+    SAP_API_USERNAME: ${SAP_API_USERNAME:-}
+    SAP_API_PASSWORD: ${SAP_API_PASSWORD:-}
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/logs:/opt/airflow/logs
