@@ -148,11 +148,16 @@
             data-parent="#accordionSidebar"
           >
             <div class="bg-white py-2 collapse-inner rounded">
+              {% comment %} Tạm ẩn 2 báo cáo ĐH theo NV (trang + API vẫn giữ)
               <a class="collapse-item" href="{% url 'detail-employee-dms' %}" data-loading>
                 ĐH theo NV - DMS
               </a>
               <a class="collapse-item" href="{% url 'detail-employee-oms' %}" data-loading>
                 ĐH theo NV - OMS/WMS
+              </a>
+              {% endcomment %}
+              <a class="collapse-item" href="{% url 'report-inventory' %}" data-loading>
+                Tồn kho
               </a>
             </div>
           </div>

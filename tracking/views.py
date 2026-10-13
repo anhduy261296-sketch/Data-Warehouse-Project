@@ -7,6 +7,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from .detail_report import DETAIL_CONFIGS, EMPLOYEE_REPORT_CONFIG_DMS, EMPLOYEE_REPORT_CONFIG_OMS, INVENTORY_CONFIG, RECON_CONFIGS, DetailReportConfig, export_detail_report_rows, get_distinct_so_status, get_inventory_detail, get_inventory_diff_list, get_inventory_meta, run_detail_report
 from .SystemsTracking import get_report
+from . import stock_report
 
 def export_detail_report_excel(config: DetailReportConfig, params: dict, filename: str) -> HttpResponse:
     rows = export_detail_report_rows(config, params)
@@ -205,3 +206,46 @@ def detail_employee_oms_report(request):
 
 def detail_employee_oms_export(request):
     return export_detail_report_excel(EMPLOYEE_REPORT_CONFIG_OMS, request.GET, 'chi_tiet_don_hang_theo_nhan_vien_oms.xlsx')
+
+def report_inventory_page(request):
+    return render(request, 'tracking/report_inventory.html')
+
+def report_inventory_meta(request):
+    return JsonResponse(stock_report.get_meta())
+
+def report_inventory_kpi(request):
+    return JsonResponse(stock_report.get_kpi(request.GET))
+
+def report_inventory_by_sku(request):
+    return JsonResponse(stock_report.get_by_sku(request.GET))
+
+def report_inventory_top_sku(request):
+    return JsonResponse(stock_report.get_top_sku(request.GET))
+
+def report_inventory_by_warehouse(request):
+    return JsonResponse(stock_report.get_by_warehouse(request.GET))
+
+def report_inventory_by_location(request):
+    return JsonResponse(stock_report.get_by_location(request.GET))
+
+def report_inventory_by_group(request):
+    return JsonResponse(stock_report.get_by_group(request.GET))
+
+def report_inventory_export(request):
+    warehouses, rows = stock_report.export_by_sku(request.GET)
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Ton kho theo SKU'
+    headers = ['SKU', 'Tên sản phẩm', 'ĐVT', 'Tổng tồn', 'Khả dụng', 'Đang giữ', *warehouses]
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = openpyxl.styles.Font(bold=True)
+    for row in rows:
+        ws.append([row['sku'], row['item_name'], row['uom'], row['total_qty'], row['available_qty'], row['held_qty'], *(row.get(w) for w in warehouses)])
+    for idx, width in enumerate([14, 60, 8, 12, 12, 12, *([10] * len(warehouses))], start=1):
+        ws.column_dimensions[get_column_letter(idx)].width = width
+    ws.freeze_panes = 'D2'
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="ton_kho_theo_sku_va_kho.xlsx"'
+    wb.save(response)
+    return response

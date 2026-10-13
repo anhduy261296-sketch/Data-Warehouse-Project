@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Báo cáo tồn kho{% endblock %}
+{% block extra_css %}
+<style>
+  .rpt-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+  .rpt-title { margin: 0; font-size: 1.5rem; font-weight: 700; color: #820606; }
+  .rpt-subtitle { margin: 2px 0 0; color: #6b7280; font-size: 0.9rem; }
+  .rpt-header-tools { display: flex; align-items: center; gap: 10px; }
+  .rpt-snapshot { font-size: 0.85rem; color: #6b7280; background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 6px 12px; }
+  .rpt-card { background: #fff; border: 1px solid #edf0f4; border-radius: 12px; box-shadow: 0 2px 8px rgba(16, 24, 40, 0.05); padding: 16px 18px; position: relative; height: 100%; }
+  .rpt-card-title { font-weight: 700; color: #1f2430; font-size: 1rem; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .rpt-card-title i { color: #820606; }
+  .rpt-kpi { display: flex; align-items: center; gap: 14px; }
+  .rpt-kpi-icon { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex: 0 0 auto; }
+  .rpt-kpi-label { color: #6b7280; font-size: 0.85rem; }
+  .rpt-kpi-value { font-size: 1.7rem; font-weight: 700; color: #1f2430; line-height: 1.2; }
+  .rpt-kpi-value-sku { font-size: 1.7rem; font-weight: 700; color: #1565c0; line-height: 1.2; }
+  .rpt-kpi-value-whs { font-size: 1.7rem; font-weight: 700; color: #1e7e34; line-height: 1.2; }
+  .rpt-kpi-value-qty { font-size: 1.7rem; font-weight: 700; color: #e67e00; line-height: 1.2; }
+  .rpt-filter label { font-size: 0.82rem; font-weight: 600; color: #374151; margin-bottom: 4px; }
+  .rpt-loading { position: absolute; inset: 0; background: rgba(255, 255, 255, 0.75); display: none; align-items: center; justify-content: center; border-radius: 12px; z-index: 5; }
+  .rpt-card.is-loading .rpt-loading { display: flex; }
+  .rpt-card.rpt-boot { min-height: 160px; }
+  .rpt-error { color: #b42318; font-size: 0.88rem; padding: 12px 0; }
+  .rpt-table { font-size: 0.85rem; margin-bottom: 0; }
+  .rpt-table thead th { white-space: nowrap; background: #f8f9fb; color: #374151; font-weight: 600; }
+  .rpt-table td { vertical-align: middle; }
+  .rpt-table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .rpt-table .total { color: #1f2430; font-weight: 700; }
+  .rpt-name { max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* ten SP: chiem het be ngang o, chi cat "..." o mep o */
+  td.rpt-name-fill { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 0.75rem; }
+  #rptTopSku .rpt-table { table-layout: fixed; width: 100%; min-width: 620px; }
+  #rptSkuTable td.rpt-name-cell { min-width: 280px; max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rpt-stack { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: #f1f3f5; min-width: 160px; }
+  #rptTopSku .rpt-stack { min-width: 0; }
+  .rpt-stack span { display: block; height: 100%; }
+  .rpt-bar { height: 10px; border-radius: 5px; background: #f1f3f5; min-width: 36px; }
+  .rpt-bar span { display: block; height: 100%; border-radius: 5px; }
+  .rpt-chart { position: relative; height: 260px; }
+  .rpt-donut-wrap { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 14px; }
+  .rpt-donut { position: relative; width: 140px; height: 140px; flex: 0 0 140px; }
+  .rpt-donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+  .rpt-donut-center b { font-size: 1.05rem; color: #1f2430; }
+  .rpt-donut-center small { color: #6b7280; font-size: 0.72rem; }
+  .rpt-legend { flex: 1 1 230px; min-width: 0; max-width: 100%; table-layout: fixed; font-size: 0.8rem; }
+  .rpt-legend td { padding: 3px 2px; white-space: nowrap; }
+  .rpt-legend td:first-child { overflow: hidden; text-overflow: ellipsis; }
+  .rpt-legend td:nth-child(2) { width: 48px; }
+  .rpt-legend td:nth-child(3) { width: 64px; }
+  /* gutter ngang = gutter dọc (16px) */
+  .rpt-row { margin-left: -8px; margin-right: -8px; }
+  .rpt-row > [class*="col-"] { padding-left: 8px; padding-right: 8px; }
+  /* 2 cột cao bằng nhau: card cuối mỗi cột giãn để lấp phần còn lại */
+  .rpt-col { display: flex; flex-direction: column; }
+  .rpt-col > .rpt-card { height: auto; }
+  .rpt-col > .rpt-grow { flex: 1 1 auto; }
+  .rpt-busy-btn.disabled, .rpt-busy-btn:disabled { opacity: 0.5; pointer-events: none; cursor: not-allowed; }
+  #rptLocTable thead th { padding-right: 22px !important; background: #f8f9fb; color: #374151; border-bottom: 1px solid #dee2e6; }
+  #rptLocTable td.rpt-name-cell { min-width: 280px; max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #rptSkuTable thead th { padding-right: 22px !important; background: #f8f9fb; color: #374151; border-bottom: 1px solid #dee2e6; }
+  .rpt-pager { gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+  #rptTopSku .rpt-table thead th, #rptTopWhs .rpt-table thead th { padding-right: 0.5rem !important; }
+  #rptTopWhs .rpt-table th, #rptTopWhs .rpt-table td { padding-left: 4px !important; padding-right: 4px !important; }
+  #rptTopWhs .rpt-table td:nth-child(4) { width: 30%; }
+  @media (min-width: 1200px) and (max-width: 1599.98px), (max-width: 575.98px) {
+    #rptTopWhs .rpt-table th:nth-child(4), #rptTopWhs .rpt-table td:nth-child(4) { display: none; }
+  }
+  .rpt-actions .btn { white-space: nowrap; min-width: 110px; }
+  @media (max-width: 575.98px) {
+    .rpt-header-tools { width: 100%; justify-content: space-between; }
+    .rpt-kpi-value { font-size: 1.4rem; }
+    #rptSkuTable_wrapper .pagination .page-link { padding: 0.3rem 0.55rem; }
+  }
+  .rpt-pager .dataTables_length label { margin: 0; font-size: 0.82rem; color: #6b7280; }
+  .rpt-pager .dataTables_length select { height: 31px; }
+  .rpt-pager .dataTables_paginate { padding-top: 0 !important; }
+  .rpt-pager .pagination { margin: 0; }
+  .rpt-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+  #rptSkuTable_wrapper .dataTables_info { font-size: 0.82rem; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="rpt-header">
+  <div>
+    <h1 class="rpt-title">Tồn kho theo SKU và kho</h1>
+    <p class="rpt-subtitle">Theo dõi số lượng tồn, tồn khả dụng theo từng SKU tại các kho (nguồn: WMS)</p>
+  </div>
+  <div class="rpt-header-tools">
+    <span class="rpt-snapshot"><i class="far fa-calendar-alt mr-1"></i> Thời điểm dữ liệu: <b id="rptSnapshot">—</b></span>
+    <button type="button" class="btn btn-sm btn-outline-primary" id="rptRefresh"><i class="fas fa-sync-alt mr-1"></i> Làm mới</button>
+  </div>
+</div>
+
+<div class="row rpt-row">
+  <div class="col-md-4 mb-3">
+    <div class="rpt-card" id="rptKpiSku"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="rpt-kpi"><div class="rpt-kpi-icon" style="background:#e8f1fd;color:#1565c0"><i class="fas fa-cube"></i></div>
+        <div><div class="rpt-kpi-label">Tổng số SKU</div><div class="rpt-kpi-value-sku" data-kpi="sku_count">—</div></div></div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-3">
+    <div class="rpt-card" id="rptKpiWhs"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="rpt-kpi"><div class="rpt-kpi-icon" style="background:#e9f7ef;color:#1e7e34"><i class="fas fa-warehouse"></i></div>
+        <div><div class="rpt-kpi-label">Tổng số kho</div><div class="rpt-kpi-value-whs" data-kpi="warehouse_count">—</div></div></div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-3">
+    <div class="rpt-card" id="rptKpiQty"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="rpt-kpi"><div class="rpt-kpi-icon" style="background:#fff4e5;color:#e67e00"><i class="fas fa-boxes"></i></div>
+        <div><div class="rpt-kpi-label">Tổng tồn kho (SL)</div><div class="rpt-kpi-value-qty" data-kpi="total_qty">—</div></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="rpt-card mb-3 rpt-filter">
+  <form class="form-row align-items-end" id="rptFilter" autocomplete="off">
+    <div class="col-xl col-lg-12 col-md-6 mb-2">
+      <label for="rptQ">Tìm kiếm</label>
+      <input type="search" class="form-control form-control-sm" id="rptQ" name="q" placeholder="Nhập SKU, tên sản phẩm, mã vạch..." />
+    </div>
+    <div class="col-xl-2 col-lg-4 col-md-6 mb-2">
+      <label for="rptGroup">Nhóm hàng</label>
+      <select class="form-control form-control-sm" id="rptGroup" name="group"><option value="">Tất cả</option></select>
+    </div>
+    <div class="col-xl-2 col-lg-4 col-md-6 mb-2">
+      <label for="rptWhs">Kho</label>
+      <select class="form-control form-control-sm" id="rptWhs" name="whs"><option value="">Tất cả kho</option></select>
+    </div>
+    <div class="col-xl-2 col-lg-4 col-md-6 mb-2">
+      <label for="rptStatus">Trạng thái</label>
+      <select class="form-control form-control-sm" id="rptStatus" name="status"><option value="">Tất cả</option></select>
+    </div>
+    <div class="col-xl-auto col-12 mb-2 d-flex rpt-actions" style="gap:8px">
+      <button type="submit" class="btn btn-sm btn-primary flex-fill" id="rptSearch"><i class="fas fa-search mr-1"></i> Tìm kiếm</button>
+      <a href="#" class="btn btn-sm btn-outline-secondary flex-fill" id="rptExport" title="Xuất Excel tồn kho theo SKU (theo bộ lọc)"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
+    </div>
+  </form>
+</div>
+
+<div class="row rpt-row">
+  <div class="col-xl-8 mb-3 rpt-col">
+    <div class="rpt-card mb-3 is-loading rpt-boot" id="rptSkuCard"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-table"></i> Tồn kho theo SKU và kho</div>
+      <table class="table table-bordered table-hover rpt-table" id="rptSkuTable" width="100%"><thead><tr></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="rpt-card rpt-grow" id="rptTopSku"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-trophy"></i> Top 10 mã hàng tồn nhiều nhất</div>
+      <div class="table-responsive">
+        <table class="table table-sm rpt-table"><colgroup><col style="width:5%"><col style="width:11%"><col style="width:40%"><col style="width:9%"><col style="width:11%"><col style="width:24%"></colgroup><thead><tr><th>#</th><th>SKU</th><th>Tên sản phẩm</th><th>ĐVT</th><th class="num">Tổng tồn</th><th>Tồn theo kho</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4 mb-3 rpt-col">
+    <div class="rpt-card mb-3" id="rptByWhs"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-warehouse"></i> Tồn kho theo kho</div>
+      <div class="rpt-chart"><canvas id="rptWhsChart"></canvas></div>
+    </div>
+    <div class="rpt-card mb-3" id="rptByGroup"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-layer-group"></i> Tồn kho theo nhóm hàng</div>
+      <div class="rpt-donut-wrap">
+        <div class="rpt-donut"><canvas id="rptGroupChart"></canvas><div class="rpt-donut-center"><b id="rptGroupTotal">—</b><small>SL tồn kho</small></div></div>
+        <table class="rpt-legend"><tbody></tbody></table>
+      </div>
+    </div>
+    <div class="rpt-card rpt-grow" id="rptTopWhs"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-sort-amount-down"></i> Top 10 kho có tồn nhiều nhất</div>
+      <div class="table-responsive"><table class="table table-sm rpt-table"><thead><tr><th>#</th><th>Kho</th><th class="num">Tồn (SL)</th><th></th><th class="num">Số SKU</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+</div>
+<div class="rpt-card mb-3" id="rptLocCard">
+  <div class="rpt-card-title"><i class="fas fa-list-ul"></i> Chi tiết tồn kho theo trạng thái</div>
+  <div class="text-center text-muted py-4" id="rptLocHint"><i class="fas fa-filter mr-1"></i> Chọn nhóm hàng / kho / trạng thái ở trên, hoặc nhập từ khoá rồi bấm <b>Tìm kiếm</b> để xem chi tiết tồn theo trạng thái.</div>
+  <div class="d-none" id="rptLocWrap"><table class="table table-bordered table-hover rpt-table" id="rptLocTable" width="100%"><thead><tr></tr></thead><tbody></tbody></table></div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  (function () {
+    const API = `${CONFIG.API_BASE}${CONFIG.REPORT_INVENTORY}`;
+    const NUM = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 });
+    const fmt = (v) => (v === null || v === undefined ? "—" : NUM.format(v));
+    const esc = (v) => $("<div>").text(v === null || v === undefined ? "" : v).html();
+    const PALETTE = ["#3b82f6", "#22c3a6", "#f59e0b", "#a855f7", "#ec4899", "#60a5fa", "#94a3b8", "#ef4444", "#14b8a6", "#f97316", "#84cc16", "#6366f1", "#06b6d4", "#d946ef", "#eab308", "#10b981", "#8b5cf6", "#fb7185"];
+    let meta = { warehouses: [], groups: [], statuses: [] };
+    const whsColor = {};
+    const whsName = {};
+    let skuTable = null;
+    let whsChart = null;
+    let groupChart = null;
+
+    function filters() {
+      return { q: $("#rptQ").val().trim(), group: $("#rptGroup").val(), whs: $("#rptWhs").val(), status: $("#rptStatus").val() };
+    }
+
+    let pending = 0;
+    let gen = 0;
+    const SEARCH_HTML = '<i class="fas fa-search mr-1"></i> Tìm kiếm';
+    function setBusy(on) {
+      $("#rptSearch, #rptRefresh").prop("disabled", on);
+      $("#rptExport").toggleClass("disabled", on).attr("aria-disabled", on ? "true" : null);
+      $("#rptSearch").html(on ? '<span class="spinner-border spinner-border-sm mr-1"></span> Đang tải...' : SEARCH_HTML);
+    }
+    // chi khoa nut khi tai do mo trang / Tim kiem / Lam moi; doi dropdown thi khong khoa de van bam Tim kiem duoc
+    let lockUI = true;
+    function lock() { lockUI = true; if (pending) setBusy(true); }
+    function begin() { pending += 1; if (lockUI) setBusy(true); }
+    function end() { pending = Math.max(0, pending - 1); if (pending === 0) { setBusy(false); lockUI = false; } }
+
+    function area(id, url, render) {
+      const $card = $(id).addClass("is-loading");
+      $card.find(".rpt-error").remove();
+      const g = gen;
+      begin();
+      return $.getJSON(url, filters())
+        .done((data) => { if (g === gen) render(data); })
+        .always(end)
+        .fail(() => $card.append('<div class="rpt-error">Không tải được dữ liệu. Bấm Làm mới để thử lại.</div>'))
+        .always(() => $card.removeClass("is-loading"));
+    }
+
+    function loadKpi() {
+      ["#rptKpiSku", "#rptKpiWhs", "#rptKpiQty"].forEach((id) => $(id).addClass("is-loading"));
+      const g = gen;
+      begin();
+      return $.getJSON(`${API}kpi/`, filters())
+        .always(end)
+        .done((d) => { if (g === gen) $("[data-kpi]").each(function () { $(this).text(fmt(d[$(this).data("kpi")])); }); })
+        .fail(() => $("[data-kpi]").text("!"))
+        .always(() => ["#rptKpiSku", "#rptKpiWhs", "#rptKpiQty"].forEach((id) => $(id).removeClass("is-loading")));
+    }
+
+    function stackBar(byWhs, total) {
+      return `<div class="rpt-stack">${Object.entries(byWhs || {}).sort((a, b) => b[1] - a[1]).map(([code, qty]) =>
+        `<span style="width:${total ? (qty / total) * 100 : 0}%;background:${whsColor[code] || "#cbd5e1"}" title="${esc(code)} - ${esc(whsName[code] || "")}: ${fmt(qty)}"></span>`).join("")}</div>`;
+    }
+
+    function loadTopSku() {
+      return area("#rptTopSku", `${API}top-sku/`, (d) => {
+        const rows = d.data.map((r, i) => `<tr><td>${i + 1}</td><td class="text-nowrap">${esc(r.sku)}</td><td class="rpt-name-fill" title="${esc(r.item_name)}">${esc(r.item_name)}</td>` +
+          `<td>${esc(r.uom)}</td><td class="num total">${fmt(r.total_qty)}</td><td>${stackBar(r.by_warehouse, r.total_qty)}</td></tr>`).join("");
+        $("#rptTopSku tbody").html(rows || '<tr><td colspan="6" class="text-center text-muted">Không có dữ liệu</td></tr>');
+      });
+    }
+
+    function loadByWarehouse() {
+      $("#rptTopWhs").addClass("is-loading");
+      return area("#rptByWhs", `${API}by-warehouse/`, (d) => {
+        const data = d.data;
+        if (whsChart) whsChart.destroy();
+        whsChart = new Chart(document.getElementById("rptWhsChart"), {
+          type: "bar",
+          data: { labels: data.map((r) => r.code), datasets: [{ data: data.map((r) => r.total_qty), backgroundColor: data.map((r) => whsColor[r.code] || "#94a3b8"), borderRadius: 6, maxBarThickness: 34 }] },
+          options: {
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { callbacks: { title: (c) => `${c[0].label} - ${whsName[c[0].label] || ""}`, label: (c) => `Tồn: ${fmt(c.raw)}` } } },
+            scales: { y: { ticks: { callback: (v) => fmt(v) }, grid: { color: "#eef0f3" } }, x: { grid: { display: false }, ticks: { font: { size: 11 } } } },
+          },
+        });
+        const max = Math.max(1, ...data.map((r) => r.total_qty || 0));
+        const rows = data.slice(0, 10).map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.code)}</b><div class="small text-muted rpt-name" style="max-width:120px" title="${esc(r.name)}">${esc(r.name)}</div></td>` +
+          `<td class="num">${fmt(r.total_qty)}</td><td><div class="rpt-bar"><span style="width:${(r.total_qty / max) * 100}%;background:${whsColor[r.code] || "#94a3b8"}"></span></div></td><td class="num">${fmt(r.sku_count)}</td></tr>`).join("");
+        $("#rptTopWhs tbody").html(rows || '<tr><td colspan="5" class="text-center text-muted">Không có dữ liệu</td></tr>');
+      }).always(() => $("#rptTopWhs").removeClass("is-loading"));
+    }
+
+    function loadByGroup() {
+      return area("#rptByGroup", `${API}by-group/`, (d) => {
+        const data = d.data;
+        const total = data.reduce((s, r) => s + (r.total_qty || 0), 0);
+        const colors = data.map((_, i) => PALETTE[i % PALETTE.length]);
+        if (groupChart) groupChart.destroy();
+        groupChart = new Chart(document.getElementById("rptGroupChart"), {
+          type: "doughnut",
+          data: { labels: data.map((r) => r.name), datasets: [{ data: data.map((r) => r.total_qty), backgroundColor: colors, borderWidth: 2, borderColor: "#fff" }] },
+          options: { cutout: "62%", maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => `${c.label}: ${fmt(c.raw)}` } } } },
+        });
+        $("#rptGroupTotal").text(fmt(total));
+        $("#rptByGroup .rpt-legend tbody").html(data.map((r, i) =>
+          `<tr><td title="${esc(r.name)}"><span class="rpt-dot" style="background:${colors[i]}"></span>${esc(r.name)}</td><td class="text-right text-muted">${total ? ((r.total_qty / total) * 100).toFixed(1).replace(".", ",") : 0}%</td><td class="text-right"><b>${fmt(r.total_qty)}</b></td></tr>`).join(""));
+      });
+    }
+
+    function buildSkuTable() {
+      const whsCols = meta.warehouses.map((w) => ({ data: w.code, title: w.code, className: "num", orderable: false, defaultContent: "", render: (v) => (v ? fmt(v) : "") }));
+      const columns = [
+        { data: "sku", title: "SKU", className: "text-nowrap" },
+        { data: "item_name", title: "Tên sản phẩm", className: "rpt-name-cell", render: (v) => esc(v), createdCell: (td, v) => td.setAttribute("title", v || "") },
+        { data: "uom", title: "ĐVT", orderable: false },
+        { data: "total_qty", title: "Tổng tồn", className: "num total", render: fmt },
+        { data: "available_qty", title: "Khả dụng", className: "num", render: fmt },
+        { data: "held_qty", title: "Đang giữ", className: "num", render: fmt },
+        ...whsCols,
+      ];
+      skuTable = $("#rptSkuTable").DataTable({
+        serverSide: true,
+        processing: true,
+        searching: false,
+        pageLength: 10,
+        dom: "<'table-responsive'tr><'d-flex justify-content-between align-items-center flex-wrap mt-2'i<'d-flex align-items-center rpt-pager'lp>>",
+        order: [[3, "desc"]],
+        ajax: { url: `${API}by-sku/`, data: (d) => Object.assign(d, filters()) },
+        columns,
+        initComplete: function () {
+          this.api().columns().every(function (i) {
+            const w = meta.warehouses[i - 6];
+            if (w) $(this.header()).attr("title", `${w.code} - ${w.name}`).tooltip({ container: "body", placement: "top", trigger: "hover" });
+          });
+        },
+        language: { thousands: ".", lengthMenu: "_MENU_ / trang", info: "Hiển thị _START_ - _END_ của _TOTAL_ SKU", infoEmpty: "Không có dữ liệu", infoFiltered: "(lọc từ _MAX_ dòng)", zeroRecords: "Không có dữ liệu", emptyTable: "Không có dữ liệu", processing: "Đang tải...", paginate: { previous: "‹", next: "›" } },
+      });
+    }
+
+    let locTable = null;
+    function buildLocTable() {
+      locTable = $("#rptLocTable").DataTable({
+        serverSide: true,
+        processing: true,
+        searching: false,
+        pageLength: 10,
+        dom: "<'table-responsive'tr><'d-flex justify-content-between align-items-center flex-wrap mt-2'i<'d-flex align-items-center rpt-pager'lp>>",
+        order: [[0, "asc"]],
+        ajax: { url: `${API}by-location/`, data: (d) => Object.assign(d, filters()) },
+        columns: [
+          { data: "sku", title: "Mã hàng", className: "text-nowrap" },
+          { data: "item_name", title: "Tên hàng", className: "rpt-name-cell", render: (v) => esc(v), createdCell: (td, v) => td.setAttribute("title", v || "") },
+          { data: "whs", title: "Kho", className: "text-nowrap" },
+          { data: "whs_name", title: "Tên kho", orderable: false, render: (v) => esc(v) },
+          { data: "status", title: "Trạng thái", className: "text-nowrap", render: (v) => esc(v) },
+          { data: "qty", title: "WMS", className: "num total", render: fmt },
+          { data: "uom", title: "ĐVT", orderable: false, render: (v) => esc(v) },
+        ],
+        language: { thousands: ".", lengthMenu: "_MENU_ / trang", info: "Hiển thị _START_ - _END_ của _TOTAL_ dòng", infoEmpty: "Không có dữ liệu", infoFiltered: "(lọc từ _MAX_ dòng)", zeroRecords: "Không có dữ liệu", emptyTable: "Không có dữ liệu", processing: "Đang tải...", paginate: { previous: "‹", next: "›" } },
+      });
+    }
+
+    // bang chi tiet theo kho & trang thai: tai khi bam Tim kiem hoac doi dropdown (co it nhat 1 bo loc); mo trang / Lam moi / bo loc rong thi ve trang thai huong dan
+    function hasFilter() { return Object.values(filters()).some((v) => v); }
+    // dua bang chi tiet ve trang thai ban dau: an bang, hien huong dan
+    function resetLoc() {
+      $("#rptLocWrap").addClass("d-none");
+      $("#rptLocHint").removeClass("d-none");
+    }
+    function loadAll(fromSearch) {
+      gen += 1;
+      loadKpi();
+      loadTopSku();
+      loadByWarehouse();
+      loadByGroup();
+      if (skuTable) skuTable.ajax.reload();
+      else buildSkuTable();
+      if (fromSearch === true && hasFilter()) {
+        $("#rptLocHint").addClass("d-none");
+        $("#rptLocWrap").removeClass("d-none");
+        if (locTable) locTable.ajax.reload();
+        else buildLocTable();
+      } else if (fromSearch === true || fromSearch === "reset" || !hasFilter()) {
+        resetLoc();
+      }
+      const url = new URL(`${API}export/`, window.location.origin);
+      Object.entries(filters()).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
+      $("#rptExport").attr("href", url.toString());
+    }
+
+    $(function () {
+      if (typeof Loading !== "undefined") Loading.hide();
+      $("#rptSearch, #rptRefresh, #rptExport").addClass("rpt-busy-btn");
+      $("#rptExport").on("click", function (e) { if ($(this).hasClass("disabled") || $(this).attr("href") === "#") e.preventDefault(); });
+      $(".rpt-card").has(".rpt-loading").addClass("is-loading");
+      begin();
+      $.getJSON(`${API}meta/`).always(() => { end(); $(".rpt-boot").removeClass("is-loading rpt-boot"); }).done((m) => {
+        meta = m;
+        m.warehouses.forEach((w, i) => { whsColor[w.code] = PALETTE[i % PALETTE.length]; whsName[w.code] = w.name; });
+        m.groups.forEach((g) => $("#rptGroup").append($("<option>").val(g.code).text(g.name)));
+        m.warehouses.forEach((w) => $("#rptWhs").append($("<option>").val(w.code).text(`${w.code} - ${w.name}`)));
+        m.statuses.forEach((s) => $("#rptStatus").append($("<option>").val(s).text(s)));
+        $("#rptSnapshot").text(m.snapshot_at ? formatDateTime(/[zZ]|[+-]\d\d:?\d\d$/.test(m.snapshot_at) ? m.snapshot_at : `${m.snapshot_at}Z`) : "—");
+        $("#rptSkuTable, #rptLocTable").on("preXhr.dt", begin).on("xhr.dt", end);
+        loadAll();
+      }).fail(() => {
+        $("#rptSnapshot").text("Không tải được");
+        $(".rpt-card.is-loading").removeClass("is-loading");
+      });
+      $("#rptFilter").on("submit", (e) => { e.preventDefault(); lock(); loadAll(true); });
+      // dropdown: bang chi tiet tai luon cung cac vung khac (1 lan); o nhap thi phai bam Tim kiem
+      $("#rptGroup, #rptWhs, #rptStatus").on("change", () => loadAll(true));
+      // Lam moi: xoa het bo loc, tai lai toan trang, bang chi tiet ve trang thai huong dan
+      $("#rptRefresh").on("click", () => {
+        $("#rptQ").val("");
+        $("#rptGroup, #rptWhs, #rptStatus").val("");
+        lock();
+        loadAll("reset");
+      });
+    });
+  })();
+</script>
+{% endblock %}

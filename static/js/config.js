@@ -16,6 +16,7 @@ const CONFIG = {
   RECON_INVENTORY_DETAIL: "/api/recon/inventory/detail/",
   RECON_INVENTORY_DETAIL_EXPORT: "/api/recon/inventory/detail/export/",
   RECON_INVENTORY_DIFF_LIST: "/api/recon/inventory/diff-list/",
+  REPORT_INVENTORY: "/api/report/inventory/",
   RECON_INVENTORY_DIFF_EXPORT: "/api/recon/inventory/diff-list/export/",
   DETAIL_ECOM_REPORT: "/api/detail/ecom/report/",
   DETAIL_ECOM_EXPORT: "/api/detail/ecom/export/",
