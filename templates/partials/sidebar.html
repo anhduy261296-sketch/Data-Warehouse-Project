@@ -1,0 +1,53 @@
+{# Sidebar sinh tu tracking/menu.py (context processor sidebar_menu). Them/an trang: sua menu.py, khong sua file nay. #}
+<ul
+  class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion"
+  id="accordionSidebar"
+>
+  <a
+    class="sidebar-brand d-flex align-items-center justify-content-center"
+    href="{% url home_url_name %}"
+    data-loading
+  >
+    <div class="sidebar-brand-icon"><i class="fas fa-server"></i></div>
+    <div class="sidebar-brand-text mx-3">Data Warehouse</div>
+  </a>
+  <hr class="sidebar-divider my-0" />
+
+  {% for group in sidebar_menu %}
+  <li class="nav-item{% if group.active %} active{% endif %}">
+    <a
+      class="nav-link{% if not group.active %} collapsed{% endif %}"
+      href="#"
+      data-toggle="collapse"
+      data-target="#{{ group.collapse_id }}"
+      aria-expanded="{% if group.active %}true{% else %}false{% endif %}"
+      aria-controls="{{ group.collapse_id }}"
+    >
+      <i class="fas fa-fw {{ group.icon }}"></i>
+      <span>{{ group.label }}</span>
+    </a>
+
+    <div
+      id="{{ group.collapse_id }}"
+      class="collapse{% if group.active %} show{% endif %}"
+      data-parent="#accordionSidebar"
+    >
+      <div class="bg-white py-2 collapse-inner rounded">
+        {% for item in group.items %}
+        <a class="collapse-item{% if item.active %} active{% endif %}" href="{% url item.url_name %}" data-loading>
+          {{ item.label }}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+
+  <div class="text-center d-none d-md-inline">
+    <button
+      class="rounded-circle border-0"
+      id="sidebarToggle"
+      aria-label="Toggle sidebar"
+    ></button>
+  </div>
+</ul>

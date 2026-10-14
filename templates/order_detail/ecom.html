@@ -1,0 +1,8 @@
+{% extends "layouts/datatable_page.html" %}
+{% load static %}
+{# Chi tiết đơn hàng > E-com #}
+{% block title %}Chi tiết E-com{% endblock %}
+{% block card_title %}Chi tiết đơn hàng E-com (nguồn OMS_ORDERS){% endblock %}
+{% block table_id %}detailEcomTable{% endblock %}
+{% block table_key %}ecom{% endblock %}
+{% block page_js %}<script src="{% static 'js/pages/order_detail/orders.js' %}"></script>{% endblock %}

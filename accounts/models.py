@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+
 class User(AbstractUser):
     employee_code = models.CharField(max_length=50, blank=True, null=True, unique=True)
     department = models.CharField(max_length=100, blank=True, null=True)
@@ -11,6 +12,7 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.username
+
 
 class LoginActivityLog(models.Model):
     ACTION_LOGIN_SUCCESS = 'LOGIN_SUCCESS'

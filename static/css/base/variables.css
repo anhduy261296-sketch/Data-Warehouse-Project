@@ -1,0 +1,35 @@
+/* Design tokens dung chung toan he thong. Doi mau thuong hieu / mau trang thai chi sua o day. */
+:root {
+  /* Thuong hieu PGI */
+  --pgi-primary: #820606;
+  --pgi-primary-dark: #310505;
+  --pgi-primary-soft: #faf3f3;
+  --pgi-primary-border: #e8cfcf;
+  --pgi-primary-muted: #8206068c;
+  --pgi-red: #e3262f;
+  --pgi-red-dark: #c41c24;
+
+  /* Trang thai */
+  --color-success: #61c81c;
+  --color-sap: #1e7e34;
+  --color-wms: #1565c0;
+  --color-danger: #c62828;
+  --color-error-text: #b42318;
+  --color-excel: #1d6f42;
+  --color-excel-soft: #aaedc7;
+
+  /* Chu / nen / vien */
+  --text-strong: #1f2430;
+  --text-body: #374151;
+  --text-muted: #6b7280;
+  --text-table: #696969;
+  --bg-card: #ffffff;
+  --bg-subtle: #f8f9fb;
+  --bg-track: #f1f3f5;
+  --border-light: #edf0f4;
+  --border-default: #e5e7eb;
+
+  /* Kich thuoc */
+  --radius-card: 12px;
+  --shadow-card: 0 2px 8px rgba(16, 24, 40, 0.05);
+}

@@ -6,18 +6,23 @@ from airflow import DAG
 from airflow.hooks.base import BaseHook
 from airflow.operators.python import PythonOperator
 from airflow.providers.microsoft.mssql.hooks.mssql import MsSqlHook
+
 PROJECT_ROOT = Path('/opt/airflow/project')
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 from services.pipeline.sap_inout import START_DATE, sync_sap_inout
+
 LOCAL_TZ = 'Asia/Ho_Chi_Minh'
 SAP_HANA_CONNECTION = 'sap_hana'
 SQLSERVER_CONNECTION = 'sqlserver_tracking'
 
+
 def _get_sap_hana_conn():
     from hdbcli import dbapi
+
     conn = BaseHook.get_connection(SAP_HANA_CONNECTION)
     return dbapi.connect(address=conn.host, port=conn.port, user=conn.login, password=conn.password)
+
 
 def _window_from_context(**context: object) -> tuple[str, str, bool]:
     dag_run = context.get('dag_run')
@@ -29,6 +34,7 @@ def _window_from_context(**context: object) -> tuple[str, str, bool]:
         end_date = interval_end.subtract(days=1).format('YYYY-MM-DD')
     return (start_date, str(end_date), bool(run_conf.get('force', False)))
 
+
 def load_sap_inout(**context: object) -> None:
     start_date, end_date, force = _window_from_context(**context)
     source_connection = _get_sap_hana_conn()
@@ -39,5 +45,16 @@ def load_sap_inout(**context: object) -> None:
         source_connection.close()
         target_connection.close()
     print(f'SAP in/out -> SQL Server: {row_count} rows, {start_date} to {end_date}.')
-with DAG(dag_id='sap_inout_to_sqlserver_daily', description='Full-refresh SAP stock in/out movements (BTS_RPT_R502_KT) from 2026-06-28 to D-1 into dbo.SAP_INOUT.', start_date=pendulum.datetime(2026, 10, 6, tz=LOCAL_TZ), schedule='30 4 * * *', catchup=False, max_active_runs=1, tags=['sap', 'hana', 'sqlserver', 'inventory'], default_args={'retries': 2, 'retry_delay': pendulum.duration(minutes=10)}) as dag:
+
+
+with DAG(
+    dag_id='sap_inout_to_sqlserver_daily',
+    description='Full-refresh SAP stock in/out movements (BTS_RPT_R502_KT) from 2026-06-28 to D-1 into dbo.SAP_INOUT.',
+    start_date=pendulum.datetime(2026, 10, 6, tz=LOCAL_TZ),
+    schedule='30 4 * * *',
+    catchup=False,
+    max_active_runs=1,
+    tags=['sap', 'hana', 'sqlserver', 'inventory'],
+    default_args={'retries': 2, 'retry_delay': pendulum.duration(minutes=10)},
+) as dag:
     PythonOperator(task_id='load_sap_inout', python_callable=load_sap_inout)

@@ -1,9 +1,11 @@
 from __future__ import annotations
 import logging
 from typing import Any, Sequence
+from services.pipeline.common.constants import TARGET_SCHEMA
+from services.pipeline.common.db import enable_fast_executemany
+
 logger = logging.getLogger(__name__)
 SOURCE_CALL = 'CALL "PGI_GOLIVE"."SP_SYN_SALES_DELIVERY_AR"(TO_DATE(?, \'YYYY-MM-DD\'), TO_DATE(?, \'YYYY-MM-DD\'))'
-TARGET_SCHEMA = 'dbo'
 STAGING_TABLE = 'SAP_SO'
 FINAL_TABLE = 'SAP_SO_All'
 LOG_TABLE = 'SAP_SO_Load_Log'
@@ -12,6 +14,7 @@ MERGE_KEY_COLUMNS = ('U_SONo', 'ItemCode', 'Type', 'U_ItemWarrPeriod2', 'U_ItemW
 DOC_DATE_COLUMN = 'DocDate'
 PENDING_AR_COLUMN = 'ARDocDate'
 
+
 def _fetch_day(source_conn: Any, day: str) -> tuple[list[str], list[tuple[Any, ...]]]:
     cursor = source_conn.cursor()
     cursor.execute(SOURCE_CALL, (day, day))
@@ -19,9 +22,11 @@ def _fetch_day(source_conn: Any, day: str) -> tuple[list[str], list[tuple[Any, .
     rows = [tuple(row) for row in cursor.fetchall()]
     return (columns, rows)
 
+
 def _truncate_staging(target_conn: Any) -> None:
     cursor = target_conn.cursor()
     cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{STAGING_TABLE}')
+
 
 def _insert_into_staging(target_conn: Any, columns: Sequence[str], rows: Sequence[Sequence[Any]]) -> None:
     if not rows:
@@ -30,15 +35,17 @@ def _insert_into_staging(target_conn: Any, columns: Sequence[str], rows: Sequenc
     placeholders = ', '.join(('%s' for _ in columns))
     insert_sql = f'INSERT INTO {TARGET_SCHEMA}.{STAGING_TABLE} ({quoted_cols}) VALUES ({placeholders})'
     cursor = target_conn.cursor()
-    if hasattr(cursor, 'fast_executemany'):
-        cursor.fast_executemany = True
+    enable_fast_executemany(cursor)
     cursor.executemany(insert_sql, list(rows))
 
+
 def _merge_staging_into_final(target_conn: Any, columns: Sequence[str]) -> None:
-   
+
     non_key_columns = [c for c in columns if c not in MERGE_KEY_COLUMNS]
 
-    on_clause = ' AND '.join((f'(target.[{c}] = source.[{c}] OR (target.[{c}] IS NULL AND source.[{c}] IS NULL))' for c in MERGE_KEY_COLUMNS))
+    on_clause = ' AND '.join(
+        (f'(target.[{c}] = source.[{c}] OR (target.[{c}] IS NULL AND source.[{c}] IS NULL))' for c in MERGE_KEY_COLUMNS)
+    )
     set_clause = ', '.join((f'target.[{c}] = source.[{c}]' for c in non_key_columns))
     insert_cols = ', '.join((f'[{c}]' for c in columns))
     insert_values = ', '.join((f'source.[{c}]' for c in columns))
@@ -48,22 +55,36 @@ def _merge_staging_into_final(target_conn: Any, columns: Sequence[str]) -> None:
     cursor = target_conn.cursor()
     cursor.execute(merge_sql)
 
+
 def _get_pending_dates(target_conn: Any, before_date: str) -> list[str]:
     cursor = target_conn.cursor()
-    cursor.execute(f'SELECT DISTINCT {DOC_DATE_COLUMN} FROM {TARGET_SCHEMA}.{PENDING_TABLE} WHERE {DOC_DATE_COLUMN} < %s ORDER BY {DOC_DATE_COLUMN}', (before_date,))
+    cursor.execute(
+        f'SELECT DISTINCT {DOC_DATE_COLUMN} FROM {TARGET_SCHEMA}.{PENDING_TABLE} WHERE {DOC_DATE_COLUMN} < %s ORDER BY {DOC_DATE_COLUMN}',
+        (before_date,),
+    )
     result = []
-    for d, in cursor.fetchall():
+    for (d,) in cursor.fetchall():
         result.append(d.isoformat() if hasattr(d, 'isoformat') else str(d)[:10])
     return result
 
+
 def _sync_pending_table(target_conn: Any) -> None:
     cursor = target_conn.cursor()
-    cursor.execute(f'\n        DELETE p\n        FROM {TARGET_SCHEMA}.{PENDING_TABLE} p\n        INNER JOIN {TARGET_SCHEMA}.{STAGING_TABLE} s\n            ON s.U_SONo = p.U_SONo AND s.ItemCode = p.ItemCode AND s.Type = p.Type\n        WHERE s.{PENDING_AR_COLUMN} IS NOT NULL\n        ')
-    cursor.execute(f'\n        INSERT INTO {TARGET_SCHEMA}.{PENDING_TABLE} (U_SONo, ItemCode, Type, DocDate, FirstSeenAt)\n        SELECT DISTINCT s.U_SONo, s.ItemCode, s.Type, CAST(s.{DOC_DATE_COLUMN} AS DATE), SYSUTCDATETIME()\n        FROM {TARGET_SCHEMA}.{STAGING_TABLE} s\n        WHERE s.{PENDING_AR_COLUMN} IS NULL\n          AND NOT EXISTS (\n              SELECT 1 FROM {TARGET_SCHEMA}.{PENDING_TABLE} p\n              WHERE p.U_SONo = s.U_SONo AND p.ItemCode = s.ItemCode AND p.Type = s.Type\n          )\n        ')
+    cursor.execute(
+        f'\n        DELETE p\n        FROM {TARGET_SCHEMA}.{PENDING_TABLE} p\n        INNER JOIN {TARGET_SCHEMA}.{STAGING_TABLE} s\n            ON s.U_SONo = p.U_SONo AND s.ItemCode = p.ItemCode AND s.Type = p.Type\n        WHERE s.{PENDING_AR_COLUMN} IS NOT NULL\n        '
+    )
+    cursor.execute(
+        f'\n        INSERT INTO {TARGET_SCHEMA}.{PENDING_TABLE} (U_SONo, ItemCode, Type, DocDate, FirstSeenAt)\n        SELECT DISTINCT s.U_SONo, s.ItemCode, s.Type, CAST(s.{DOC_DATE_COLUMN} AS DATE), SYSUTCDATETIME()\n        FROM {TARGET_SCHEMA}.{STAGING_TABLE} s\n        WHERE s.{PENDING_AR_COLUMN} IS NULL\n          AND NOT EXISTS (\n              SELECT 1 FROM {TARGET_SCHEMA}.{PENDING_TABLE} p\n              WHERE p.U_SONo = s.U_SONo AND p.ItemCode = s.ItemCode AND p.Type = s.Type\n          )\n        '
+    )
+
 
 def _log_action(target_conn: Any, start_at: str, end_at: str, row_count: int, action: str, status: str) -> None:
     cursor = target_conn.cursor()
-    cursor.execute(f'\n        INSERT INTO {TARGET_SCHEMA}.{LOG_TABLE} (start_at, end_at, row_count, action, status, loaded_at)\n        VALUES (%s, %s, %s, %s, %s, SYSUTCDATETIME())\n        ', (start_at, end_at, row_count, action, status))
+    cursor.execute(
+        f'\n        INSERT INTO {TARGET_SCHEMA}.{LOG_TABLE} (start_at, end_at, row_count, action, status, loaded_at)\n        VALUES (%s, %s, %s, %s, %s, SYSUTCDATETIME())\n        ',
+        (start_at, end_at, row_count, action, status),
+    )
+
 
 def sync_sap_sales_delivery(source_conn: Any, target_conn: Any, *, process_date: str, **_ignored: Any) -> int:
     _truncate_staging(target_conn)
@@ -101,5 +122,13 @@ def sync_sap_sales_delivery(source_conn: Any, target_conn: Any, *, process_date:
         _truncate_staging(target_conn)
         target_conn.commit()
     total = full_row_count + repull_row_count
-    logger.info('Da merge %d dong (full=%d, repull=%d) vao %s.%s cho ngay %s', total, full_row_count, repull_row_count, TARGET_SCHEMA, FINAL_TABLE, process_date)
+    logger.info(
+        'Da merge %d dong (full=%d, repull=%d) vao %s.%s cho ngay %s',
+        total,
+        full_row_count,
+        repull_row_count,
+        TARGET_SCHEMA,
+        FINAL_TABLE,
+        process_date,
+    )
     return total

@@ -2,18 +2,25 @@ from __future__ import annotations
 import datetime as dt
 import logging
 from typing import Any, Sequence
+from services.pipeline.common.constants import TARGET_SCHEMA
+from services.pipeline.common.db import enable_fast_executemany
+
 logger = logging.getLogger(__name__)
 SOURCE_QUERY = '\n    SELECT *\n    FROM public.sp_syn_dms_sales_orders(%(start_at)s::timestamp, %(end_at)s::timestamp)\n    WHERE "Sku" IS NOT NULL\n      AND "OrderType" NOT IN (\'DGH\', \'LR\', \'TEST_LOYALTY\')\n      AND "OrderStatus" NOT IN (\'draft\')\n'
-TARGET_SCHEMA = 'dbo'
 TARGET_TABLE = 'DMS_SO'
 LOG_TABLE = 'DMS_SO_Load_Log'
 PENDING_TABLE = 'DMS_SO_Pending'
 TERMINAL_STATUSES = {'done', 'cancel', 'refused'}
 
+
 def _window_already_loaded(target_conn: Any, start_at: str, end_at: str) -> bool:
     cursor = target_conn.cursor()
-    cursor.execute(f"\n        SELECT TOP 1 1\n        FROM {TARGET_SCHEMA}.{LOG_TABLE}\n        WHERE start_at = %s AND end_at = %s AND status = 'SUCCESS'\n        ", (start_at, end_at))
+    cursor.execute(
+        f"\n        SELECT TOP 1 1\n        FROM {TARGET_SCHEMA}.{LOG_TABLE}\n        WHERE start_at = %s AND end_at = %s AND status = 'SUCCESS'\n        ",
+        (start_at, end_at),
+    )
     return cursor.fetchone() is not None
+
 
 def _fetch_source_rows(source_conn: Any, start_at: str, end_at: str) -> tuple[list[str], list[tuple[Any, ...]]]:
     cursor = source_conn.cursor()
@@ -22,9 +29,11 @@ def _fetch_source_rows(source_conn: Any, start_at: str, end_at: str) -> tuple[li
     rows = cursor.fetchall()
     return (columns, [tuple(row) for row in rows])
 
+
 def _delete_window(target_conn: Any, start_at: str, end_at: str) -> None:
     cursor = target_conn.cursor()
     cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE DocDate >= %s AND DocDate < %s', (start_at, end_at))
+
 
 def _insert_rows(target_conn: Any, columns: Sequence[str], rows: Sequence[Sequence[Any]]) -> None:
     if not rows:
@@ -33,13 +42,17 @@ def _insert_rows(target_conn: Any, columns: Sequence[str], rows: Sequence[Sequen
     placeholders = ', '.join(('%s' for _ in columns))
     insert_sql = f'INSERT INTO {TARGET_SCHEMA}.{TARGET_TABLE} ({quoted_cols}) VALUES ({placeholders})'
     cursor = target_conn.cursor()
-    if hasattr(cursor, 'fast_executemany'):
-        cursor.fast_executemany = True
+    enable_fast_executemany(cursor)
     cursor.executemany(insert_sql, list(rows))
+
 
 def _log_window(target_conn: Any, start_at: str, end_at: str, row_count: int, status: str) -> None:
     cursor = target_conn.cursor()
-    cursor.execute(f'\n        INSERT INTO {TARGET_SCHEMA}.{LOG_TABLE} (start_at, end_at, row_count, status, loaded_at)\n        VALUES (%s, %s, %s, %s, SYSUTCDATETIME())\n        ', (start_at, end_at, row_count, status))
+    cursor.execute(
+        f'\n        INSERT INTO {TARGET_SCHEMA}.{LOG_TABLE} (start_at, end_at, row_count, status, loaded_at)\n        VALUES (%s, %s, %s, %s, SYSUTCDATETIME())\n        ',
+        (start_at, end_at, row_count, status),
+    )
+
 
 def _sync_pending_table(target_conn: Any, columns: Sequence[str], rows: Sequence[Sequence[Any]]) -> None:
     if not rows:
@@ -72,21 +85,27 @@ def _sync_pending_table(target_conn: Any, columns: Sequence[str], rows: Sequence
     for code in pending_codes:
         doc_date = latest_date[code]
         doc_date = doc_date.date() if hasattr(doc_date, 'date') else doc_date
-        cursor.execute(f'\n            MERGE {TARGET_SCHEMA}.{PENDING_TABLE} AS target\n            USING (SELECT %s AS OrderCode, %s AS DocDate) AS source\n            ON target.OrderCode = source.OrderCode\n            WHEN MATCHED THEN\n                UPDATE SET LastCheckedAt = SYSUTCDATETIME()\n            WHEN NOT MATCHED THEN\n                INSERT (OrderCode, DocDate, FirstSeenAt, LastCheckedAt)\n                VALUES (source.OrderCode, source.DocDate, SYSUTCDATETIME(), SYSUTCDATETIME());\n            ', (code, doc_date))
+        cursor.execute(
+            f'\n            MERGE {TARGET_SCHEMA}.{PENDING_TABLE} AS target\n            USING (SELECT %s AS OrderCode, %s AS DocDate) AS source\n            ON target.OrderCode = source.OrderCode\n            WHEN MATCHED THEN\n                UPDATE SET LastCheckedAt = SYSUTCDATETIME()\n            WHEN NOT MATCHED THEN\n                INSERT (OrderCode, DocDate, FirstSeenAt, LastCheckedAt)\n                VALUES (source.OrderCode, source.DocDate, SYSUTCDATETIME(), SYSUTCDATETIME());\n            ',
+            (code, doc_date),
+        )
+
 
 def _get_pending_days(target_conn: Any, before_date: str) -> list[str]:
     cursor = target_conn.cursor()
     cursor.execute(f'SELECT DISTINCT DocDate FROM {TARGET_SCHEMA}.{PENDING_TABLE} WHERE DocDate < %s ORDER BY DocDate', (before_date,))
     result = []
-    for d, in cursor.fetchall():
+    for (d,) in cursor.fetchall():
         result.append(d.isoformat() if hasattr(d, 'isoformat') else str(d)[:10])
     return result
+
 
 def _sync_window(source_conn: Any, target_conn: Any, start_at: str, end_at: str) -> tuple[list[str], list[tuple[Any, ...]]]:
     columns, rows = _fetch_source_rows(source_conn, start_at, end_at)
     _delete_window(target_conn, start_at, end_at)
     _insert_rows(target_conn, columns, rows)
     return columns, rows
+
 
 def sync_dms_sales_orders(source_conn: Any, target_conn: Any, *, start_at: str, end_at: str, **_ignored: Any) -> int:
     total = 0

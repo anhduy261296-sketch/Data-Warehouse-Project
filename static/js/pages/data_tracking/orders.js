@@ -1,0 +1,65 @@
+/*
+ * Data Tracking > Đơn hàng E-com / DMS duyệt / DMS xuất kho / WRT (bảng đối soát).
+ * Template: templates/data_tracking/{ecom,dms_duyet,dms_xuatkho,wrt}.html  ->  <table data-table-key="...">
+ */
+DataTablePage.autoInit({
+  ecom: {
+    kind: "recon",
+    endpoints: ENDPOINTS.dataTracking.ecom,
+    columns: [
+      COLUMNS.statusSync,
+      { data: "order_code", title: "Mã đơn hàng" },
+      COLUMNS.amount("oms_wms_amount", "OMS/ WMS"),
+      COLUMNS.amount("sap_amount", "SAP"),
+      COLUMNS.amount("wrt_amount", "WRT"),
+      { data: "so_status", title: "SO Status" },
+      COLUMNS.datetime("order_date", "Ngày đơn hàng"),
+      COLUMNS.refreshedAt,
+    ],
+  },
+  dmsDuyet: {
+    kind: "recon",
+    endpoints: ENDPOINTS.dataTracking.dmsDuyet,
+    columns: [
+      COLUMNS.statusSync,
+      { data: "order_code", title: "Mã đơn hàng" },
+      COLUMNS.amount("dms_amount", "DMS"),
+      COLUMNS.amount("oms_wms_amount", "OMS/ WMS"),
+      COLUMNS.amount("sap_amount", "SAP"),
+      { data: "so_status", title: "SO Status" },
+      COLUMNS.datetime("order_date", "Ngày đơn hàng"),
+      COLUMNS.refreshedAt,
+    ],
+  },
+  dmsXuatKho: {
+    kind: "recon",
+    endpoints: ENDPOINTS.dataTracking.dmsXuatKho,
+    columns: [
+      COLUMNS.statusSync,
+      { data: "order_code", title: "Mã đơn hàng" },
+      COLUMNS.amount("dms_amount", "DMS"),
+      COLUMNS.amount("oms_wms_amount", "OMS/ WMS"),
+      COLUMNS.amount("sap_amount", "SAP"),
+      COLUMNS.amount("wrt_amount", "WRT"),
+      { data: "so_status", title: "SO Status" },
+      COLUMNS.datetime("order_date", "Ngày đơn hàng"),
+      COLUMNS.refreshedAt,
+    ],
+  },
+  wrt: {
+    kind: "recon",
+    endpoints: ENDPOINTS.dataTracking.wrt,
+    soStatusFilter: true,
+    columns: [
+      COLUMNS.statusSync,
+      { data: "order_code", title: "Mã đơn hàng" },
+      COLUMNS.amount("oms_wms_amount", "OMS/ WMS"),
+      COLUMNS.amount("sap_amount", "SAP"),
+      COLUMNS.amount("wrt_amount", "WRT"),
+      { data: "so_status", title: "SO Status" },
+      { data: "type", title: "Loại" },
+      COLUMNS.datetime("order_date", "Ngày đơn hàng"),
+      COLUMNS.refreshedAt,
+    ],
+  },
+});

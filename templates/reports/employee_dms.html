@@ -1,0 +1,8 @@
+{% extends "layouts/datatable_page.html" %}
+{% load static %}
+{# Báo cáo > ĐH theo NV - DMS (đang ẩn khỏi menu) #}
+{% block title %}ĐH theo nhân viên - DMS{% endblock %}
+{% block card_title %}Chi tiết đơn hàng theo nhân viên (nguồn DMS_SO){% endblock %}
+{% block table_id %}detailEmployeeDmsTable{% endblock %}
+{% block table_key %}employeeDms{% endblock %}
+{% block page_js %}<script src="{% static 'js/pages/reports/employee.js' %}"></script>{% endblock %}

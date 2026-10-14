@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load static %}
+{# Data Tracking > Tồn kho SAP-WMS - CSS: css/pages/data_tracking/inventory.css, JS: js/pages/data_tracking/inventory.js #}
+{% block title %}Tồn kho SAP-WMS{% endblock %}
+{% block early_loading %}<script>Loading.show("Đang tải dữ liệu...");</script>{% endblock %}
+{% block content %}
+<div class="card shadow mb-4 inv-summary">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Đối chiếu tồn kho SAP - WMS</h6>
+    <div class="small text-muted mt-1 inventory-snapshot-info">Đang tải thông tin cập nhật...</div>
+  </div>
+  <div class="card-body">
+    <div class="row inv-summary-row">
+      <div class="col-lg-6 mb-3">
+        <div class="inv-stat-card inv-stat-sap inv-fill mb-3">
+          <div class="inv-stat-label">HỆ THỐNG SAP</div>
+          <div class="inv-stat-value" id="invSapTotal">—</div>
+          <div class="inv-stat-sub">TỒN KHO TỔNG</div>
+        </div>
+        <div class="inv-stat-card inv-stat-wms inv-fill">
+          <div class="inv-stat-label">HỆ THỐNG WMS</div>
+          <div class="inv-stat-value" id="invWmsTotal">—</div>
+          <div class="inv-stat-sub">TỒN KHO TỔNG</div>
+        </div>
+      </div>
+      <div class="col-lg-6 mb-3">
+        <div class="inv-chart-box inv-fill">
+          <div class="inv-chart-title">So sánh tồn kho giữa SAP và WMS</div>
+          <div class="inv-chart-canvas"><canvas id="invCompareChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+    <div class="row inv-summary-row">
+      <div class="col-lg-6 mb-3">
+        <div class="row">
+          <div class="col-sm-6 mb-3 mb-sm-0">
+            <a href="#" class="inv-stat-card inv-stat-big inv-stat-danger inv-stat-click d-block" id="invDiffCard" title="Xem danh sách lệch tất cả kho">
+              <div class="inv-stat-label">SỐ LƯỢNG LỆCH</div>
+              <div class="inv-stat-value" id="invDiffTotal">—</div>
+              <div class="inv-stat-sub">TỒN KHO</div>
+            </a>
+          </div>
+          <div class="col-sm-6">
+            <div class="inv-stat-card inv-stat-big inv-stat-danger">
+              <div class="inv-stat-label">TỶ TRỌNG LỆCH</div>
+              <div class="inv-stat-value" id="invDiffRatio">—</div>
+              <div class="inv-stat-sub">WMS SO VỚI SAP</div>
+            </div>
+          </div>
+        </div>
+        <div class="small text-muted mt-auto pt-3">Tính trên các kho quản lý trên WMS (không gồm kho "Không quản lý trên WMS").</div>
+      </div>
+      <div class="col-lg-6 mb-3">
+        <div class="inv-chart-box inv-fill">
+          <div class="inv-chart-title">Tỷ trọng lệch tồn kho</div>
+          <div class="inv-chart-canvas"><canvas id="invRatioChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card shadow mb-4">
+  <div class="card-header py-3">
+    <h6 class="m-0 font-weight-bold text-primary">Chi tiết đối chiếu tồn kho SAP - WMS</h6>
+    <div class="small text-muted mt-1 inventory-snapshot-info">Đang tải thông tin cập nhật...</div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-bordered" id="reconInventoryTable" width="100%" cellspacing="0">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade inv-wide-modal" id="inventoryDetailModal" tabindex="-1" role="dialog" aria-labelledby="inventoryDetailTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h6 class="modal-title font-weight-bold text-primary" id="inventoryDetailTitle"></h6>
+          <div class="small text-muted" id="inventoryDetailSummary"></div>
+        </div>
+        <div class="inv-modal-tools">
+          <input type="search" class="form-control form-control-sm inv-modal-search" placeholder="Tìm trong các bảng..." aria-label="Tìm trong các bảng" />
+          <a href="#" id="inventoryDetailExport" class="btn btn-sm bg-white border shadow-sm d-inline-flex align-items-center detail-export-btn" title="Xuất Excel 3 bảng chứng từ"></a>
+        </div>
+        <button type="button" class="close ml-0" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="modal-body" id="inventoryDetailBody"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade inv-wide-modal" id="inventoryDiffModal" tabindex="-1" role="dialog" aria-labelledby="inventoryDiffTitle" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h6 class="modal-title font-weight-bold text-primary" id="inventoryDiffTitle">Danh sách lệch tồn kho - tất cả kho</h6>
+          <div class="small text-muted" id="inventoryDiffSummary"></div>
+        </div>
+        <div class="inv-modal-tools">
+          <input type="search" class="form-control form-control-sm inv-modal-search" placeholder="Tìm trong các bảng..." aria-label="Tìm trong các bảng" />
+          <a href="#" id="inventoryDiffExport" class="btn btn-sm bg-white border shadow-sm d-inline-flex align-items-center detail-export-btn" title="Xuất Excel danh sách lệch của 2 hệ thống"></a>
+        </div>
+        <button type="button" class="close ml-0" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+      </div>
+      <div class="modal-body" id="inventoryDiffBody"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block page_css %}<link href="{% static 'css/pages/data_tracking/inventory.css' %}" rel="stylesheet" />{% endblock %}
+{% block page_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/pages/data_tracking/inventory.js' %}"></script>
+{% endblock %}

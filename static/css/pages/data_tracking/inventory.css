@@ -1,0 +1,212 @@
+/* Data Tracking > Tồn kho SAP-WMS (templates/data_tracking/inventory.html) */
+
+/* --- The tong hop + bieu do --- */
+.inv-stat-card {
+  background: #fff;
+  border: 1px solid #eceef2;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  padding: 14px 12px;
+  text-align: center;
+}
+.inv-stat-big {
+  padding: 34px 12px;
+  border-radius: 20px;
+}
+.inv-stat-label {
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+}
+.inv-stat-value {
+  font-weight: 700;
+  font-size: 2.1rem;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+.inv-stat-big .inv-stat-value {
+  font-size: 2.6rem;
+}
+.inv-stat-sub {
+  color: #7a7f8a;
+  font-weight: 500;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+.inv-stat-sap {
+  background: #eef8f0;
+  border-color: #b7dfc1;
+}
+.inv-stat-sap .inv-stat-label,
+.inv-stat-sap .inv-stat-value {
+  color: #1e7e34;
+}
+.inv-stat-wms {
+  background: #edf4fc;
+  border-color: #b6d3f2;
+}
+.inv-stat-wms .inv-stat-label,
+.inv-stat-wms .inv-stat-value {
+  color: #1565c0;
+}
+.inv-stat-danger {
+  background: #fdf2f2;
+  border-color: #f2cccc;
+}
+.inv-stat-danger .inv-stat-label,
+.inv-stat-danger .inv-stat-value {
+  color: #c62828;
+}
+
+a.inv-stat-click {
+  text-decoration: none;
+  transition:
+    box-shadow 0.15s,
+    transform 0.15s;
+}
+a.inv-stat-click:hover {
+  text-decoration: none;
+  box-shadow: 0 6px 14px rgba(198, 40, 40, 0.18);
+  transform: translateY(-2px);
+}
+
+.inv-chart-box {
+  background: #fff;
+  border: 1px solid #eceef2;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  padding: 12px 14px;
+}
+.inv-chart-title {
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #4a4f5a;
+  margin-bottom: 8px;
+}
+.inv-chart-canvas {
+  position: relative;
+  height: 200px;
+}
+
+.inv-summary-row > [class*="col-"] {
+  display: flex;
+  flex-direction: column;
+}
+.inv-fill {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+}
+.inv-chart-box.inv-fill {
+  justify-content: flex-start;
+}
+.inv-chart-box.inv-fill .inv-chart-canvas {
+  flex: 1 1 auto;
+  min-height: 200px;
+}
+a.inv-stat-card.inv-fill {
+  display: flex;
+}
+
+/* --- Popup chi tiet chung tu / danh sach lech (3 bang) --- */
+.inv-detail-both,
+.inv-detail-sap,
+.inv-detail-wms {
+  border-radius: 4px;
+  padding: 8px 10px;
+  height: 100%;
+}
+.inv-detail-both {
+  background: #fff8e6;
+  border: 1px solid #efd9a2;
+}
+.inv-detail-sap {
+  background: #eef8f0;
+  border: 1px solid #b7dfc1;
+}
+.inv-detail-wms {
+  background: #edf4fc;
+  border: 1px solid #b6d3f2;
+}
+.inv-detail-both .inv-detail-title {
+  color: #9a6700;
+}
+.inv-detail-sap .inv-detail-title {
+  color: #1e7e34;
+}
+.inv-detail-wms .inv-detail-title {
+  color: #1565c0;
+}
+.inv-detail-both thead th {
+  background: #fbe8b8;
+  color: #7a5200;
+}
+.inv-detail-sap thead th {
+  background: #d4edda;
+  color: #155724;
+}
+.inv-detail-wms thead th {
+  background: #d6e9f8;
+  color: #0d47a1;
+}
+.inv-detail-block table,
+.inv-detail-block .table-responsive {
+  background: #fff;
+}
+.inv-detail-block table {
+  font-size: 0.75rem;
+}
+.inv-detail-block .table thead th {
+  padding-right: 0.5rem !important;
+}
+.inv-detail-block .nw {
+  white-space: nowrap;
+}
+.inv-detail-block .table-responsive {
+  max-height: 45vh;
+  overflow-y: auto;
+}
+.inv-detail-block thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+}
+.inv-wide-modal .modal-header > div:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.inv-modal-tools {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  margin-left: 16px;
+  margin-right: 12px;
+  align-self: center;
+}
+.inv-modal-tools .detail-export-btn {
+  white-space: nowrap;
+}
+.inv-modal-search {
+  width: 240px;
+}
+.inv-detail-block tr.inv-row-diff td {
+  background: #fff3cd;
+}
+.inv-name-text {
+  display: block;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inv-wide-modal .modal-dialog {
+  max-width: min(86vw, 1512px);
+}

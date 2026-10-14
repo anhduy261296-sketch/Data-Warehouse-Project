@@ -1,0 +1,39 @@
+/*
+ * Báo cáo > ĐH theo NV - DMS / ĐH theo NV - OMS/WMS (đang ẩn khỏi menu, URL vẫn hoạt động).
+ * Template: templates/reports/{employee_dms,employee_oms}.html  ->  <table data-table-key="...">
+ */
+DataTablePage.autoInit({
+  employeeDms: {
+    kind: "detail",
+    dateFilter: true,
+    endpoints: ENDPOINTS.reports.employeeDms,
+    columns: [
+      { data: "order_code", title: "Mã đơn hàng" },
+      { data: "employee_code", title: "Mã nhân viên" },
+      { data: "customer_code", title: "Khách hàng" },
+      { data: "sku", title: "SKU" },
+      { data: "quantity", title: "Số lượng", className: "text-right" },
+      COLUMNS.amount("amount", "Thành tiền"),
+      { data: "warehouse_code", title: "Kho" },
+      { data: "sales_channel", title: "Kênh bán" },
+      COLUMNS.datetime("order_date", "Ngày đơn hàng"),
+    ],
+  },
+  employeeOms: {
+    kind: "detail",
+    dateFilter: true,
+    endpoints: ENDPOINTS.reports.employeeOms,
+    columns: [
+      { data: "order_code", title: "Mã đơn hàng" },
+      { data: "employee_code", title: "Mã nhân viên" },
+      { data: "employee_name", title: "Tên nhân viên" },
+      { data: "customer_code", title: "Khách hàng" },
+      { data: "sku", title: "SKU" },
+      { data: "quantity", title: "Số lượng", className: "text-right" },
+      COLUMNS.amount("amount", "Thành tiền"),
+      { data: "warehouse_code", title: "Kho" },
+      { data: "sales_channel", title: "Kênh bán" },
+      COLUMNS.datetime("order_date", "Ngày đơn hàng"),
+    ],
+  },
+});

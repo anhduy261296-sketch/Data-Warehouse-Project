@@ -1,0 +1,31 @@
+/* Thanh cong cu DataTables: nut chon cot, nut xuat Excel, menu chon cot. */
+
+button.detail-colvis-btn {
+  color: #fff;
+  background-color: var(--pgi-primary) !important;
+  border-color: var(--pgi-primary) !important;
+  margin-left: 5px;
+  height: 31px;
+}
+
+button.btn.btn-secondary.btn-sm.bg-white.border.shadow-sm.d-inline-flex.align-items-center.justify-content-center.detail-export-btn {
+  width: 31px;
+  height: 31px;
+  padding: 0;
+  margin-left: 4px;
+  border-radius: 2px;
+}
+button.detail-export-btn:hover {
+  background-color: var(--color-excel-soft) !important;
+  border-color: var(--color-excel) !important;
+}
+
+div.dt-button-collection {
+  left: auto !important;
+  right: 0 !important;
+}
+
+/* Bo loc ngay (Tu ngay / Den ngay) chen vao thanh cong cu */
+.detail-date-input {
+  width: 150px;
+}

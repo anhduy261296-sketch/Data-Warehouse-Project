@@ -1,0 +1,8 @@
+{% extends "layouts/datatable_page.html" %}
+{% load static %}
+{# Chi tiết đơn hàng > DMS xuất kho #}
+{% block title %}Chi tiết DMS xuất kho{% endblock %}
+{% block card_title %}Chi tiết đơn hàng DMS xuất kho (nguồn OMS_ORDERS){% endblock %}
+{% block table_id %}detailDmsXuatKhoTable{% endblock %}
+{% block table_key %}dmsXuatKho{% endblock %}
+{% block page_js %}<script src="{% static 'js/pages/order_detail/orders.js' %}"></script>{% endblock %}

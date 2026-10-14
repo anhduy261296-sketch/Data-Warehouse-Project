@@ -1,3 +1,96 @@
+"""Route nhom theo menu. Doi ten route (name=...) se lam hong {% url %} trong template + menu.py -> giu nguyen."""
+
 from django.urls import path
-from . import views
-urlpatterns = [path('', views.systems_tracking_page, name='systems-tracking'), path('api/SystemsTracking/report/', views.systems_tracking_report, name='systems-tracking-report'), path('recon/ecom/', views.recon_ecom_page, name='recon-ecom'), path('api/recon/ecom/report/', views.recon_ecom_report, name='recon-ecom-report'), path('api/recon/ecom/export/', views.recon_ecom_export, name='recon-ecom-export'), path('recon/dms-duyet/', views.recon_dms_duyet_page, name='recon-dms-duyet'), path('api/recon/dms-duyet/report/', views.recon_dms_duyet_report, name='recon-dms-duyet-report'), path('api/recon/dms-duyet/export/', views.recon_dms_duyet_export, name='recon-dms-duyet-export'), path('recon/dms-xuatkho/', views.recon_dms_xuatkho_page, name='recon-dms-xuatkho'), path('api/recon/dms-xuatkho/report/', views.recon_dms_xuatkho_report, name='recon-dms-xuatkho-report'), path('api/recon/dms-xuatkho/export/', views.recon_dms_xuatkho_export, name='recon-dms-xuatkho-export'), path('recon/wrt/', views.recon_wrt_page, name='recon-wrt'), path('api/recon/wrt/report/', views.recon_wrt_report, name='recon-wrt-report'), path('api/recon/wrt/export/', views.recon_wrt_export, name='recon-wrt-export'), path('api/recon/wrt/so-status-options/', views.recon_wrt_so_status_options, name='recon-wrt-so-status-options'), path('recon/inventory/', views.recon_inventory_page, name='recon-inventory'), path('api/recon/inventory/report/', views.recon_inventory_report, name='recon-inventory-report'), path('api/recon/inventory/export/', views.recon_inventory_export, name='recon-inventory-export'), path('api/recon/inventory/meta/', views.recon_inventory_meta, name='recon-inventory-meta'), path('api/recon/inventory/detail/', views.recon_inventory_detail, name='recon-inventory-detail'), path('api/recon/inventory/detail/export/', views.recon_inventory_detail_export, name='recon-inventory-detail-export'), path('api/recon/inventory/diff-list/', views.recon_inventory_diff_list, name='recon-inventory-diff-list'), path('api/recon/inventory/diff-list/export/', views.recon_inventory_diff_export, name='recon-inventory-diff-export'),path('report/inventory/', views.report_inventory_page, name='report-inventory'), path('api/report/inventory/meta/', views.report_inventory_meta, name='report-inventory-meta'), path('api/report/inventory/kpi/', views.report_inventory_kpi, name='report-inventory-kpi'), path('api/report/inventory/by-sku/', views.report_inventory_by_sku, name='report-inventory-by-sku'), path('api/report/inventory/top-sku/', views.report_inventory_top_sku, name='report-inventory-top-sku'), path('api/report/inventory/by-warehouse/', views.report_inventory_by_warehouse, name='report-inventory-by-warehouse'), path('api/report/inventory/by-location/', views.report_inventory_by_location, name='report-inventory-by-location'), path('api/report/inventory/by-location/export/', views.report_inventory_by_location_export, name='report-inventory-by-location-export'), path('api/report/inventory/by-group/', views.report_inventory_by_group, name='report-inventory-by-group'), path('api/report/inventory/export/', views.report_inventory_export, name='report-inventory-export'), path('detail/ecom/', views.detail_ecom_page, name='detail-ecom'), path('api/detail/ecom/report/', views.detail_ecom_report, name='detail-ecom-report'), path('api/detail/ecom/export/', views.detail_ecom_export, name='detail-ecom-export'), path('detail/dms-duyet/', views.detail_dms_duyet_page, name='detail-dms-duyet'), path('api/detail/dms-duyet/report/', views.detail_dms_duyet_report, name='detail-dms-duyet-report'), path('api/detail/dms-duyet/export/', views.detail_dms_duyet_export, name='detail-dms-duyet-export'), path('detail/dms-xuatkho/', views.detail_dms_xuatkho_page, name='detail-dms-xuatkho'), path('api/detail/dms-xuatkho/report/', views.detail_dms_xuatkho_report, name='detail-dms-xuatkho-report'), path('api/detail/dms-xuatkho/export/', views.detail_dms_xuatkho_export, name='detail-dms-xuatkho-export'), path('detail/wrt/', views.detail_wrt_page, name='detail-wrt'), path('api/detail/wrt/report/', views.detail_wrt_report, name='detail-wrt-report'), path('api/detail/wrt/export/', views.detail_wrt_export, name='detail-wrt-export'), path('detail/employee/dms/', views.detail_employee_dms_page, name='detail-employee-dms'), path('api/detail/employee/dms/report/', views.detail_employee_dms_report, name='detail-employee-dms-report'), path('api/detail/employee/dms/export/', views.detail_employee_dms_export, name='detail-employee-dms-export'), path('detail/employee/oms/', views.detail_employee_oms_page, name='detail-employee-oms'), path('api/detail/employee/oms/report/', views.detail_employee_oms_report, name='detail-employee-oms-report'), path('api/detail/employee/oms/export/', views.detail_employee_oms_export, name='detail-employee-oms-export')]
+from django.views.generic import RedirectView
+
+from .reports.orders import DETAIL_CONFIGS, EMPLOYEE_REPORT_CONFIG_DMS, EMPLOYEE_REPORT_CONFIG_OMS, RECON_CONFIGS
+from .reports.recon_inventory import INVENTORY_CONFIG
+from .views import data_tracking, reports
+from .menu import HOME_URL_NAME
+from .views.common import datatable_export_view, datatable_report_view, page_view
+
+
+def datatable_routes(page_url: str, api_url: str, name: str, template: str, config, export_filename: str):
+    """1 trang bang DataTables = trang HTML + API /report/ + API /export/ (Excel)."""
+    return [
+        path(page_url, page_view(template), name=name),
+        path(f'{api_url}report/', datatable_report_view(config), name=f'{name}-report'),
+        path(f'{api_url}export/', datatable_export_view(config, export_filename), name=f'{name}-export'),
+    ]
+
+
+# (slug url, khoa config, ten file template) - dung chung cho Data Tracking va Chi tiet don hang
+ORDER_PAGES = (
+    ('ecom', 'ecom', 'ecom'),
+    ('dms-duyet', 'dms-duyet', 'dms_duyet'),
+    ('dms-xuatkho', 'dms-xuatkho', 'dms_xuatkho'),
+    ('wrt', 'wrt', 'wrt'),
+)
+
+urlpatterns = [
+    # trang goc -> trang chu (giong bam logo)
+    path('', RedirectView.as_view(pattern_name=HOME_URL_NAME), name='home'),
+]
+
+# ---- Menu Data Tracking ------------------------------------------------------------------------------
+for slug, key, tpl in ORDER_PAGES:
+    urlpatterns += datatable_routes(
+        f'recon/{slug}/',
+        f'api/recon/{slug}/',
+        f'recon-{slug}',
+        f'data_tracking/{tpl}.html',
+        RECON_CONFIGS[key],
+        f'data_tracking_{tpl}.xlsx',
+    )
+urlpatterns += [path('api/recon/wrt/so-status-options/', data_tracking.recon_wrt_so_status_options, name='recon-wrt-so-status-options')]
+urlpatterns += datatable_routes(
+    'recon/inventory/',
+    'api/recon/inventory/',
+    'recon-inventory',
+    'data_tracking/inventory.html',
+    INVENTORY_CONFIG,
+    'data_tracking_inventory.xlsx',
+)
+urlpatterns += [
+    path('api/recon/inventory/meta/', data_tracking.recon_inventory_meta, name='recon-inventory-meta'),
+    path('api/recon/inventory/detail/', data_tracking.recon_inventory_detail, name='recon-inventory-detail'),
+    path('api/recon/inventory/detail/export/', data_tracking.recon_inventory_detail_export, name='recon-inventory-detail-export'),
+    path('api/recon/inventory/diff-list/', data_tracking.recon_inventory_diff_list, name='recon-inventory-diff-list'),
+    path('api/recon/inventory/diff-list/export/', data_tracking.recon_inventory_diff_export, name='recon-inventory-diff-export'),
+]
+
+# ---- Menu Chi tiet don hang ----------------------------------------------------------------------------
+for slug, key, tpl in ORDER_PAGES:
+    urlpatterns += datatable_routes(
+        f'detail/{slug}/', f'api/detail/{slug}/', f'detail-{slug}', f'order_detail/{tpl}.html', DETAIL_CONFIGS[key], f'chi_tiet_{tpl}.xlsx'
+    )
+
+# ---- Menu Bao cao ----------------------------------------------------------------------------------------
+urlpatterns += datatable_routes(
+    'detail/employee/dms/',
+    'api/detail/employee/dms/',
+    'detail-employee-dms',
+    'reports/employee_dms.html',
+    EMPLOYEE_REPORT_CONFIG_DMS,
+    'chi_tiet_don_hang_theo_nhan_vien_dms.xlsx',
+)
+urlpatterns += datatable_routes(
+    'detail/employee/oms/',
+    'api/detail/employee/oms/',
+    'detail-employee-oms',
+    'reports/employee_oms.html',
+    EMPLOYEE_REPORT_CONFIG_OMS,
+    'chi_tiet_don_hang_theo_nhan_vien_oms.xlsx',
+)
+urlpatterns += [
+    path('report/inventory/', page_view('reports/inventory.html'), name='report-inventory'),
+    path('api/report/inventory/meta/', reports.inventory_meta, name='report-inventory-meta'),
+    path('api/report/inventory/kpi/', reports.inventory_kpi, name='report-inventory-kpi'),
+    path('api/report/inventory/by-sku/', reports.inventory_by_sku, name='report-inventory-by-sku'),
+    path('api/report/inventory/top-sku/', reports.inventory_top_sku, name='report-inventory-top-sku'),
+    path('api/report/inventory/by-warehouse/', reports.inventory_by_warehouse, name='report-inventory-by-warehouse'),
+    path('api/report/inventory/by-location/', reports.inventory_by_location, name='report-inventory-by-location'),
+    path('api/report/inventory/by-location/export/', reports.inventory_by_location_export, name='report-inventory-by-location-export'),
+    path('api/report/inventory/by-group/', reports.inventory_by_group, name='report-inventory-by-group'),
+    path('api/report/inventory/export/', reports.inventory_export, name='report-inventory-export'),
+]

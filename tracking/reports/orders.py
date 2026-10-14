@@ -1,0 +1,215 @@
+"""Cau hinh bang Data Tracking (doi soat) + Chi tiet don hang + Bao cao don hang theo nhan vien."""
+
+from __future__ import annotations
+from ..constants import STATUS_TRACKING_TABLE
+from ..core.datatables import DetailColumn, DetailReportConfig
+
+_ECOM_ORDER_FILTER = "t.outbound_order_type IN ('L03', 'L04') AND st.StatusSync = 'Sync'"
+_DMS_XUATKHO_ORDER_FILTER = "t.outbound_order_type IN ('L01', 'L05', 'L07', 'L08', 'L12', 'L14', 'L18', 'L25') AND st.StatusSync = 'Sync'"
+_WRT_ORDER_FILTER = "t.IsCreateBy = 'SYSTEM' AND st.StatusSync = 'Sync'"
+_DMS_DUYET_ORDER_FILTER = "t.OrderStatus = 'sale' AND st.StatusSync = 'Sync'"
+_OMS_ORDERS_COLUMNS = [
+    DetailColumn('st.StatusSync', 'status_sync', orderable=False),
+    DetailColumn('t.order_number', 'order_code', searchable=True),
+    DetailColumn('t.logistic_sku', 'sku', searchable=True),
+    DetailColumn('TRY_CONVERT(DECIMAL(18,2), t.quantity)', 'quantity'),
+    DetailColumn('TRY_CONVERT(DECIMAL(18,2), t.total_amount_after_vat)', 'amount'),
+    DetailColumn('t.customer_name', 'customer_name', searchable=True),
+    DetailColumn('t.warehouse_code', 'warehouse_code'),
+    DetailColumn('t.sales_channel', 'sales_channel'),
+    DetailColumn('t.status', 'oms_status'),
+    DetailColumn('t.created_date', 'created_date'),
+    DetailColumn('t.shop_name', 'shop_name'),
+    DetailColumn('t.employee_name', 'employee_name'),
+    DetailColumn('t.phone', 'phone', searchable=True),
+    DetailColumn('t.full_address', 'full_address'),
+    DetailColumn('t.payment_method', 'payment_method'),
+    DetailColumn('t.order_type', 'order_type'),
+    DetailColumn('t.outbound_order_type', 'outbound_order_type'),
+    DetailColumn('t.receiving_status', 'receiving_status'),
+    DetailColumn('t.shipped_date', 'shipped_date'),
+    DetailColumn('t.actual_delivery_date', 'actual_delivery_date'),
+    DetailColumn('t.barcode', 'barcode', searchable=True),
+]
+EMPLOYEE_REPORT_CONFIG_DMS = DetailReportConfig(
+    table='dbo.DMS_SO',
+    where='1=1',
+    status_sync_expr='t.OrderCode',
+    date_expr='t.DocDate',
+    columns=[
+        DetailColumn('t.OrderCode', 'order_code', searchable=True, title='Mã đơn hàng'),
+        DetailColumn('t.SaleEmployeeCode', 'employee_code', searchable=True, title='Mã nhân viên'),
+        DetailColumn('t.CustomerCode', 'customer_code', searchable=True, title='Khách hàng'),
+        DetailColumn('t.ItemCode', 'sku', searchable=True, title='SKU'),
+        DetailColumn('t.Quantity', 'quantity', title='Số lượng'),
+        DetailColumn('t.TotalAmtInclVAT', 'amount', title='Thành tiền'),
+        DetailColumn('t.WarehouseCode', 'warehouse_code', title='Kho'),
+        DetailColumn('t.SalesChannelCode', 'sales_channel', title='Kênh bán'),
+        DetailColumn('t.DocDate', 'order_date', title='Ngày đơn hàng'),
+    ],
+)
+EMPLOYEE_REPORT_CONFIG_OMS = DetailReportConfig(
+    table='dbo.OMS_ORDERS',
+    where='1=1',
+    status_sync_expr='t.order_number',
+    date_expr='TRY_CONVERT(DATETIME2, t.created_date)',
+    columns=[
+        DetailColumn('t.order_number', 'order_code', searchable=True, title='Mã đơn hàng'),
+        DetailColumn('t.employee_code', 'employee_code', searchable=True, title='Mã nhân viên'),
+        DetailColumn('t.employee_name', 'employee_name', searchable=True, title='Tên nhân viên'),
+        DetailColumn('t.customer_code', 'customer_code', searchable=True, title='Khách hàng'),
+        DetailColumn('t.logistic_sku', 'sku', searchable=True, title='SKU'),
+        DetailColumn('TRY_CONVERT(DECIMAL(18,2), t.quantity)', 'quantity', title='Số lượng'),
+        DetailColumn('TRY_CONVERT(DECIMAL(18,2), t.total_amount_after_vat)', 'amount', title='Thành tiền'),
+        DetailColumn('t.warehouse_code', 'warehouse_code', title='Kho'),
+        DetailColumn('t.sales_channel', 'sales_channel', title='Kênh bán'),
+        DetailColumn('TRY_CONVERT(DATETIME2, t.created_date)', 'order_date', title='Ngày đơn hàng'),
+    ],
+)
+
+
+def _status_tracking_join(table: str, key_col: str, recon_type: str) -> str:
+    return f"LEFT JOIN {STATUS_TRACKING_TABLE} st ON st.BusinessKey = t.{key_col} AND st.ReconType = '{recon_type}'"
+
+
+DETAIL_CONFIGS: dict[str, DetailReportConfig] = {
+    'ecom': DetailReportConfig(
+        table='dbo.OMS_ORDERS',
+        where=_ECOM_ORDER_FILTER,
+        columns=_OMS_ORDERS_COLUMNS,
+        join_sql=_status_tracking_join('dbo.OMS_ORDERS', 'order_number', 'ECOM'),
+        status_sync_expr='st.StatusSync',
+        date_expr='TRY_CONVERT(DATETIME2, t.created_date)',
+    ),
+    'dms-xuatkho': DetailReportConfig(
+        table='dbo.OMS_ORDERS',
+        where=_DMS_XUATKHO_ORDER_FILTER,
+        columns=_OMS_ORDERS_COLUMNS,
+        join_sql=_status_tracking_join('dbo.OMS_ORDERS', 'order_number', 'DMS_XUATKHO'),
+        status_sync_expr='st.StatusSync',
+        date_expr='TRY_CONVERT(DATETIME2, t.created_date)',
+    ),
+    'dms-duyet': DetailReportConfig(
+        table='dbo.DMS_SO',
+        where=_DMS_DUYET_ORDER_FILTER,
+        join_sql=_status_tracking_join('dbo.DMS_SO', 'OrderCode', 'DMS_DUYET'),
+        status_sync_expr='st.StatusSync',
+        date_expr='t.DocDate',
+        columns=[
+            DetailColumn('st.StatusSync', 'status_sync', orderable=False),
+            DetailColumn('t.OrderCode', 'order_code', searchable=True),
+            DetailColumn('t.ItemCode', 'item_code', searchable=True),
+            DetailColumn('t.Sku', 'sku'),
+            DetailColumn('t.Quantity', 'quantity'),
+            DetailColumn('t.UnitPrice', 'unit_price'),
+            DetailColumn('t.TotalAmtInclVAT', 'amount'),
+            DetailColumn('t.CustomerCode', 'customer_code', searchable=True),
+            DetailColumn('t.WarehouseCode', 'warehouse_code'),
+            DetailColumn('t.OrderStatus', 'order_status'),
+            DetailColumn('t.OMSStatus', 'oms_status'),
+            DetailColumn('t.DocDate', 'doc_date'),
+            DetailColumn('t.SaleEmployeeCode', 'sale_employee_code'),
+            DetailColumn('t.SalesChannelCode', 'sales_channel_code'),
+            DetailColumn('t.CreateDate', 'create_date'),
+            DetailColumn('t.SynDate', 'syn_date'),
+            DetailColumn('t.TaxCode', 'tax_code'),
+            DetailColumn('t.UnitCode', 'unit_code'),
+            DetailColumn('t.Type', 'type'),
+            DetailColumn('t.KeyOrder', 'key_order'),
+            DetailColumn('t.Source', 'source'),
+        ],
+    ),
+    'wrt': DetailReportConfig(
+        table='dbo.WRT_SO',
+        where=_WRT_ORDER_FILTER,
+        join_sql=_status_tracking_join('dbo.WRT_SO', 'order_number', 'WRT'),
+        status_sync_expr='st.StatusSync',
+        date_expr='t.postingDate',
+        columns=[
+            DetailColumn('st.StatusSync', 'status_sync', orderable=False),
+            DetailColumn('t.order_number', 'order_code', searchable=True),
+            DetailColumn('t.logistic_sku', 'sku', searchable=True),
+            DetailColumn('t.quantity', 'quantity'),
+            DetailColumn('t.TotalAmt', 'amount'),
+            DetailColumn('t.customer_code', 'customer_code', searchable=True),
+            DetailColumn('t.warehouse_code', 'warehouse_code'),
+            DetailColumn('t.sales_channel', 'sales_channel'),
+            DetailColumn('t.OrderStatus', 'order_status'),
+            DetailColumn('t.postingDate', 'posting_date'),
+            DetailColumn('t.Source', 'source'),
+            DetailColumn('t.external_order_key', 'external_order_key'),
+            DetailColumn('t.note', 'note'),
+            DetailColumn('t.currency', 'currency'),
+            DetailColumn('t.VATamount', 'vat_amount'),
+            DetailColumn('t.VATpercent', 'vat_percent'),
+            DetailColumn('t.statusCode', 'status_code'),
+            DetailColumn('t.statusCode2', 'status_code2'),
+            DetailColumn('t.attributes_seller', 'attributes_seller'),
+            DetailColumn('t.LastDt', 'last_dt'),
+        ],
+    ),
+}
+RECON_CONFIGS: dict[str, DetailReportConfig] = {
+    'ecom': DetailReportConfig(
+        table='dbo.RECON_ECOM',
+        where='1=1',
+        date_expr='t.OrderDate',
+        columns=[
+            DetailColumn('t.StatusSync', 'status_sync', orderable=False, title='Status Sync'),
+            DetailColumn('t.OrderCode', 'order_code', searchable=True, title='Mã đơn hàng'),
+            DetailColumn('t.OmsWmsAmount', 'oms_wms_amount', title='OMS/WMS'),
+            DetailColumn('t.SapAmount', 'sap_amount', title='SAP'),
+            DetailColumn('t.WrtAmount', 'wrt_amount', title='WRT'),
+            DetailColumn('t.SoStatus', 'so_status', title='SO Status'),
+            DetailColumn('t.OrderDate', 'order_date', title='Ngày đơn hàng'),
+            DetailColumn('t.RefreshedAt', 'refreshed_at', title='Cập nhật lúc'),
+        ],
+    ),
+    'dms-duyet': DetailReportConfig(
+        table='dbo.RECON_DMS_DUYET',
+        where='1=1',
+        date_expr='t.OrderDate',
+        columns=[
+            DetailColumn('t.StatusSync', 'status_sync', orderable=False, title='Status Sync'),
+            DetailColumn('t.OrderCode', 'order_code', searchable=True, title='Mã đơn hàng'),
+            DetailColumn('t.DmsAmount', 'dms_amount', title='DMS'),
+            DetailColumn('t.OmsWmsAmount', 'oms_wms_amount', title='OMS/WMS'),
+            DetailColumn('t.SapAmount', 'sap_amount', title='SAP'),
+            DetailColumn('t.SoStatus', 'so_status', title='SO Status'),
+            DetailColumn('t.OrderDate', 'order_date', title='Ngày đơn hàng'),
+            DetailColumn('t.RefreshedAt', 'refreshed_at', title='Cập nhật lúc'),
+        ],
+    ),
+    'dms-xuatkho': DetailReportConfig(
+        table='dbo.RECON_DMS_XUATKHO',
+        where='1=1',
+        date_expr='t.OrderDate',
+        columns=[
+            DetailColumn('t.StatusSync', 'status_sync', orderable=False, title='Status Sync'),
+            DetailColumn('t.OrderCode', 'order_code', searchable=True, title='Mã đơn hàng'),
+            DetailColumn('t.DmsAmount', 'dms_amount', title='DMS'),
+            DetailColumn('t.OmsWmsAmount', 'oms_wms_amount', title='OMS/WMS'),
+            DetailColumn('t.SapAmount', 'sap_amount', title='SAP'),
+            DetailColumn('t.WrtAmount', 'wrt_amount', title='WRT'),
+            DetailColumn('t.SoStatus', 'so_status', title='SO Status'),
+            DetailColumn('t.OrderDate', 'order_date', title='Ngày đơn hàng'),
+            DetailColumn('t.RefreshedAt', 'refreshed_at', title='Cập nhật lúc'),
+        ],
+    ),
+    'wrt': DetailReportConfig(
+        table='dbo.RECON_WRT',
+        where='1=1',
+        date_expr='t.OrderDate',
+        columns=[
+            DetailColumn('t.StatusSync', 'status_sync', orderable=False, title='Status Sync'),
+            DetailColumn('t.OrderCode', 'order_code', searchable=True, title='Mã đơn hàng'),
+            DetailColumn('t.OmsWmsAmount', 'oms_wms_amount', title='OMS/WMS'),
+            DetailColumn('t.SapAmount', 'sap_amount', title='SAP'),
+            DetailColumn('t.WrtAmount', 'wrt_amount', title='WRT'),
+            DetailColumn('t.SoStatus', 'so_status', title='SO Status'),
+            DetailColumn('t.Type', 'type', title='Loại'),
+            DetailColumn('t.OrderDate', 'order_date', title='Ngày đơn hàng'),
+            DetailColumn('t.RefreshedAt', 'refreshed_at', title='Cập nhật lúc'),
+        ],
+    ),
+}

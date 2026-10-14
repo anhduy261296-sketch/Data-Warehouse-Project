@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% load static %}
+{# Báo cáo > Tồn kho - CSS: css/pages/reports/inventory.css, JS: js/pages/reports/inventory.js #}
+{% block title %}Báo cáo tồn kho{% endblock %}
+{% block page_css %}<link href="{% static 'css/pages/reports/inventory.css' %}" rel="stylesheet" />{% endblock %}
+{% block content %}
+<div class="rpt-header">
+  <div>
+    <h1 class="rpt-title">Tồn kho theo SKU và kho</h1>
+    <p class="rpt-subtitle">Theo dõi số lượng tồn, tồn khả dụng theo từng SKU tại các kho (nguồn: WMS)</p>
+  </div>
+  <div class="rpt-header-tools">
+    <span class="rpt-snapshot"><i class="far fa-calendar-alt mr-1"></i> Thời điểm dữ liệu: <b id="rptSnapshot">—</b></span>
+    <button type="button" class="btn btn-sm btn-outline-primary" id="rptRefresh"><i class="fas fa-sync-alt mr-1"></i> Làm mới</button>
+  </div>
+</div>
+
+<div class="row rpt-row">
+  <div class="col-md-4 mb-3">
+    <div class="rpt-card" id="rptKpiSku"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="rpt-kpi"><div class="rpt-kpi-icon rpt-kpi-icon--sku"><i class="fas fa-cube"></i></div>
+        <div><div class="rpt-kpi-label">Tổng số SKU</div><div class="rpt-kpi-value-sku" data-kpi="sku_count">—</div></div></div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-3">
+    <div class="rpt-card" id="rptKpiWhs"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="rpt-kpi"><div class="rpt-kpi-icon rpt-kpi-icon--whs"><i class="fas fa-warehouse"></i></div>
+        <div><div class="rpt-kpi-label">Tổng số kho</div><div class="rpt-kpi-value-whs" data-kpi="warehouse_count">—</div></div></div>
+    </div>
+  </div>
+  <div class="col-md-4 mb-3">
+    <div class="rpt-card" id="rptKpiQty"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="rpt-kpi"><div class="rpt-kpi-icon rpt-kpi-icon--qty"><i class="fas fa-boxes"></i></div>
+        <div><div class="rpt-kpi-label">Tổng tồn kho (SL)</div><div class="rpt-kpi-value-qty" data-kpi="total_qty">—</div></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="rpt-card mb-3 rpt-filter">
+  <form class="form-row align-items-end" id="rptFilter" autocomplete="off">
+    <div class="col-xl col-lg-12 col-md-6 mb-2">
+      <label for="rptQ">Tìm kiếm</label>
+      <input type="search" class="form-control form-control-sm" id="rptQ" name="q" placeholder="Nhập SKU, tên sản phẩm, mã vạch..." />
+    </div>
+    <div class="col-xl-2 col-lg-4 col-md-6 mb-2">
+      <label for="rptGroup">Nhóm hàng</label>
+      <select class="form-control form-control-sm" id="rptGroup" name="group"><option value="">Tất cả</option></select>
+    </div>
+    <div class="col-xl-2 col-lg-4 col-md-6 mb-2">
+      <label for="rptWhs">Kho</label>
+      <select class="form-control form-control-sm" id="rptWhs" name="whs"><option value="">Tất cả kho</option></select>
+    </div>
+    <div class="col-xl-2 col-lg-4 col-md-6 mb-2">
+      <label for="rptStatus">Trạng thái</label>
+      <select class="form-control form-control-sm" id="rptStatus" name="status"><option value="">Tất cả</option></select>
+    </div>
+    <div class="col-xl-auto col-12 mb-2 d-flex rpt-actions">
+      <button type="submit" class="btn btn-sm btn-primary flex-fill" id="rptSearch"><i class="fas fa-search mr-1"></i> Tìm kiếm</button>
+      <a href="#" class="btn btn-sm btn-outline-secondary flex-fill" id="rptExport" title="Xuất Excel tồn kho theo SKU (theo bộ lọc)"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
+    </div>
+  </form>
+</div>
+
+<div class="row rpt-row">
+  <div class="col-xl-8 mb-3 rpt-col">
+    <div class="rpt-card mb-3 is-loading rpt-boot" id="rptSkuCard"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-table"></i> Tồn kho theo SKU và kho</div>
+      <table class="table table-bordered table-hover rpt-table" id="rptSkuTable" width="100%"><thead><tr></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="rpt-card rpt-grow" id="rptTopSku"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-trophy"></i> Top 10 mã hàng tồn nhiều nhất</div>
+      <div class="table-responsive">
+        <table class="table table-sm rpt-table"><colgroup><col class="rpt-col-no"><col class="rpt-col-sku"><col class="rpt-col-name"><col class="rpt-col-uom"><col class="rpt-col-total"><col class="rpt-col-split"></colgroup><thead><tr><th>#</th><th>SKU</th><th>Tên sản phẩm</th><th>ĐVT</th><th class="num">Tổng tồn</th><th>Tồn theo kho</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4 mb-3 rpt-col">
+    <div class="rpt-card mb-3" id="rptByWhs"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-warehouse"></i> Tồn kho theo kho</div>
+      <div class="rpt-chart"><canvas id="rptWhsChart"></canvas></div>
+    </div>
+    <div class="rpt-card mb-3" id="rptByGroup"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-layer-group"></i> Tồn kho theo nhóm hàng</div>
+      <div class="rpt-donut-wrap">
+        <div class="rpt-donut"><canvas id="rptGroupChart"></canvas><div class="rpt-donut-center"><b id="rptGroupTotal">—</b><small>SL tồn kho</small></div></div>
+        <table class="rpt-legend"><tbody></tbody></table>
+      </div>
+    </div>
+    <div class="rpt-card rpt-grow" id="rptTopWhs"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-sort-amount-down"></i> Top 10 kho có tồn nhiều nhất</div>
+      <div class="table-responsive"><table class="table table-sm rpt-table"><thead><tr><th>#</th><th>Kho</th><th class="num">Tồn (SL)</th><th></th><th class="num">Số SKU</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+</div>
+<div class="rpt-card mb-3" id="rptLocCard">
+  <div class="rpt-card-title justify-content-between flex-wrap">
+    <span><i class="fas fa-list-ul mr-2"></i>Chi tiết tồn kho theo trạng thái</span>
+    <a href="#" class="btn btn-sm btn-outline-secondary d-none rpt-busy-btn" id="rptLocExport" title="Xuất Excel bảng chi tiết (theo bộ lọc và thứ tự sắp xếp hiện tại)"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
+  </div>
+  <div class="text-center text-muted py-4" id="rptLocHint"><i class="fas fa-filter mr-1"></i> Chọn nhóm hàng / kho / trạng thái ở trên, hoặc nhập từ khoá rồi bấm <b>Tìm kiếm</b> để xem chi tiết tồn theo trạng thái.</div>
+  <div class="d-none" id="rptLocWrap"><table class="table table-bordered table-hover rpt-table" id="rptLocTable" width="100%"><thead><tr></tr></thead><tbody></tbody></table></div>
+</div>
+{% endblock %}
+{% block page_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/pages/reports/inventory.js' %}"></script>
+{% endblock %}
