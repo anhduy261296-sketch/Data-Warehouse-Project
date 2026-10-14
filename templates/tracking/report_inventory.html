@@ -200,6 +200,29 @@
       return { q: $("#rptQ").val().trim(), group: $("#rptGroup").val(), whs: $("#rptWhs").val(), status: $("#rptStatus").val() };
     }
 
+    
+    const pageCache = new Map();
+    const PAGE_CACHE_MAX = 200;
+    function cachedAjax(url, getParams) {
+      return function (d, callback) {
+        const draw = d.draw;
+        const params = Object.assign({}, d, getParams());
+        delete params.draw;
+        const key = `${url}?${$.param(params)}`;
+        if (pageCache.has(key)) {
+          callback(Object.assign({}, pageCache.get(key), { draw }));
+          return null;
+        }
+        return $.getJSON(url, Object.assign({ draw }, params))
+          .done((json) => {
+            if (pageCache.size >= PAGE_CACHE_MAX) pageCache.delete(pageCache.keys().next().value);
+            pageCache.set(key, json);
+            callback(json);
+          })
+          .fail(() => callback({ draw, recordsTotal: 0, recordsFiltered: 0, data: [] }));
+      };
+    }
+    let skuFilters = {};
     let pending = 0;
     let gen = 0;
     const SEARCH_HTML = '<i class="fas fa-search mr-1"></i> Tìm kiếm';
@@ -208,7 +231,7 @@
       $("#rptExport, #rptLocExport").toggleClass("disabled", on).attr("aria-disabled", on ? "true" : null);
       $("#rptSearch").html(on ? '<span class="spinner-border spinner-border-sm mr-1"></span> Đang tải...' : SEARCH_HTML);
     }
-    // chi khoa nut khi tai do mo trang / Tim kiem / Lam moi; doi dropdown thi khong khoa de van bam Tim kiem duoc
+    
     let lockUI = true;
     function lock() { lockUI = true; if (pending) setBusy(true); }
     function begin() { pending += 1; if (lockUI) setBusy(true); }
@@ -306,7 +329,7 @@
         pageLength: 10,
         dom: "<'table-responsive'tr><'d-flex justify-content-between align-items-center flex-wrap mt-2'i<'d-flex align-items-center rpt-pager'lp>>",
         order: [[3, "desc"]],
-        ajax: { url: `${API}by-sku/`, data: (d) => Object.assign(d, filters()) },
+        ajax: cachedAjax(`${API}by-sku/`, () => skuFilters),
         columns,
         initComplete: function () {
           this.api().columns().every(function (i) {
@@ -319,7 +342,7 @@
     }
 
     let locTable = null;
-    let locFilters = null; // bo loc cua lan tai bang chi tiet gan nhat (phan trang/sap xep/xuat Excel dung lai)
+    let locFilters = null;
     function buildLocTable() {
       locTable = $("#rptLocTable").DataTable({
         serverSide: true,
@@ -328,7 +351,7 @@
         pageLength: 10,
         dom: "<'table-responsive'tr><'d-flex justify-content-between align-items-center flex-wrap mt-2'i<'d-flex align-items-center rpt-pager'lp>>",
         order: [[0, "asc"]],
-        ajax: { url: `${API}by-location/`, data: (d) => Object.assign(d, locFilters) },
+        ajax: cachedAjax(`${API}by-location/`, () => locFilters),
         columns: [
           { data: "sku", title: "Mã hàng", className: "text-nowrap" },
           { data: "item_name", title: "Tên hàng", className: "rpt-name-cell", render: (v) => esc(v), createdCell: (td, v) => td.setAttribute("title", v || "") },
@@ -342,9 +365,9 @@
       });
     }
 
-    // bang chi tiet theo kho & trang thai: tai khi bam Tim kiem hoac doi dropdown (co it nhat 1 bo loc); mo trang / Lam moi / bo loc rong thi ve trang thai huong dan
+    
     function hasFilter() { return Object.values(filters()).some((v) => v); }
-    // dua bang chi tiet ve trang thai ban dau: an bang, hien huong dan
+    
     function resetLoc() {
       $("#rptLocExport").addClass("d-none");
       $("#rptLocWrap").addClass("d-none");
@@ -356,6 +379,7 @@
       loadTopSku();
       loadByWarehouse();
       loadByGroup();
+      skuFilters = filters();
       if (skuTable) skuTable.ajax.reload();
       else buildSkuTable();
       if (fromSearch === true && hasFilter()) {
@@ -378,7 +402,8 @@
       $("#rptExport").on("click", function (e) { if ($(this).hasClass("disabled") || $(this).attr("href") === "#") e.preventDefault(); });
       $(".rpt-card").has(".rpt-loading").addClass("is-loading");
       begin();
-      $.getJSON(`${API}meta/`).always(() => { end(); $(".rpt-boot").removeClass("is-loading rpt-boot"); }).done((m) => {
+      // done dang ky truoc always: loadAll() bat dau dem request truoc khi end() cua meta chay -> nut van khoa trong lan tai dau
+      $.getJSON(`${API}meta/`).done((m) => {
         meta = m;
         m.warehouses.forEach((w, i) => { whsColor[w.code] = PALETTE[i % PALETTE.length]; whsName[w.code] = w.name; });
         m.groups.forEach((g) => $("#rptGroup").append($("<option>").val(g.code).text(g.name)));
@@ -390,8 +415,8 @@
       }).fail(() => {
         $("#rptSnapshot").text("Không tải được");
         $(".rpt-card.is-loading").removeClass("is-loading");
-      });
-      // xuat Excel bang chi tiet: cung bo loc dang ap dung + cot/chieu sap xep hien tai cua bang
+      }).always(() => { end(); $(".rpt-boot").removeClass("is-loading rpt-boot"); });
+      
       $("#rptLocExport").on("click", function (e) {
         e.preventDefault();
         if ($(this).hasClass("disabled") || !locTable) return;
@@ -403,12 +428,13 @@
         window.location.href = url.toString();
       });
       $("#rptFilter").on("submit", (e) => { e.preventDefault(); lock(); loadAll(true); });
-      // dropdown: bang chi tiet tai luon cung cac vung khac (1 lan); o nhap thi phai bam Tim kiem
+      
       $("#rptGroup, #rptWhs, #rptStatus").on("change", () => loadAll(true));
-      // Lam moi: xoa het bo loc, tai lai toan trang, bang chi tiet ve trang thai huong dan
+      
       $("#rptRefresh").on("click", () => {
         $("#rptQ").val("");
         $("#rptGroup, #rptWhs, #rptStatus").val("");
+        pageCache.clear();
         lock();
         loadAll("reset");
       });

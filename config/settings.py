@@ -18,6 +18,13 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {'default': {'ENGINE': 'mssql', 'NAME': os.getenv('SQLSERVER_DATABASE', 'SystemsTracking'), 'USER': os.getenv('SQLSERVER_USER', ''), 'PASSWORD': os.getenv('SQLSERVER_PASSWORD', ''), 'HOST': os.getenv('SQLSERVER_HOST', 'host.docker.internal'), 'PORT': os.getenv('SQLSERVER_PORT', '1433'), 'OPTIONS': {'driver': 'ODBC Driver 18 for SQL Server', 'extra_params': 'TrustServerCertificate=' + os.getenv('SQLSERVER_TRUST_SERVER_CERTIFICATE', 'no')}}}
 AUTH_PASSWORD_VALIDATORS = [{'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'}, {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'}, {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'}, {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'}]
 LANGUAGE_CODE = 'en-us'
+
+CACHES = {
+    'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache', 'LOCATION': 'systems-tracking'},
+   
+    'stock_report': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache', 'LOCATION': 'stock-report',
+                     'OPTIONS': {'MAX_ENTRIES': int(os.getenv('STOCK_REPORT_CACHE_MAX_ENTRIES', '1000')), 'CULL_FREQUENCY': 3}},
+}
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True

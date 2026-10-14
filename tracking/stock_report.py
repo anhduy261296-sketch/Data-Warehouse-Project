@@ -2,13 +2,19 @@ from __future__ import annotations
 import re
 from decimal import Decimal
 from typing import Any
+import functools
+import hashlib
+import json
+import os
+import pickle
+from django.core.cache import caches
 from django.db import connection
 _WHSE_RE = re.compile(r'^WH\d{3}$')
 _QTY = 'TRY_CONVERT(DECIMAL(21,4), w.qty)'
 _AVAILABLE = 'TRY_CONVERT(DECIMAL(21,4), w.qtyavailable)'
 _HELD = '(ISNULL(TRY_CONVERT(DECIMAL(21,4), w.qtyallocated), 0) + ISNULL(TRY_CONVERT(DECIMAL(21,4), w.qtypicked), 0))'
 _FROM = 'FROM dbo.WMS_INVENTORY w'
-# DVT co dau tu SAP_UOM (HANA OUOM); thieu thi giu ma goc
+
 _UOM_JOIN = 'LEFT JOIN dbo.SAP_UOM u ON u.UomCode = ISNULL(i.Uom, a.wms_uom)'
 _UOM = 'ISNULL(u.UomName, ISNULL(i.Uom, a.wms_uom))'
 _SORTABLE = {'sku': 'sku', 'item_name': 'item_name', 'total_qty': 'total_qty', 'available_qty': 'available_qty', 'held_qty': 'held_qty'}
@@ -27,7 +33,7 @@ def _filters(params: Any) -> tuple[str, list[Any]]:
     q = (params.get('q') or '').strip()
     if q:
         like = f'%{q}%'
-        # EXISTS theo PK ItemCode: moi dong ton chi seek 1 item (IN + OR LIKE lam SQL Server chon plan quet SAP_ITEMS lap lai)
+        
         where.append('(w.sku LIKE %s OR w.description LIKE %s OR EXISTS (SELECT 1 FROM dbo.SAP_ITEMS si WHERE si.ItemCode = w.sku AND (si.ItemName LIKE %s OR si.Barcode LIKE %s OR si.PgiCode LIKE %s)))')
         args += [like] * 5
     group = (params.get('group') or '').strip()
@@ -45,13 +51,70 @@ def _filters(params: Any) -> tuple[str, list[Any]]:
     return (' AND '.join(where) or '1=1', args)
 
 def _warehouses(cursor: Any) -> list[dict[str, str]]:
+    key = 'stock_report:warehouses:' + hashlib.sha1(data_version().encode('utf-8')).hexdigest()
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+    result = _load_warehouses(cursor)
+    cache.set(key, result, CACHE_TTL)
+    return result
+
+def _load_warehouses(cursor: Any) -> list[dict[str, str]]:
     cursor.execute('SELECT DISTINCT _whseid FROM dbo.WMS_INVENTORY')
     codes = sorted((r[0] for r in cursor.fetchall() if _WHSE_RE.match(r[0] or '')))
     cursor.execute('SELECT WhsCode, MAX(WhsName) FROM dbo.SAP_INVENTORY GROUP BY WhsCode')
     names = {code: name for code, name in cursor.fetchall()}
     return [{'code': code, 'name': names.get('W' + code[2:]) or code} for code in codes]
 
-def get_meta() -> dict[str, Any]:
+
+
+cache = caches['stock_report']
+CACHE_TTL = 24 * 3600
+CACHE_MAX_ITEM_BYTES = int(os.getenv('STOCK_REPORT_CACHE_MAX_ITEM_KB', '64')) * 1024
+_VERSION_TTL = 60
+
+_IGNORED_PARAMS = {'_', 'draw'}
+
+def data_version() -> str:
+    version = cache.get('stock_report:version')
+    if version is None:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT (SELECT MAX(loaded_at) FROM dbo.WMS_INVENTORY_Load_Log WHERE status = 'SUCCESS'),
+                       (SELECT MAX(LoadedAt) FROM dbo.SAP_ITEMS),
+                       (SELECT MAX(LoadedAt) FROM dbo.SAP_ITEM_GROUPS),
+                       (SELECT MAX(LoadedAt) FROM dbo.SAP_UOM)
+                """)
+            version = '|'.join(str(v) for v in cursor.fetchone())
+        # du lieu moi (DAG vua tai) -> xoa sach vung cache ngay de giai phong RAM, khong cho het TTL
+        if cache.get('stock_report:last_version') != version:
+            cache.clear()
+            cache.set('stock_report:last_version', version, None)
+        cache.set('stock_report:version', version, _VERSION_TTL)
+    return version
+
+def _cache_key(name: str, params: Any) -> str:
+    items = sorted((k, params.getlist(k) if hasattr(params, 'getlist') else [params[k]]) for k in params if k not in _IGNORED_PARAMS)
+    raw = json.dumps([name, data_version(), items], ensure_ascii=False, default=str)
+    return 'stock_report:' + hashlib.sha1(raw.encode('utf-8')).hexdigest()
+
+def _cached(fn):
+    @functools.wraps(fn)
+    def wrapper(params: Any = None) -> dict[str, Any]:
+        params = params if params is not None else {}
+        key = _cache_key(fn.__name__, params)
+        result = cache.get(key)
+        if result is None:
+            result = fn(params)
+            if len(pickle.dumps(result, pickle.HIGHEST_PROTOCOL)) <= CACHE_MAX_ITEM_BYTES:
+                cache.set(key, result, CACHE_TTL)
+        if 'draw' in result:
+            result = {**result, 'draw': int(params.get('draw') or 0) if str(params.get('draw') or '0').isdigit() else 0}
+        return result
+    return wrapper
+
+@_cached
+def get_meta(_params: Any = None) -> dict[str, Any]:
     with connection.cursor() as cursor:
         warehouses = _warehouses(cursor)
         cursor.execute("""
@@ -65,6 +128,7 @@ def get_meta() -> dict[str, Any]:
         snapshot_at = cursor.fetchone()[0]
     return {'warehouses': warehouses, 'groups': groups, 'statuses': statuses, 'snapshot_at': snapshot_at.isoformat() if snapshot_at else None}
 
+@_cached
 def get_kpi(params: Any) -> dict[str, Any]:
     where, args = _filters(params)
     with connection.cursor() as cursor:
@@ -87,6 +151,7 @@ def _sku_agg(warehouses: list[str], where: str) -> str:
         FROM a LEFT JOIN dbo.SAP_ITEMS i ON i.ItemCode = a.sku {_UOM_JOIN}
         """
 
+@_cached
 def get_by_sku(params: Any) -> dict[str, Any]:
     where, args = _filters(params)
     try:
@@ -107,20 +172,14 @@ def get_by_sku(params: Any) -> dict[str, Any]:
             total = cursor.fetchone()[0]
         else:
             total = filtered
-        # Buoc 1: chi lay SKU cua trang hien tai (khong pivot tren toan bo SKU)
-        cursor.execute(f"""
-            ;WITH a AS (
-                SELECT w.sku, MAX(w.description) AS wms_name, MAX(w.uom) AS wms_uom,
-                       SUM({_QTY}) AS total_qty, SUM({_AVAILABLE}) AS available_qty, SUM({_HELD}) AS held_qty
-                {_FROM} WHERE {where} GROUP BY w.sku
-            )
-            SELECT a.sku AS sku, ISNULL(i.ItemName, a.wms_name) AS item_name, {_UOM} AS uom,
-                   a.total_qty, a.available_qty, a.held_qty
-            FROM a LEFT JOIN dbo.SAP_ITEMS i ON i.ItemCode = a.sku {_UOM_JOIN}
-            ORDER BY {order_col} {order_dir}{'' if order_col == 'sku' else ', sku'} OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
-            """, [*args, start, length])
+        
+        order_sql = f"{order_col} {order_dir}{'' if order_col == 'sku' else ', sku'}"
+        cursor.execute(_paged_sql(f"""
+            SELECT w.sku, MAX(w.description) AS wms_name, MAX(w.uom) AS wms_uom,
+                   SUM({_QTY}) AS total_qty, SUM({_AVAILABLE}) AS available_qty, SUM({_HELD}) AS held_qty
+            {_FROM} WHERE {where} GROUP BY w.sku""", 'a.total_qty, a.available_qty, a.held_qty', order_sql), [*args, start, length])
         data = _rows(cursor)
-        # Buoc 2: tach ton theo kho chi cho cac SKU tren trang
+        
         if data:
             codes = [r['sku'] for r in data]
             cursor.execute(f"SELECT w.sku, w._whseid, SUM({_QTY}) {_FROM} WHERE {where} AND w.sku IN ({', '.join(['%s'] * len(codes))}) GROUP BY w.sku, w._whseid", [*args, *codes])
@@ -138,6 +197,7 @@ def export_by_sku(params: Any) -> tuple[list[str], list[dict[str, Any]]]:
         cursor.execute(f'{_sku_agg(warehouses, where)} ORDER BY total_qty DESC, sku OFFSET 0 ROWS FETCH NEXT {EXPORT_MAX_ROWS} ROWS ONLY', args)
         return (warehouses, _rows(cursor))
 
+@_cached
 def get_top_sku(params: Any) -> dict[str, Any]:
     where, args = _filters(params)
     with connection.cursor() as cursor:
@@ -158,6 +218,7 @@ def get_top_sku(params: Any) -> dict[str, Any]:
                 row['by_warehouse'] = split.get(row['sku'], {})
     return {'data': top}
 
+@_cached
 def get_by_warehouse(params: Any) -> dict[str, Any]:
     where, args = _filters(params)
     with connection.cursor() as cursor:
@@ -176,21 +237,31 @@ def _location_order(params: Any) -> str:
     order_dir = 'DESC' if (params.get('order[0][dir]') or params.get('dir')) == 'desc' else 'ASC'
     return ', '.join([f'{order_col} {order_dir}', *(c for c in ('sku', 'whs', 'status') if c != order_col)])
 
-def _location_sql(where: str, order_sql: str) -> str:
+def _paged_sql(agg_sql: str, cols: str, order_sql: str) -> str:
+    if order_sql.startswith('item_name'):
+        return f"""
+            ;WITH a AS ({agg_sql})
+            SELECT a.sku AS sku, ISNULL(i.ItemName, a.wms_name) AS item_name, {_UOM} AS uom, {cols}
+            FROM a LEFT JOIN dbo.SAP_ITEMS i ON i.ItemCode = a.sku {_UOM_JOIN}
+            ORDER BY {order_sql} OFFSET %s ROWS FETCH NEXT %s ROWS ONLY OPTION (HASH JOIN)
+            """
     return f"""
-        ;WITH a AS (
-            SELECT w.sku, w._whseid AS whs, ISNULL(w.status, '') AS status, MAX(w.description) AS wms_name,
-                   MAX(w.uom) AS wms_uom, SUM({_QTY}) AS qty
-            {_FROM} WHERE {where} GROUP BY w.sku, w._whseid, w.status
-        )
-        SELECT a.sku AS sku, ISNULL(i.ItemName, a.wms_name) AS item_name, a.whs AS whs, a.status AS status,
-               a.qty, {_UOM} AS uom
+        ;WITH a0 AS ({agg_sql}),
+        a AS (SELECT * FROM a0 ORDER BY {order_sql} OFFSET %s ROWS FETCH NEXT %s ROWS ONLY)
+        SELECT a.sku AS sku, ISNULL(i.ItemName, a.wms_name) AS item_name, {_UOM} AS uom, {cols}
         FROM a LEFT JOIN dbo.SAP_ITEMS i ON i.ItemCode = a.sku {_UOM_JOIN}
-        ORDER BY {order_sql} OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
+        ORDER BY {order_sql}
         """
 
+def _location_sql(where: str, order_sql: str) -> str:
+    return _paged_sql(f"""
+        SELECT w.sku, w._whseid AS whs, ISNULL(w.status, '') AS status, MAX(w.description) AS wms_name,
+               MAX(w.uom) AS wms_uom, SUM({_QTY}) AS qty
+        {_FROM} WHERE {where} GROUP BY w.sku, w._whseid, w.status""", 'a.whs AS whs, a.status AS status, a.qty', order_sql)
+
+@_cached
 def get_by_location(params: Any) -> dict[str, Any]:
-    """Ton chi tiet theo SKU x kho x trang thai (DataTables server-side)."""
+    
     where, args = _filters(params)
     try:
         start = max(0, int(params.get('start') or 0))
@@ -215,7 +286,7 @@ def get_by_location(params: Any) -> dict[str, Any]:
     return {'draw': draw, 'recordsTotal': total, 'recordsFiltered': filtered, 'data': data}
 
 def export_by_location(params: Any) -> list[dict[str, Any]]:
-    """Xuat Excel bang chi tiet SKU x kho x trang thai, cung bo loc + thu tu sap xep voi bang."""
+    
     where, args = _filters(params)
     with connection.cursor() as cursor:
         names = {w['code']: w['name'] for w in _warehouses(cursor)}
@@ -225,6 +296,7 @@ def export_by_location(params: Any) -> list[dict[str, Any]]:
         row['whs_name'] = names.get(row['whs'], row['whs'])
     return data
 
+@_cached
 def get_by_group(params: Any) -> dict[str, Any]:
     where, args = _filters(params)
     with connection.cursor() as cursor:
