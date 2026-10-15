@@ -60,6 +60,7 @@ MENU: tuple[MenuGroup, ...] = (
             MenuItem('ĐH theo NV - DMS', 'detail-employee-dms', hidden=True),
             MenuItem('ĐH theo NV - OMS/WMS', 'detail-employee-oms', hidden=True),
             MenuItem('Tồn kho', 'report-inventory'),
+            MenuItem('E-commerce', 'report-ecom'),
         ),
     ),
 )

@@ -1,11 +1,11 @@
 """Bao cao > Ton kho: KPI, bang SKU x kho, top SKU, theo kho, theo nhom, chi tiet theo kho & trang thai (nguon WMS_INVENTORY)."""
 
 from __future__ import annotations
-from decimal import Decimal
 from typing import Any
 from django.db import connection
 
 from ..core.cache import SOURCES, cache_key, cached, get_or_set
+from ..core.sql import num as _num, rows as _rows
 from ..constants import (
     EXPORT_MAX_ROWS,
     MAX_PAGE_LENGTH,
@@ -23,15 +23,6 @@ _UOM_JOIN = 'LEFT JOIN dbo.SAP_UOM u ON u.UomCode = ISNULL(i.Uom, a.wms_uom)'
 _UOM = 'ISNULL(u.UomName, ISNULL(i.Uom, a.wms_uom))'
 _SORTABLE = {'sku': 'sku', 'item_name': 'item_name', 'total_qty': 'total_qty', 'available_qty': 'available_qty', 'held_qty': 'held_qty'}
 TOP_LIMIT = STOCK_TOP_LIMIT
-
-
-def _num(value: Any) -> Any:
-    return float(value) if isinstance(value, Decimal) else value
-
-
-def _rows(cursor: Any) -> list[dict[str, Any]]:
-    cols = [d[0] for d in cursor.description]
-    return [{c: _num(v) for c, v in zip(cols, row)} for row in cursor.fetchall()]
 
 
 def _filters(params: Any) -> tuple[str, list[Any]]:

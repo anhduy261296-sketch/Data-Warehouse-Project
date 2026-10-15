@@ -1,86 +1,6 @@
 /* Báo cáo > Tồn kho (templates/reports/inventory.html) */
+/* Phan dung chung (card, KPI, bang...) nam o components/report.css */
 
-.rpt-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-.rpt-title {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--pgi-primary);
-}
-.rpt-subtitle {
-  margin: 2px 0 0;
-  color: #6b7280;
-  font-size: 0.9rem;
-}
-.rpt-header-tools {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.rpt-snapshot {
-  font-size: 0.85rem;
-  color: #6b7280;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 6px 12px;
-}
-.rpt-card {
-  background: #fff;
-  border: 1px solid #edf0f4;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(16, 24, 40, 0.05);
-  padding: 16px 18px;
-  position: relative;
-  height: 100%;
-}
-.rpt-card-title {
-  font-weight: 700;
-  color: #1f2430;
-  font-size: 1rem;
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.rpt-card-title .btn i {
-  color: inherit;
-}
-.rpt-card-title i {
-  color: var(--pgi-primary);
-}
-.rpt-kpi {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.rpt-kpi-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.3rem;
-  flex: 0 0 auto;
-}
-.rpt-kpi-label {
-  color: #6b7280;
-  font-size: 0.85rem;
-}
-.rpt-kpi-value {
-  font-size: 1.7rem;
-  font-weight: 700;
-  color: #1f2430;
-  line-height: 1.2;
-}
 .rpt-kpi-value-sku {
   font-size: 1.7rem;
   font-weight: 700;
@@ -98,68 +18,6 @@
   font-weight: 700;
   color: #e67e00;
   line-height: 1.2;
-}
-.rpt-filter label {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 4px;
-}
-.rpt-loading {
-  position: absolute;
-  inset: 0;
-  background: rgba(255, 255, 255, 0.75);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  z-index: 5;
-}
-.rpt-card.is-loading .rpt-loading {
-  display: flex;
-}
-.rpt-card.rpt-boot {
-  min-height: 160px;
-}
-.rpt-error {
-  color: #b42318;
-  font-size: 0.88rem;
-  padding: 12px 0;
-}
-.rpt-table {
-  font-size: 0.85rem;
-  margin-bottom: 0;
-}
-.rpt-table thead th {
-  white-space: nowrap;
-  background: #f8f9fb;
-  color: #374151;
-  font-weight: 600;
-}
-.rpt-table td {
-  vertical-align: middle;
-}
-.rpt-table .num {
-  text-align: right;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.rpt-table .total {
-  color: #1f2430;
-  font-weight: 700;
-}
-.rpt-name {
-  max-width: 280px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* ten SP: chiem het be ngang o, chi cat "..." o mep o */
-td.rpt-name-fill {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding-right: 0.75rem;
 }
 #rptTopSku .rpt-table {
   table-layout: fixed;
@@ -188,98 +46,6 @@ td.rpt-name-fill {
   display: block;
   height: 100%;
 }
-.rpt-bar {
-  height: 10px;
-  border-radius: 5px;
-  background: #f1f3f5;
-  min-width: 36px;
-}
-.rpt-bar span {
-  display: block;
-  height: 100%;
-  border-radius: 5px;
-}
-.rpt-chart {
-  position: relative;
-  height: 260px;
-}
-.rpt-donut-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 14px;
-}
-.rpt-donut {
-  position: relative;
-  width: 140px;
-  height: 140px;
-  flex: 0 0 140px;
-}
-.rpt-donut-center {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-.rpt-donut-center b {
-  font-size: 1.05rem;
-  color: #1f2430;
-}
-.rpt-donut-center small {
-  color: #6b7280;
-  font-size: 0.72rem;
-}
-.rpt-legend {
-  flex: 1 1 230px;
-  min-width: 0;
-  max-width: 100%;
-  table-layout: fixed;
-  font-size: 0.8rem;
-}
-.rpt-legend td {
-  padding: 3px 2px;
-  white-space: nowrap;
-}
-.rpt-legend td:first-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.rpt-legend td:nth-child(2) {
-  width: 48px;
-}
-.rpt-legend td:nth-child(3) {
-  width: 64px;
-}
-/* gutter ngang = gutter dọc (16px) */
-.rpt-row {
-  margin-left: -8px;
-  margin-right: -8px;
-}
-.rpt-row > [class*="col-"] {
-  padding-left: 8px;
-  padding-right: 8px;
-}
-/* 2 cột cao bằng nhau: card cuối mỗi cột giãn để lấp phần còn lại */
-.rpt-col {
-  display: flex;
-  flex-direction: column;
-}
-.rpt-col > .rpt-card {
-  height: auto;
-}
-.rpt-col > .rpt-grow {
-  flex: 1 1 auto;
-}
-.rpt-busy-btn.disabled,
-.rpt-busy-btn:disabled {
-  opacity: 0.5;
-  pointer-events: none;
-  cursor: not-allowed;
-}
 #rptLocTable thead th {
   padding-right: 22px !important;
   background: #f8f9fb;
@@ -299,11 +65,6 @@ td.rpt-name-fill {
   color: #374151;
   border-bottom: 1px solid #dee2e6;
 }
-.rpt-pager {
-  gap: 12px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
 #rptTopSku .rpt-table thead th,
 #rptTopWhs .rpt-table thead th {
   padding-right: 0.5rem !important;
@@ -322,47 +83,14 @@ td.rpt-name-fill {
     display: none;
   }
 }
-.rpt-actions .btn {
-  white-space: nowrap;
-  min-width: 110px;
-}
 @media (max-width: 575.98px) {
-  .rpt-header-tools {
-    width: 100%;
-    justify-content: space-between;
-  }
-  .rpt-kpi-value {
-    font-size: 1.4rem;
-  }
   #rptSkuTable_wrapper .pagination .page-link {
     padding: 0.3rem 0.55rem;
   }
 }
-.rpt-pager .dataTables_length label {
-  margin: 0;
-  font-size: 0.82rem;
-  color: #6b7280;
-}
-.rpt-pager .dataTables_length select {
-  height: 31px;
-}
-.rpt-pager .dataTables_paginate {
-  padding-top: 0 !important;
-}
-.rpt-pager .pagination {
-  margin: 0;
-}
-.rpt-dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-right: 6px;
-}
 #rptSkuTable_wrapper .dataTables_info {
   font-size: 0.82rem;
 }
-
 /* --- Thay cho style="..." truoc day viet trong HTML --- */
 .rpt-kpi-icon--sku {
   background: #e8f1fd;
@@ -375,9 +103,6 @@ td.rpt-name-fill {
 .rpt-kpi-icon--qty {
   background: #fff4e5;
   color: #e67e00;
-}
-.rpt-actions {
-  gap: 8px;
 }
 .rpt-name--whs {
   max-width: 120px;

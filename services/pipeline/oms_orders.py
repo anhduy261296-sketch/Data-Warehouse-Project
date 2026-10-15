@@ -7,6 +7,8 @@ import time
 from pathlib import Path
 from typing import Any
 import requests
+from services.pipeline.common.constants import MAX_SQL_PARAMS, TARGET_SCHEMA
+from services.pipeline.common.db import enable_fast_executemany
 
 logger = logging.getLogger(__name__)
 OMS_TOKEN_URL = os.environ.get('OMS_TOKEN_URL', 'https://auth-be.smartlogvn.com/connect/token')
@@ -14,7 +16,6 @@ OMS_ORDERS_URL = os.environ.get('OMS_ORDERS_URL', 'https://som-api.smartlogvn.co
 OMS_CLIENT_ID = os.environ.get('OMS_CLIENT_ID', 'OMS_App')
 OMS_PAGE_SIZE = int(os.environ.get('OMS_PAGE_SIZE', '1000'))
 TOKEN_STORE_PATH = Path(__file__).resolve().parent / 'data' / '.oms_token.json'
-TARGET_SCHEMA = 'dbo'
 TARGET_TABLE = 'OMS_ORDERS'
 LOG_TABLE = 'OMS_ORDERS_Load_Log'
 PENDING_TABLE = 'OMS_ORDERS_Pending'
@@ -74,15 +75,19 @@ def _build_filter(from_iso: str, to_iso: str) -> list[dict[str, str]]:
     return [{'k': 'created_date', 'c': '>=', 'v': from_iso}, {'k': 'created_date', 'c': '<=', 'v': to_iso}]
 
 
-def _fetch_page(access_token: str, page_index: int, page_size: int, filter_list: list[dict]) -> Any:
-    response = requests.get(
-        OMS_ORDERS_URL,
-        params={'page_index': page_index, 'page_size': page_size, 'sort': '[]', 'filter': json.dumps(filter_list)},
-        headers={'Authorization': f'Bearer {access_token}'},
-        timeout=60,
-    )
+def _oms_get(access_token: str, url: str, params: dict | None = None) -> Any:
+    """GET 1 API OMS (Bearer token) -> JSON. Dung chung cho don hang + danh muc kenh ban (oms_sales_channels)."""
+    response = requests.get(url, params=params, headers={'Authorization': f'Bearer {access_token}'}, timeout=60)
     response.raise_for_status()
     return response.json()
+
+
+def _fetch_page(access_token: str, page_index: int, page_size: int, filter_list: list[dict]) -> Any:
+    return _oms_get(
+        access_token,
+        OMS_ORDERS_URL,
+        {'page_index': page_index, 'page_size': page_size, 'sort': '[]', 'filter': json.dumps(filter_list)},
+    )
 
 
 def _fetch_all_orders(access_token: str, from_iso: str, to_iso: str) -> list[dict]:
@@ -113,8 +118,40 @@ def _coerce_value(value: Any) -> Any:
 
 
 def _delete_window(target_conn: Any, from_iso: str, to_iso: str) -> None:
+    # So sanh chuoi ISO theo tung byte (BIN2). Collation mac dinh cua cot (SQL_Latin1_General_CP1_CI_AS) so theo quy tac
+    # ngon ngu -> don tao dung giay cuoi ngay VN ('...16:59:59+00:00') bi coi > '...16:59:59.999Z' -> khong bi xoa, moi lan chay chen them 1 ban.
     cursor = target_conn.cursor()
-    cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE created_date >= %s AND created_date <= %s', (from_iso, to_iso))
+    cursor.execute(
+        f'DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} '
+        'WHERE created_date COLLATE Latin1_General_BIN2 >= %s AND created_date COLLATE Latin1_General_BIN2 <= %s',
+        (from_iso, to_iso),
+    )
+
+
+def _record_key(row: dict) -> tuple[str, str, str]:
+    """1 ban ghi OMS = don + loai dong (Sales/Return) + phieu tra (rong voi dong ban)."""
+    return (str(row.get('order_number') or ''), str(row.get('order_type') or ''), str(row.get('return_order_id') or ''))
+
+
+def _delete_fetched_records(target_conn: Any, rows: list[dict]) -> None:
+    """Xoa ban cu cua dung cac ban ghi vua keo ve (ke ca khi created_date nam ngoai cua so).
+
+    API loc dong tra hang theo ngay khac voi created_date (= ngay don goc) -> cung 1 dong tra hang ve o 2 cua so,
+    _delete_window cua cua so nay khong xoa duoc ban da ghi tu cua so kia -> trung lap.
+    """
+    keys = sorted({_record_key(r) for r in rows if r.get('order_number')})
+    cursor = target_conn.cursor()
+    per_batch = max(1, MAX_SQL_PARAMS // 3)
+    for i in range(0, len(keys), per_batch):
+        chunk = keys[i : i + per_batch]
+        values = ', '.join('(%s, %s, %s)' for _ in chunk)
+        cursor.execute(
+            f'DELETE o FROM {TARGET_SCHEMA}.{TARGET_TABLE} o '
+            f'JOIN (VALUES {values}) k(order_number, order_type, return_order_id) '
+            "ON o.order_number = k.order_number AND ISNULL(o.order_type, '') = k.order_type "
+            "AND ISNULL(o.return_order_id, '') = k.return_order_id",
+            tuple(v for key in chunk for v in key),
+        )
 
 
 def _assert_table_exists(target_conn: Any) -> None:
@@ -141,14 +178,14 @@ def _insert_rows(target_conn: Any, rows: list[dict]) -> None:
     insert_sql = f'INSERT INTO {TARGET_SCHEMA}.{TARGET_TABLE} ({quoted_cols}) VALUES ({placeholders})'
     values = [tuple((_coerce_value(row.get(c)) for c in columns)) for row in rows]
     cursor = target_conn.cursor()
-    if hasattr(cursor, 'fast_executemany'):
-        cursor.fast_executemany = True
+    enable_fast_executemany(cursor)
     cursor.executemany(insert_sql, values)
 
 
 def _sync_window(target_conn: Any, access_token: str, from_iso: str, to_iso: str) -> list[dict]:
     rows = _fetch_all_orders(access_token, from_iso, to_iso)
     _delete_window(target_conn, from_iso, to_iso)
+    _delete_fetched_records(target_conn, rows)
     _insert_rows(target_conn, rows)
     return rows
 

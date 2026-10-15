@@ -49,5 +49,16 @@ const ENDPOINTS = Object.freeze({
       byLocationExport: "/api/report/inventory/by-location/export/",
       export: "/api/report/inventory/export/",
     }),
+    ecom: Object.freeze({
+      meta: "/api/report/ecom/meta/",
+      kpi: "/api/report/ecom/kpi/",
+      daily: "/api/report/ecom/daily/",
+      bySale: "/api/report/ecom/by-sale/",
+      topProducts: "/api/report/ecom/top-products/",
+      orders: "/api/report/ecom/orders/",
+      ordersExport: "/api/report/ecom/orders/export/",
+      channelsRefresh: "/api/report/ecom/channels/refresh/",
+      channelsRefreshStatus: "/api/report/ecom/channels/refresh/status/",
+    }),
   }),
 });

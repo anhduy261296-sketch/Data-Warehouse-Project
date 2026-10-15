@@ -33,6 +33,17 @@ STATUS_CHANGE_MATCH_DAYS = 3  # ghep IT doi trang thai SAP <-> WMS lech toi da N
 WMS_WAREHOUSE_RE = re.compile(r'^WH\d{3}$')
 STOCK_TOP_LIMIT = 10
 
+# ---- Bao cao > E-commerce -----------------------------------------------------------------------
+ECOM_TOP_LIMIT = 10
+ECOM_MAX_RANGE_DAYS = MAX_DATE_RANGE_DAYS  # khoang ngay tuy chon; = gioi han cua bang chi tiet de so lieu 2 phan khop nhau
+
+# ---- Airflow REST API (nut "Cap nhat kenh ban" kich hoat DAG chay tay) ------------------------------
+AIRFLOW_API_URL = os.getenv('AIRFLOW_API_URL', 'http://airflow-webserver:8080/api/v1')
+AIRFLOW_API_USER = os.getenv('AIRFLOW_API_USER') or os.getenv('AIRFLOW_ADMIN_USER', 'airflow')
+AIRFLOW_API_PASSWORD = os.getenv('AIRFLOW_API_PASSWORD') or os.getenv('AIRFLOW_ADMIN_PASSWORD', 'airflow')
+OMS_ORDERS_DAG_ID = 'oms_orders_to_sqlserver_daily'
+OMS_SALES_CHANNELS_DAG_ID = 'oms_sales_channels_manual'
+
 # ---- Cache bao cao theo phien ban du lieu (tracking/core/cache.py, CACHES['reports'] trong settings) -------
 REPORT_CACHE_TTL = 24 * 3600
 # ket qua lon hon muc nay thi khong cache (STOCK_REPORT_* la ten bien cu, van doc de tuong thich)

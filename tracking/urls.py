@@ -4,6 +4,7 @@ from django.urls import path
 from django.views.generic import RedirectView
 
 from .reports.orders import DETAIL_CONFIGS, EMPLOYEE_REPORT_CONFIG_DMS, EMPLOYEE_REPORT_CONFIG_OMS, RECON_CONFIGS
+from .reports.ecom import ECOM_DETAIL_CONFIG
 from .reports.recon_inventory import INVENTORY_CONFIG
 from .views import data_tracking, reports
 from .menu import HOME_URL_NAME
@@ -93,4 +94,20 @@ urlpatterns += [
     path('api/report/inventory/by-location/export/', reports.inventory_by_location_export, name='report-inventory-by-location-export'),
     path('api/report/inventory/by-group/', reports.inventory_by_group, name='report-inventory-by-group'),
     path('api/report/inventory/export/', reports.inventory_export, name='report-inventory-export'),
+]
+urlpatterns += [
+    path('report/ecom/', page_view('reports/ecom.html'), name='report-ecom'),
+    path('api/report/ecom/meta/', reports.ecom_meta, name='report-ecom-meta'),
+    path('api/report/ecom/kpi/', reports.ecom_kpi, name='report-ecom-kpi'),
+    path('api/report/ecom/daily/', reports.ecom_daily, name='report-ecom-daily'),
+    path('api/report/ecom/by-sale/', reports.ecom_by_sale, name='report-ecom-by-sale'),
+    path('api/report/ecom/top-products/', reports.ecom_top_products, name='report-ecom-top-products'),
+    path('api/report/ecom/orders/', datatable_report_view(ECOM_DETAIL_CONFIG, 'report-ecom-orders'), name='report-ecom-orders'),
+    path(
+        'api/report/ecom/orders/export/',
+        datatable_export_view(ECOM_DETAIL_CONFIG, 'chi_tiet_don_hang_ecom.xlsx'),
+        name='report-ecom-orders-export',
+    ),
+    path('api/report/ecom/channels/refresh/', reports.ecom_channels_refresh, name='report-ecom-channels-refresh'),
+    path('api/report/ecom/channels/refresh/status/', reports.ecom_channels_refresh_status, name='report-ecom-channels-refresh-status'),
 ]

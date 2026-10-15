@@ -36,6 +36,7 @@ SOURCES: dict[str, str] = {
     # DAG doi soat lam moi ca RECON_* lan STATUS_TRACKING (cot Status Sync cua bang chi tiet)
     'recon': 'SELECT MAX(refreshed_at) FROM dbo.RECON_Refresh_Log',
     'oms_orders': 'SELECT MAX(loaded_at) FROM dbo.OMS_ORDERS_Load_Log',
+    'oms_sales_channels': 'SELECT MAX(loaded_at) FROM dbo.OMS_SALES_CHANNELS',
     'dms_so': 'SELECT MAX(loaded_at) FROM dbo.DMS_SO_Load_Log',
     'wrt_so': 'SELECT MAX(loaded_at) FROM dbo.WRT_SO_Load_Log',
 }
@@ -60,6 +61,11 @@ def _source_version(source: str) -> str:
         cache.set(_LAST_SEEN_KEY, {**last_seen, source: version}, None)
         cache.set(key, version, REPORT_VERSION_TTL)
     return version
+
+
+def invalidate_source(source: str) -> None:
+    """Doc lai phien ban nguon ngay o request sau (vd vua cap nhat bang tay) thay vi cho het REPORT_VERSION_TTL."""
+    cache.delete(f'reports:version:{source}')
 
 
 def _data_version(sources: Iterable[str]) -> str:

@@ -1,0 +1,156 @@
+/* Báo cáo > E-commerce (templates/reports/ecom.html). Phan dung chung (card, KPI, bang...) nam o components/report.css */
+
+/* trang nay nhat hon trang Ton kho (700 -> 500): tieu de trang, tieu de card, so dam trong bang */
+.rpt-title,
+.rpt-card-title,
+.rpt-table .total {
+  font-weight: 500;
+}
+.ec-kpi-body {
+  min-width: 0;
+}
+.ec-kpi-card .rpt-kpi-label,
+.ec-kpi-sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ec-kpi-value {
+  font-size: 1.55rem;
+  font-weight: 500;
+  color: #1f2430;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.ec-kpi-sub {
+  font-size: 0.8rem;
+  margin-top: 2px;
+}
+.ec-up {
+  color: #1e7e34;
+}
+.ec-down {
+  color: #c62828;
+}
+/* so KPI cung mau voi icon ben canh */
+.ec-kpi-value--revenue {
+  color: #e67e00;
+}
+.ec-kpi-value--orders {
+  color: #1565c0;
+}
+.ec-kpi-value--success {
+  color: #1e7e34;
+}
+.ec-kpi-value--cancel {
+  color: #c62828;
+}
+.ec-kpi-value--aov {
+  color: #0f766e;
+}
+.ec-icon--revenue {
+  background: #fff4e5;
+  color: #e67e00;
+}
+.ec-icon--orders {
+  background: #e8f1fd;
+  color: #1565c0;
+}
+.ec-icon--success {
+  background: #e9f7ef;
+  color: #1e7e34;
+}
+.ec-icon--cancel {
+  background: #fdecea;
+  color: #c62828;
+}
+.ec-icon--aov {
+  background: #e6f6f4;
+  color: #0f766e;
+}
+.ec-chart-lg {
+  height: 300px;
+}
+.ec-filter-error {
+  color: #b42318;
+  font-size: 0.85rem;
+}
+.ec-channels-msg {
+  font-size: 0.88rem;
+  padding: 8px 14px;
+  margin: -6px 0 12px;
+}
+
+/* Top 10 */
+.ec-top-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 560px;
+}
+.ec-top-table thead th {
+  padding-right: 0.5rem !important;
+}
+.ec-col-no {
+  width: 5%;
+}
+.ec-col-sku {
+  width: 12%;
+}
+.ec-col-name {
+  width: 37%;
+}
+.ec-col-num {
+  width: 18%;
+}
+.ec-col-qty {
+  width: 13%;
+}
+.ec-col-share {
+  width: 15%;
+}
+
+/* Bang chi tiet */
+.ec-orders-tools {
+  gap: 8px;
+  font-weight: 400;
+}
+.ec-status-select {
+  width: auto;
+  min-width: 160px;
+}
+.ec-orders-search {
+  width: 320px;
+}
+.ec-sku-chip {
+  font-size: 0.8rem;
+  padding: 6px 10px;
+}
+#ecOrdersTable thead th {
+  padding-right: 22px !important;
+  background: #f8f9fb;
+  color: #374151;
+  border-bottom: 1px solid #dee2e6;
+}
+#ecOrdersTable td.rpt-name-cell {
+  min-width: 240px;
+  max-width: 360px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#ecOrdersTable_wrapper .dataTables_info {
+  font-size: 0.82rem;
+}
+@media (max-width: 575.98px) {
+  .ec-kpi-value {
+    font-size: 1.3rem;
+  }
+  .ec-orders-tools {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .ec-orders-search,
+  .ec-status-select {
+    width: 100%;
+  }
+}

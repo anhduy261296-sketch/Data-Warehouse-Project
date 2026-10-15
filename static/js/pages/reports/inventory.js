@@ -22,8 +22,6 @@
   // cache trang da xem cua 2 bang (mat khi roi trang / bam Lam moi); server cung cache theo phien ban du lieu
   const pageCache = Api.createPageCache();
   let skuFilters = {};
-  let pending = 0;
-  let gen = 0;
   const SEARCH_HTML = '<i class="fas fa-search mr-1"></i> Tìm kiếm';
   function setBusy(on) {
     $("#rptSearch, #rptRefresh").prop("disabled", on);
@@ -33,45 +31,21 @@
     $("#rptSearch").html(on ? '<span class="spinner-border spinner-border-sm mr-1"></span> Đang tải...' : SEARCH_HTML);
   }
 
-  let lockUI = true;
-  function lock() {
-    lockUI = true;
-    if (pending) setBusy(true);
-  }
-  function begin() {
-    pending += 1;
-    if (lockUI) setBusy(true);
-  }
-  function end() {
-    pending = Math.max(0, pending - 1);
-    if (pending === 0) {
-      setBusy(false);
-      lockUI = false;
-    }
-  }
-
+  // khoa nut chi khi bam Tim kiem / Lam moi (lock()); doi dropdown thi khong khoa - xem core/report.js
+  const loader = ReportLoader.create({ setBusy, lockAlways: false });
+  const { lock, begin, end } = loader;
   function area(id, path, render) {
-    const $card = $(id).addClass("is-loading");
-    $card.find(".rpt-error").remove();
-    const g = gen;
-    begin();
-    return Api.get(path, filters())
-      .done((data) => {
-        if (g === gen) render(data);
-      })
-      .always(end)
-      .fail(() => $card.append(`<div class="rpt-error">${APP.MESSAGES.LOAD_FAILED_RETRY}</div>`))
-      .always(() => $card.removeClass("is-loading"));
+    return loader.area(id, path, filters(), render);
   }
 
   function loadKpi() {
     ["#rptKpiSku", "#rptKpiWhs", "#rptKpiQty"].forEach((id) => $(id).addClass("is-loading"));
-    const g = gen;
+    const g = loader.current();
     begin();
     return Api.get(RPT.kpi, filters())
       .always(end)
       .done((d) => {
-        if (g === gen)
+        if (g === loader.current())
           $("[data-kpi]").each(function () {
             $(this).text(fmt(d[$(this).data("kpi")]));
           });
@@ -262,7 +236,7 @@
     $("#rptLocHint").removeClass("d-none");
   }
   function loadAll(fromSearch) {
-    gen += 1;
+    loader.next();
     loadKpi();
     loadTopSku();
     loadByWarehouse();

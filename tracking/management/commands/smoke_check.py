@@ -41,9 +41,10 @@ PAGES = [
     'detail-employee-dms',
     'detail-employee-oms',
     'report-inventory',
+    'report-ecom',
 ]
-# route khong can kiem tra (khong phai tinh nang bao cao)
-SKIPPED = {'login', 'logout', 'login-captcha', 'home'}
+# route khong can kiem tra (khong phai tinh nang bao cao / kich hoat DAG Airflow that)
+SKIPPED = {'login', 'logout', 'login-captcha', 'home', 'report-ecom-channels-refresh', 'report-ecom-channels-refresh-status'}
 # Bang don hang sap mac dinh theo trang thai -> cac dong cung trang thai co the doi thu tu giua 2 lan goi.
 # Neu khac baseline: van phai khop tong so dong / so dong sau loc / cau truc cot, chi canh bao.
 UNSTABLE_ORDER = ('recon-', 'detail-')
@@ -117,6 +118,14 @@ def _cases() -> list[tuple[str, dict[str, str]]]:
         ('report-inventory-by-location', {**DT_PAGE, 'start': '9210'}),
         ('report-inventory-export', {'whs': 'WH104'}),
         ('report-inventory-by-location-export', {'whs': 'WH104', 'sort': 'qty', 'dir': 'desc'}),
+        ('report-ecom-meta', {}),
+    ]
+    for f in (DATE_RANGE, {**DATE_RANGE, 'channel': 'SPE'}, {**DATE_RANGE, 'channel': 'TTS', 'shop': '7494711991440476753'}):
+        cases += [(f'report-ecom-{area}', f) for area in ('kpi', 'daily', 'by-sale', 'top-products')]
+        cases += [('report-ecom-orders', {**DT_PAGE, **f, 'order[0][column]': '0', 'order[0][dir]': 'desc'})]
+    cases += [
+        ('report-ecom-orders', {**DT_PAGE, **DATE_RANGE, 'start': '9990', 'status_group': 'cancel', 'search[value]': 'JBL'}),
+        ('report-ecom-orders-export', {**DATE_RANGE, 'channel': 'LAZ'}),
     ]
     return cases
 

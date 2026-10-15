@@ -2,6 +2,7 @@
  * Goi API dung chung. Moi trang goi qua Api.* thay vi tu ghep URL / $.getJSON.
  *   Api.get(ENDPOINTS.reports.inventory.kpi, { whs: "WH104" })   -> jqXHR (promise)
  *   Api.url(path, params)                                        -> URL tuyet doi (bo tham so rong)
+ *   Api.post(path, data)                                         -> POST kem CSRF token (thao tac ghi)
  *   Api.download(path, params)                                   -> tai file (xuat Excel)
  *   Api.dataTableSource(path, getParams, cache)                  -> ham ajax cho DataTables server-side
  */
@@ -20,6 +21,15 @@ const Api = (function () {
 
   function get(path, params) {
     return $.getJSON(fullPath(path), params);
+  }
+
+  function csrfToken() {
+    const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : $("[name=csrfmiddlewaretoken]").val();
+  }
+
+  function post(path, data) {
+    return $.ajax({ url: fullPath(path), method: "POST", data: data || {}, dataType: "json", headers: { "X-CSRFToken": csrfToken() } });
   }
 
   function download(path, params) {
@@ -64,5 +74,5 @@ const Api = (function () {
     };
   }
 
-  return { url, get, download, createPageCache, dataTableSource };
+  return { url, get, post, download, createPageCache, dataTableSource };
 })();
