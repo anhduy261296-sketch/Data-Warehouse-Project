@@ -56,6 +56,7 @@ const COLUMNS = Object.freeze({
 
 const DataTablePage = (function () {
   const tables = {};
+  const pageCache = Api.createPageCache();
 
   function dateInputValue(daysAgo) {
     const d = new Date();
@@ -136,6 +137,11 @@ const DataTablePage = (function () {
     });
   }
 
+  /** Gia tri o "Tu ngay / Den ngay" dang hien (undefined neu bang khong co bo loc ngay). */
+  function dateValues(tableId) {
+    return { date_from: $(`#${tableId}_date_from`).val(), date_to: $(`#${tableId}_date_to`).val() };
+  }
+
   /** Nut xuat Excel: gui kem khoang ngay (+ tu khoa tim kiem neu includeSearch). */
   function exportButton(tableId, exportEndpoint, includeSearch) {
     return {
@@ -144,11 +150,7 @@ const DataTablePage = (function () {
       className: EXPORT_BUTTON_CLASS,
       action: function () {
         const searchValue = includeSearch && tables[tableId] ? tables[tableId].search() : "";
-        Api.download(exportEndpoint, {
-          "search[value]": searchValue,
-          date_from: $(`#${tableId}_date_from`).val(),
-          date_to: $(`#${tableId}_date_to`).val(),
-        });
+        Api.download(exportEndpoint, { "search[value]": searchValue, ...dateValues(tableId) });
       },
     };
   }
@@ -187,23 +189,28 @@ const DataTablePage = (function () {
   function render(tableId, endpoint, columns, options) {
     const isRecon = options.kind === "recon";
     const withDateFilter = isRecon || !!options.dateFilter;
+    // bo loc dang chon tren thanh cong cu -> gui kem moi request
+    const filterParams = () => ({
+      ...(isRecon
+        ? {
+            status_sync: $(`#${tableId}_wrapper .recon-status-filter select`).val() || "",
+            so_status: $(`#${tableId}_wrapper .recon-so-status-filter select`).val() || "",
+          }
+        : {}),
+      // o ngay chi duoc chen sau lan ve dau -> lan goi dau dung san khoang mac dinh (giong gia tri o se hien)
+      ...(withDateFilter
+        ? {
+            date_from: dateValues(tableId).date_from || dateInputValue(APP.DATE_FILTER_MAX_RANGE_DAYS),
+            date_to: dateValues(tableId).date_to || dateInputValue(0),
+          }
+        : {}),
+    });
     return new Promise((resolve) => {
       tables[tableId] = $(`#${tableId}`).DataTable({
         serverSide: true,
         processing: true,
-        ajax: {
-          url: `${ENDPOINTS.API_BASE}${endpoint}`,
-          data: function (d) {
-            if (isRecon) {
-              d.status_sync = $(`#${tableId}_wrapper .recon-status-filter select`).val() || "";
-              d.so_status = $(`#${tableId}_wrapper .recon-so-status-filter select`).val() || "";
-            }
-            if (withDateFilter) {
-              d.date_from = $(`#${tableId}_date_from`).val() || "";
-              d.date_to = $(`#${tableId}_date_to`).val() || "";
-            }
-          },
-        },
+        // cache trang da xem (mat khi roi trang); server cung cache theo phien ban du lieu
+        ajax: Api.dataTableSource(endpoint, filterParams, pageCache),
         columns,
         order: [],
         dom: isRecon
@@ -215,10 +222,8 @@ const DataTablePage = (function () {
         ],
         language: { lengthMenu: "_MENU_" },
         initComplete: function () {
-          if (withDateFilter) {
-            addDateRangeFilter(tableId);
-            tables[tableId].draw();
-          }
+          // lan goi dau da kem khoang ngay mac dinh -> chi chen o loc, khong can ve lai (truoc day goi API 2 lan)
+          if (withDateFilter) addDateRangeFilter(tableId);
           resolve();
         },
       });

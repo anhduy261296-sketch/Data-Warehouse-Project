@@ -258,12 +258,8 @@ $(function () {
   const table = $("#reconInventoryTable").DataTable({
     serverSide: true,
     processing: true,
-    ajax: {
-      url: `${ENDPOINTS.API_BASE}${INV_API.report}`,
-      data: function (d) {
-        Object.assign(d, inventoryFilterParams());
-      },
-    },
+    // cache trang da xem (mat khi roi trang); server cung cache theo phien ban du lieu
+    ajax: Api.dataTableSource(INV_API.report, inventoryFilterParams, Api.createPageCache()),
     columns: [
       {
         data: "status_sync",

@@ -21,6 +21,7 @@ from ..core.datatables import DetailColumn, DetailReportConfig, _json_safe
 
 INVENTORY_CONFIG = DetailReportConfig(
     table='dbo.RECON_INVENTORY',
+    cache_sources=('recon',),
     where='1=1',
     status_values=INVENTORY_STATUS_VALUES,
     default_hidden_status=INVENTORY_HIDDEN_STATUS,

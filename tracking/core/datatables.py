@@ -34,6 +34,10 @@ class DetailReportConfig:
     default_hidden_status: str = ''
     default_order_sql: str = ''
     filter_params: tuple[tuple[str, str], ...] = ()
+    # nguon du lieu (tracking/core/cache.py SOURCES) -> bat cache API theo phien ban du lieu; rong = khong cache
+    cache_sources: tuple[str, ...] = ()
+    # khoa dong duy nhat (vd '_row_id') -> phan trang tren khoa truoc roi moi lay du cot (bang co cot rong / NVARCHAR(MAX))
+    row_key: str = ''
 
 
 def get_distinct_so_status(config: DetailReportConfig) -> list[str]:
@@ -126,10 +130,30 @@ def run_detail_report(config: DetailReportConfig, params: dict[str, Any]) -> dic
         records_total = cursor.fetchone()[0]
         cursor.execute(f'SELECT COUNT(*) {base_from} {where_extra}', query_params)
         records_filtered = cursor.fetchone()[0]
-        cursor.execute(
-            f'\n            SELECT {select_list}\n            {base_from}\n            {where_extra}\n            ORDER BY {order_expr} {order_dir}\n            OFFSET %s ROWS FETCH NEXT %s ROWS ONLY\n            ',
-            [*query_params, start, length],
-        )
+        if config.row_key:
+            # Phan trang tren khoa dong truoc (chi sap xep cot nho), roi moi lay du cot cho cac dong cua trang.
+            # Bang co cot NVARCHAR(MAX) (OMS_ORDERS): sap xep ca dong rong rat cham, nhat la trang cuoi.
+            # row_key lam tieu chi phu -> thu tu dong co dinh giua cac lan tai.
+            cursor.execute(
+                f"""
+                ;WITH p AS (
+                    SELECT t.{config.row_key} AS __k, ROW_NUMBER() OVER (ORDER BY {order_expr} {order_dir}, t.{config.row_key}) AS __rn
+                    {base_from}
+                    {where_extra}
+                    ORDER BY __rn OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
+                )
+                SELECT {select_list}
+                FROM p JOIN {config.table} t ON t.{config.row_key} = p.__k
+                {config.join_sql}
+                ORDER BY p.__rn
+                """,
+                [*query_params, start, length],
+            )
+        else:
+            cursor.execute(
+                f'\n            SELECT {select_list}\n            {base_from}\n            {where_extra}\n            ORDER BY {order_expr} {order_dir}\n            OFFSET %s ROWS FETCH NEXT %s ROWS ONLY\n            ',
+                [*query_params, start, length],
+            )
         cols = [d[0] for d in cursor.description]
         rows = [dict(zip(cols, row)) for row in cursor.fetchall()]
     for row in rows:

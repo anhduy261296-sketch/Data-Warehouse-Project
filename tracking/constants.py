@@ -32,7 +32,9 @@ STATUS_CHANGE_MATCH_DAYS = 3  # ghep IT doi trang thai SAP <-> WMS lech toi da N
 # ---- Bao cao > Ton kho ---------------------------------------------------------------------------
 WMS_WAREHOUSE_RE = re.compile(r'^WH\d{3}$')
 STOCK_TOP_LIMIT = 10
-# Cache ket qua theo phien ban du lieu (CACHES['stock_report'] trong settings)
-STOCK_CACHE_TTL = 24 * 3600
-STOCK_CACHE_MAX_ITEM_BYTES = int(os.getenv('STOCK_REPORT_CACHE_MAX_ITEM_KB', '64')) * 1024
-STOCK_VERSION_TTL = 60
+
+# ---- Cache bao cao theo phien ban du lieu (tracking/core/cache.py, CACHES['reports'] trong settings) -------
+REPORT_CACHE_TTL = 24 * 3600
+# ket qua lon hon muc nay thi khong cache (STOCK_REPORT_* la ten bien cu, van doc de tuong thich)
+REPORT_CACHE_MAX_ITEM_BYTES = int(os.getenv('REPORT_CACHE_MAX_ITEM_KB', os.getenv('STOCK_REPORT_CACHE_MAX_ITEM_KB', '64'))) * 1024
+REPORT_VERSION_TTL = 60  # doc lai phien ban du lieu toi da moi N giay

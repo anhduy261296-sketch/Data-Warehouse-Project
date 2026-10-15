@@ -3,19 +3,13 @@
 from __future__ import annotations
 from decimal import Decimal
 from typing import Any
-import functools
-import hashlib
-import json
-import pickle
-from django.core.cache import caches
 from django.db import connection
+
+from ..core.cache import SOURCES, cache_key, cached, get_or_set
 from ..constants import (
     EXPORT_MAX_ROWS,
     MAX_PAGE_LENGTH,
-    STOCK_CACHE_MAX_ITEM_BYTES,
-    STOCK_CACHE_TTL,
     STOCK_TOP_LIMIT,
-    STOCK_VERSION_TTL,
     WMS_WAREHOUSE_RE,
 )
 
@@ -65,14 +59,12 @@ def _filters(params: Any) -> tuple[str, list[Any]]:
     return (' AND '.join(where) or '1=1', args)
 
 
+# Bao cao doc WMS_INVENTORY + ten hang / nhom / DVT tu SAP -> cache tu het han khi 1 trong cac nguon nay nap lai
+STOCK_SOURCES = ('wms_inventory', 'sap_items', 'sap_item_groups', 'sap_uom')
+
+
 def _warehouses(cursor: Any) -> list[dict[str, str]]:
-    key = 'stock_report:warehouses:' + hashlib.sha1(data_version().encode('utf-8')).hexdigest()
-    cached = cache.get(key)
-    if cached is not None:
-        return cached
-    result = _load_warehouses(cursor)
-    cache.set(key, result, CACHE_TTL)
-    return result
+    return get_or_set(cache_key('stock.warehouses', STOCK_SOURCES), lambda: _load_warehouses(cursor))
 
 
 def _load_warehouses(cursor: Any) -> list[dict[str, str]]:
@@ -83,57 +75,7 @@ def _load_warehouses(cursor: Any) -> list[dict[str, str]]:
     return [{'code': code, 'name': names.get('W' + code[2:]) or code} for code in codes]
 
 
-cache = caches['stock_report']
-CACHE_TTL = STOCK_CACHE_TTL
-CACHE_MAX_ITEM_BYTES = STOCK_CACHE_MAX_ITEM_BYTES
-_VERSION_TTL = STOCK_VERSION_TTL
-
-_IGNORED_PARAMS = {'_', 'draw'}
-
-
-def data_version() -> str:
-    version = cache.get('stock_report:version')
-    if version is None:
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                SELECT (SELECT MAX(loaded_at) FROM dbo.WMS_INVENTORY_Load_Log WHERE status = 'SUCCESS'),
-                       (SELECT MAX(LoadedAt) FROM dbo.SAP_ITEMS),
-                       (SELECT MAX(LoadedAt) FROM dbo.SAP_ITEM_GROUPS),
-                       (SELECT MAX(LoadedAt) FROM dbo.SAP_UOM)
-                """)
-            version = '|'.join(str(v) for v in cursor.fetchone())
-        # du lieu moi (DAG vua tai) -> xoa sach vung cache ngay de giai phong RAM, khong cho het TTL
-        if cache.get('stock_report:last_version') != version:
-            cache.clear()
-            cache.set('stock_report:last_version', version, None)
-        cache.set('stock_report:version', version, _VERSION_TTL)
-    return version
-
-
-def _cache_key(name: str, params: Any) -> str:
-    items = sorted((k, params.getlist(k) if hasattr(params, 'getlist') else [params[k]]) for k in params if k not in _IGNORED_PARAMS)
-    raw = json.dumps([name, data_version(), items], ensure_ascii=False, default=str)
-    return 'stock_report:' + hashlib.sha1(raw.encode('utf-8')).hexdigest()
-
-
-def _cached(fn):
-    @functools.wraps(fn)
-    def wrapper(params: Any = None) -> dict[str, Any]:
-        params = params if params is not None else {}
-        key = _cache_key(fn.__name__, params)
-        result = cache.get(key)
-        if result is None:
-            result = fn(params)
-            if len(pickle.dumps(result, pickle.HIGHEST_PROTOCOL)) <= CACHE_MAX_ITEM_BYTES:
-                cache.set(key, result, CACHE_TTL)
-        if 'draw' in result:
-            result = {**result, 'draw': int(params.get('draw') or 0) if str(params.get('draw') or '0').isdigit() else 0}
-        return result
-
-    return wrapper
-
-
-@_cached
+@cached(*STOCK_SOURCES)
 def get_meta(_params: Any = None) -> dict[str, Any]:
     with connection.cursor() as cursor:
         warehouses = _warehouses(cursor)
@@ -144,7 +86,7 @@ def get_meta(_params: Any = None) -> dict[str, Any]:
         groups = [{'code': c, 'name': n} for c, n in cursor.fetchall()]
         cursor.execute("SELECT DISTINCT status FROM dbo.WMS_INVENTORY WHERE ISNULL(status, '') <> '' ORDER BY status")
         statuses = [r[0] for r in cursor.fetchall()]
-        cursor.execute("SELECT MAX(loaded_at) FROM dbo.WMS_INVENTORY_Load_Log WHERE status = 'SUCCESS'")
+        cursor.execute(SOURCES['wms_inventory'])  # thoi diem nap ton WMS gan nhat (cung SQL voi phien ban cache)
         snapshot_at = cursor.fetchone()[0]
     return {
         'warehouses': warehouses,
@@ -154,7 +96,7 @@ def get_meta(_params: Any = None) -> dict[str, Any]:
     }
 
 
-@_cached
+@cached(*STOCK_SOURCES)
 def get_kpi(params: Any) -> dict[str, Any]:
     where, args = _filters(params)
     with connection.cursor() as cursor:
@@ -179,7 +121,7 @@ def _sku_agg(warehouses: list[str], where: str) -> str:
         """
 
 
-@_cached
+@cached(*STOCK_SOURCES)
 def get_by_sku(params: Any) -> dict[str, Any]:
     where, args = _filters(params)
     try:
@@ -239,7 +181,7 @@ def export_by_sku(params: Any) -> tuple[list[str], list[dict[str, Any]]]:
         return (warehouses, _rows(cursor))
 
 
-@_cached
+@cached(*STOCK_SOURCES)
 def get_top_sku(params: Any) -> dict[str, Any]:
     where, args = _filters(params)
     with connection.cursor() as cursor:
@@ -267,7 +209,7 @@ def get_top_sku(params: Any) -> dict[str, Any]:
     return {'data': top}
 
 
-@_cached
+@cached(*STOCK_SOURCES)
 def get_by_warehouse(params: Any) -> dict[str, Any]:
     where, args = _filters(params)
     with connection.cursor() as cursor:
@@ -320,7 +262,7 @@ def _location_sql(where: str, order_sql: str) -> str:
     )
 
 
-@_cached
+@cached(*STOCK_SOURCES)
 def get_by_location(params: Any) -> dict[str, Any]:
 
     where, args = _filters(params)
@@ -359,7 +301,7 @@ def export_by_location(params: Any) -> list[dict[str, Any]]:
     return data
 
 
-@_cached
+@cached(*STOCK_SOURCES)
 def get_by_group(params: Any) -> dict[str, Any]:
     where, args = _filters(params)
     with connection.cursor() as cursor:

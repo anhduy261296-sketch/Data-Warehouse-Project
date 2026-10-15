@@ -14,7 +14,7 @@ def datatable_routes(page_url: str, api_url: str, name: str, template: str, conf
     """1 trang bang DataTables = trang HTML + API /report/ + API /export/ (Excel)."""
     return [
         path(page_url, page_view(template), name=name),
-        path(f'{api_url}report/', datatable_report_view(config), name=f'{name}-report'),
+        path(f'{api_url}report/', datatable_report_view(config, f'{name}-report'), name=f'{name}-report'),
         path(f'{api_url}export/', datatable_export_view(config, export_filename), name=f'{name}-export'),
     ]
 

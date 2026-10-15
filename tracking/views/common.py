@@ -5,6 +5,7 @@ from __future__ import annotations
 from django.http import JsonResponse
 from django.shortcuts import render
 
+from ..core.cache import cached_call
 from ..core.datatables import DetailReportConfig, export_detail_report_rows, run_detail_report
 from ..core.excel import ExcelColumn, ExcelSheet, excel_response
 
@@ -19,11 +20,13 @@ def page_view(template_name: str):
     return view
 
 
-def datatable_report_view(config: DetailReportConfig):
-    """API DataTables server-side cho 1 bang."""
+def datatable_report_view(config: DetailReportConfig, name: str):
+    """API DataTables server-side cho 1 bang; co cache theo phien ban du lieu neu config khai bao cache_sources."""
 
     def view(request):
-        return JsonResponse(run_detail_report(config, request.GET))
+        if not config.cache_sources:
+            return JsonResponse(run_detail_report(config, request.GET))
+        return JsonResponse(cached_call(name, config.cache_sources, lambda: run_detail_report(config, request.GET), request.GET))
 
     return view
 

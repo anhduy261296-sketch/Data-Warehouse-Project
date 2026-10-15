@@ -4,6 +4,7 @@ from __future__ import annotations
 from ..constants import STATUS_TRACKING_TABLE
 from ..core.datatables import DetailColumn, DetailReportConfig
 
+# OMS_ORDERS: order_number / outbound_order_type co index (migration 0022); loc ngay dung cot tinh san _k_created_at
 _ECOM_ORDER_FILTER = "t.outbound_order_type IN ('L03', 'L04') AND st.StatusSync = 'Sync'"
 _DMS_XUATKHO_ORDER_FILTER = "t.outbound_order_type IN ('L01', 'L05', 'L07', 'L08', 'L12', 'L14', 'L18', 'L25') AND st.StatusSync = 'Sync'"
 _WRT_ORDER_FILTER = "t.IsCreateBy = 'SYSTEM' AND st.StatusSync = 'Sync'"
@@ -33,6 +34,7 @@ _OMS_ORDERS_COLUMNS = [
 ]
 EMPLOYEE_REPORT_CONFIG_DMS = DetailReportConfig(
     table='dbo.DMS_SO',
+    cache_sources=('dms_so',),
     where='1=1',
     status_sync_expr='t.OrderCode',
     date_expr='t.DocDate',
@@ -50,9 +52,11 @@ EMPLOYEE_REPORT_CONFIG_DMS = DetailReportConfig(
 )
 EMPLOYEE_REPORT_CONFIG_OMS = DetailReportConfig(
     table='dbo.OMS_ORDERS',
+    row_key='_row_id',
+    cache_sources=('oms_orders',),
     where='1=1',
     status_sync_expr='t.order_number',
-    date_expr='TRY_CONVERT(DATETIME2, t.created_date)',
+    date_expr='t._k_created_at',
     columns=[
         DetailColumn('t.order_number', 'order_code', searchable=True, title='Mã đơn hàng'),
         DetailColumn('t.employee_code', 'employee_code', searchable=True, title='Mã nhân viên'),
@@ -75,22 +79,27 @@ def _status_tracking_join(table: str, key_col: str, recon_type: str) -> str:
 DETAIL_CONFIGS: dict[str, DetailReportConfig] = {
     'ecom': DetailReportConfig(
         table='dbo.OMS_ORDERS',
+        row_key='_row_id',
+        cache_sources=('oms_orders', 'recon'),
         where=_ECOM_ORDER_FILTER,
         columns=_OMS_ORDERS_COLUMNS,
         join_sql=_status_tracking_join('dbo.OMS_ORDERS', 'order_number', 'ECOM'),
         status_sync_expr='st.StatusSync',
-        date_expr='TRY_CONVERT(DATETIME2, t.created_date)',
+        date_expr='t._k_created_at',
     ),
     'dms-xuatkho': DetailReportConfig(
         table='dbo.OMS_ORDERS',
+        row_key='_row_id',
+        cache_sources=('oms_orders', 'recon'),
         where=_DMS_XUATKHO_ORDER_FILTER,
         columns=_OMS_ORDERS_COLUMNS,
         join_sql=_status_tracking_join('dbo.OMS_ORDERS', 'order_number', 'DMS_XUATKHO'),
         status_sync_expr='st.StatusSync',
-        date_expr='TRY_CONVERT(DATETIME2, t.created_date)',
+        date_expr='t._k_created_at',
     ),
     'dms-duyet': DetailReportConfig(
         table='dbo.DMS_SO',
+        cache_sources=('dms_so', 'recon'),
         where=_DMS_DUYET_ORDER_FILTER,
         join_sql=_status_tracking_join('dbo.DMS_SO', 'OrderCode', 'DMS_DUYET'),
         status_sync_expr='st.StatusSync',
@@ -121,6 +130,7 @@ DETAIL_CONFIGS: dict[str, DetailReportConfig] = {
     ),
     'wrt': DetailReportConfig(
         table='dbo.WRT_SO',
+        cache_sources=('wrt_so', 'recon'),
         where=_WRT_ORDER_FILTER,
         join_sql=_status_tracking_join('dbo.WRT_SO', 'order_number', 'WRT'),
         status_sync_expr='st.StatusSync',
@@ -152,6 +162,7 @@ DETAIL_CONFIGS: dict[str, DetailReportConfig] = {
 RECON_CONFIGS: dict[str, DetailReportConfig] = {
     'ecom': DetailReportConfig(
         table='dbo.RECON_ECOM',
+        cache_sources=('recon',),
         where='1=1',
         date_expr='t.OrderDate',
         columns=[
@@ -167,6 +178,7 @@ RECON_CONFIGS: dict[str, DetailReportConfig] = {
     ),
     'dms-duyet': DetailReportConfig(
         table='dbo.RECON_DMS_DUYET',
+        cache_sources=('recon',),
         where='1=1',
         date_expr='t.OrderDate',
         columns=[
@@ -182,6 +194,7 @@ RECON_CONFIGS: dict[str, DetailReportConfig] = {
     ),
     'dms-xuatkho': DetailReportConfig(
         table='dbo.RECON_DMS_XUATKHO',
+        cache_sources=('recon',),
         where='1=1',
         date_expr='t.OrderDate',
         columns=[
@@ -198,6 +211,7 @@ RECON_CONFIGS: dict[str, DetailReportConfig] = {
     ),
     'wrt': DetailReportConfig(
         table='dbo.RECON_WRT',
+        cache_sources=('recon',),
         where='1=1',
         date_expr='t.OrderDate',
         columns=[
