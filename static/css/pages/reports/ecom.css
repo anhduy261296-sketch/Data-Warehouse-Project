@@ -3,7 +3,7 @@
 /* trang nay nhat hon trang Ton kho (700 -> 500): tieu de trang, tieu de card, so dam trong bang */
 .rpt-title,
 .rpt-card-title,
-.rpt-table .total {
+.rpt-table tbody .total {
   font-weight: 500;
 }
 .ec-chart-lg {

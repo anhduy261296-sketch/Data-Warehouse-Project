@@ -19,7 +19,6 @@
     "Trả hàng": "badge-warning",
   };
   let meta = { months: [], channels: [], shops: [], max_range_days: 30 };
-  const charts = {};
   let ordersTable = null;
   let skuFilter = "";
 
@@ -137,10 +136,6 @@
     return loader.area(ids, path, filters(), render);
   }
 
-  function chart(id, config) {
-    if (charts[id]) charts[id].destroy();
-    charts[id] = new Chart(document.getElementById(id), config);
-  }
   function emptyHtml(cols) {
     return `<tr><td colspan="${cols}" class="text-center text-muted">${APP.MESSAGES.NO_DATA}</td></tr>`;
   }
@@ -168,7 +163,7 @@
   function loadDaily() {
     return area(["#ecDaily"], RPT.daily, (d) => {
       const data = d.data;
-      chart("ecDailyChart", {
+      ChartKit.render("ecDailyChart", {
         data: {
           labels: data.map((r) => `${r.day.slice(8, 10)}/${r.day.slice(5, 7)}`),
           datasets: [
@@ -218,22 +213,23 @@
     });
   }
 
-  // in gia tri tren dau moi cot (khong can plugin ngoai)
-  const valueLabels = {
-    id: "valueLabels",
-    afterDatasetsDraw(c, _args, opts) {
-      const { ctx } = c;
-      ctx.save();
-      ctx.font = `11px ${APP.FONT_FAMILY}`;
-      ctx.fillStyle = APP.COLORS.CHART_TEXT;
-      ctx.textAlign = "center";
-      c.getDatasetMeta(0).data.forEach((bar, i) => ctx.fillText(opts.format(c.data.datasets[0].data[i]), bar.x, bar.y - 5));
-      ctx.restore();
-    },
-  };
+  /** Nhan truc x: tach thanh 2 dong dai gan bang nhau tai dau cach (vd "Tran Hoang / Lien Thao") de ten khong de nhau. */
+  function wrapLabel(text) {
+    const words = (text || "").split(" ");
+    if (words.length < 2) return text;
+    let best = [text];
+    let bestLen = Infinity;
+    for (let i = 1; i < words.length; i += 1) {
+      const lines = [words.slice(0, i).join(" "), words.slice(i).join(" ")];
+      const len = Math.max(lines[0].length, lines[1].length);
+      if (len < bestLen) [best, bestLen] = [lines, len];
+    }
+    return best;
+  }
+
   /** Bieu do cot dung, moi cot 1 mau pastel; format: nhan tren cot + truc; tooltip(i): [tieu de, dong 1, dong 2...] khi re chuot. */
   function vbar(id, labels, values, format, tooltip) {
-    chart(id, {
+    ChartKit.render(id, {
       type: "bar",
       data: {
         labels,
@@ -246,7 +242,7 @@
           },
         ],
       },
-      plugins: [valueLabels],
+      plugins: [ChartKit.valueLabels],
       options: {
         maintainAspectRatio: false,
         layout: { padding: { top: 18 } },
@@ -264,8 +260,7 @@
               autoSkip: false,
               maxRotation: 0,
               callback(v) {
-                const t = this.getLabelForValue(v);
-                return t.length > 16 ? `${t.slice(0, 15)}…` : t;
+                return wrapLabel(this.getLabelForValue(v));
               },
             },
           },

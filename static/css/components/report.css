@@ -126,7 +126,8 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.rpt-table .total {
+/* chi o du lieu (DataTables gan className cho ca th -> tieu de giu mau chung) */
+.rpt-table tbody .total {
   color: #1f2430;
   font-weight: 700;
 }
@@ -158,6 +159,57 @@ td.rpt-name-fill {
   position: relative;
   height: 260px;
 }
+/* gutter ngang = gutter dọc (16px) */
+.rpt-row {
+  margin-left: -8px;
+  margin-right: -8px;
+}
+.rpt-row > [class*="col-"] {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+.rpt-busy-btn.disabled,
+.rpt-busy-btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+.rpt-pager {
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.rpt-actions .btn {
+  white-space: nowrap;
+  min-width: 110px;
+}
+@media (max-width: 575.98px) {
+  .rpt-header-tools {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .rpt-kpi-value {
+    font-size: 1.4rem;
+  }
+}
+.rpt-pager .dataTables_length label {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+.rpt-pager .dataTables_length select {
+  height: 31px;
+}
+.rpt-pager .dataTables_paginate {
+  padding-top: 0 !important;
+}
+.rpt-pager .pagination {
+  margin: 0;
+}
+.rpt-actions {
+  gap: 8px;
+}
+/* bieu do tron + bang chu thich (Bao cao > Ton kho: theo nhom hang) */
 .rpt-donut-wrap {
   display: flex;
   align-items: center;
@@ -209,71 +261,10 @@ td.rpt-name-fill {
 .rpt-legend td:nth-child(3) {
   width: 64px;
 }
-/* gutter ngang = gutter dọc (16px) */
-.rpt-row {
-  margin-left: -8px;
-  margin-right: -8px;
-}
-.rpt-row > [class*="col-"] {
-  padding-left: 8px;
-  padding-right: 8px;
-}
-/* 2 cột cao bằng nhau: card cuối mỗi cột giãn để lấp phần còn lại */
-.rpt-col {
-  display: flex;
-  flex-direction: column;
-}
-.rpt-col > .rpt-card {
-  height: auto;
-}
-.rpt-col > .rpt-grow {
-  flex: 1 1 auto;
-}
-.rpt-busy-btn.disabled,
-.rpt-busy-btn:disabled {
-  opacity: 0.5;
-  pointer-events: none;
-  cursor: not-allowed;
-}
-.rpt-pager {
-  gap: 12px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-.rpt-actions .btn {
-  white-space: nowrap;
-  min-width: 110px;
-}
-@media (max-width: 575.98px) {
-  .rpt-header-tools {
-    width: 100%;
-    justify-content: space-between;
-  }
-  .rpt-kpi-value {
-    font-size: 1.4rem;
-  }
-}
-.rpt-pager .dataTables_length label {
-  margin: 0;
-  font-size: 0.82rem;
-  color: #6b7280;
-}
-.rpt-pager .dataTables_length select {
-  height: 31px;
-}
-.rpt-pager .dataTables_paginate {
-  padding-top: 0 !important;
-}
-.rpt-pager .pagination {
-  margin: 0;
-}
 .rpt-dot {
   display: inline-block;
   width: 10px;
   height: 10px;
   border-radius: 50%;
   margin-right: 6px;
-}
-.rpt-actions {
-  gap: 8px;
 }

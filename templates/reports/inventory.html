@@ -61,32 +61,43 @@
   </form>
 </div>
 
+<!-- hang 1: bang SKU x kho (full) | hang 2: theo kho 2/3 + theo nhom hang 1/3 | hang 3: Top 10 ma hang 2/3 + Top 10 kho 1/3 -->
 <div class="row rpt-row">
-  <div class="col-xl-8 mb-3 rpt-col">
-    <div class="rpt-card mb-3 is-loading rpt-boot" id="rptSkuCard"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+  <div class="col-12 mb-3">
+    <div class="rpt-card is-loading rpt-boot" id="rptSkuCard"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
       <div class="rpt-card-title"><i class="fas fa-table"></i> Tồn kho theo SKU và kho</div>
       <table class="table table-bordered table-hover rpt-table" id="rptSkuTable" width="100%"><thead><tr></tr></thead><tbody></tbody></table>
     </div>
-    <div class="rpt-card rpt-grow" id="rptTopSku"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
-      <div class="rpt-card-title"><i class="fas fa-trophy"></i> Top 10 mã hàng tồn nhiều nhất</div>
-      <div class="table-responsive">
-        <table class="table table-sm rpt-table"><colgroup><col class="rpt-col-no"><col class="rpt-col-sku"><col class="rpt-col-name"><col class="rpt-col-uom"><col class="rpt-col-total"><col class="rpt-col-split"></colgroup><thead><tr><th>#</th><th>SKU</th><th>Tên sản phẩm</th><th>ĐVT</th><th class="num">Tổng tồn</th><th>Tồn theo kho</th></tr></thead><tbody></tbody></table>
-      </div>
-    </div>
   </div>
-  <div class="col-xl-4 mb-3 rpt-col">
-    <div class="rpt-card mb-3" id="rptByWhs"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+</div>
+<div class="row rpt-row">
+  <div class="col-xl-8 mb-3">
+    <div class="rpt-card" id="rptByWhs"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
       <div class="rpt-card-title"><i class="fas fa-warehouse"></i> Tồn kho theo kho</div>
       <div class="rpt-chart"><canvas id="rptWhsChart"></canvas></div>
     </div>
-    <div class="rpt-card mb-3" id="rptByGroup"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+  </div>
+  <div class="col-xl-4 mb-3">
+    <div class="rpt-card" id="rptByGroup"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
       <div class="rpt-card-title"><i class="fas fa-layer-group"></i> Tồn kho theo nhóm hàng</div>
       <div class="rpt-donut-wrap">
         <div class="rpt-donut"><canvas id="rptGroupChart"></canvas><div class="rpt-donut-center"><b id="rptGroupTotal">—</b><small>SL tồn kho</small></div></div>
         <table class="rpt-legend"><tbody></tbody></table>
       </div>
     </div>
-    <div class="rpt-card rpt-grow" id="rptTopWhs"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+  </div>
+</div>
+<div class="row rpt-row">
+  <div class="col-xl-8 mb-3">
+    <div class="rpt-card" id="rptTopSku"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-trophy"></i> Top 10 mã hàng tồn nhiều nhất</div>
+      <div class="table-responsive">
+        <table class="table table-sm rpt-table"><colgroup><col class="rpt-col-no"><col class="rpt-col-sku"><col class="rpt-col-name"><col class="rpt-col-uom"><col class="rpt-col-total"><col class="rpt-col-split"></colgroup><thead><tr><th>#</th><th>SKU</th><th>Tên sản phẩm</th><th>ĐVT</th><th class="num">Tổng tồn</th><th>Tồn theo kho</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-4 mb-3">
+    <div class="rpt-card" id="rptTopWhs"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
       <div class="rpt-card-title"><i class="fas fa-sort-amount-down"></i> Top 10 kho có tồn nhiều nhất</div>
       <div class="table-responsive"><table class="table table-sm rpt-table"><thead><tr><th>#</th><th>Kho</th><th class="num">Tồn (SL)</th><th></th><th class="num">Số SKU</th></tr></thead><tbody></tbody></table></div>
     </div>
@@ -103,6 +114,7 @@
 {% endblock %}
 {% block page_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/core/charts.js' %}"></script>
 <script src="{% static 'js/core/report.js' %}"></script>
 <script src="{% static 'js/pages/reports/inventory.js' %}"></script>
 {% endblock %}

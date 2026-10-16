@@ -12,8 +12,6 @@
   const whsColor = {};
   const whsName = {};
   let skuTable = null;
-  let whsChart = null;
-  let groupChart = null;
 
   function filters() {
     return { q: $("#rptQ").val().trim(), group: $("#rptGroup").val(), whs: $("#rptWhs").val(), status: $("#rptStatus").val() };
@@ -54,14 +52,20 @@
       .always(() => ["#rptKpiSku", "#rptKpiWhs", "#rptKpiQty"].forEach((id) => $(id).removeClass("is-loading")));
   }
 
-  function stackBar(byWhs, total) {
-    return `<div class="rpt-stack">${Object.entries(byWhs || {})
-      .sort((a, b) => b[1] - a[1])
-      .map(
-        ([code, qty]) =>
-          `<span style="width:${total ? (qty / total) * 100 : 0}%;background:${whsColor[code] || APP.COLORS.NEUTRAL_LIGHT}" title="${esc(code)} - ${esc(whsName[code] || "")}: ${fmt(qty)}"></span>`,
-      )
-      .join("")}</div>`;
+  /** Cot "Ton theo kho" cua Top 10 (1 dong): kho ton nhieu nhat + so luong + % tren tong ton ma hang; nhan "+N kho" (re chuot xem du). */
+  function whsCell(byWhs, total) {
+    const list = Object.entries(byWhs || {}).sort((a, b) => b[1] - a[1]);
+    if (!list.length) return "";
+    const [code, qty] = list[0];
+    const rest = list.slice(1);
+    const more = rest.length
+      ? `<span class="rpt-whs-more" title="${esc(rest.map(([c, q]) => `${c}: ${fmt(q)}`).join(", "))}">+${rest.length} kho</span>`
+      : "";
+    return (
+      `<div class="rpt-whs-cell"><span class="rpt-whs-main" title="${esc(code)} - ${esc(whsName[code] || "")}">` +
+      `<i style="background:${whsColor[code] || APP.COLORS.NEUTRAL_LIGHT}"></i>${esc(code)} <b>${fmt(qty)}</b>` +
+      ` <small>${formatRate(total ? qty / total : 0, 0)}</small></span>${more}</div>`
+    );
   }
 
   function loadTopSku() {
@@ -70,7 +74,7 @@
         .map(
           (r, i) =>
             `<tr><td>${i + 1}</td><td class="text-nowrap">${esc(r.sku)}</td><td class="rpt-name-fill" title="${esc(r.item_name)}">${esc(r.item_name)}</td>` +
-            `<td>${esc(r.uom)}</td><td class="num total">${fmt(r.total_qty)}</td><td>${stackBar(r.by_warehouse, r.total_qty)}</td></tr>`,
+            `<td>${esc(r.uom)}</td><td class="num total">${fmt(r.total_qty)}</td><td>${whsCell(r.by_warehouse, r.total_qty)}</td></tr>`,
         )
         .join("");
       $("#rptTopSku tbody").html(rows || `<tr><td colspan="6" class="text-center text-muted">${APP.MESSAGES.NO_DATA}</td></tr>`);
@@ -81,31 +85,19 @@
     $("#rptTopWhs").addClass("is-loading");
     return area("#rptByWhs", RPT.byWarehouse, (d) => {
       const data = d.data;
-      if (whsChart) whsChart.destroy();
-      whsChart = new Chart(document.getElementById("rptWhsChart"), {
-        type: "bar",
-        data: {
-          labels: data.map((r) => r.code),
-          datasets: [
-            {
-              data: data.map((r) => r.total_qty),
-              backgroundColor: data.map((r) => whsColor[r.code] || APP.COLORS.NEUTRAL),
-              borderRadius: 6,
-              maxBarThickness: 34,
-            },
-          ],
-        },
-        options: {
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { title: (c) => `${c[0].label} - ${whsName[c[0].label] || ""}`, label: (c) => `Tồn: ${fmt(c.raw)}` } },
-          },
-          scales: {
-            y: { ticks: { callback: (v) => fmt(v) }, grid: { color: APP.COLORS.CHART_GRID } },
-            x: { grid: { display: false }, ticks: { font: { size: 11 } } },
-          },
-        },
+      const total = data.reduce((sum, r) => sum + (r.total_qty || 0), 0);
+      // cot ngang + do dai toi thieu: kho ton rat it van thay cot va so luong
+      ChartKit.hbar("rptWhsChart", {
+        labels: data.map((r) => r.code),
+        values: data.map((r) => r.total_qty),
+        colors: data.map((r) => whsColor[r.code] || APP.COLORS.NEUTRAL),
+        label: (v) => fmt(v),
+        tick: (v) => fmt(v),
+        tooltip: (i) => [
+          `${data[i].code} - ${data[i].name}`,
+          `Tồn: ${fmt(data[i].total_qty)} (${formatRate(total ? data[i].total_qty / total : 0)})`,
+          `Số SKU: ${fmt(data[i].sku_count)}`,
+        ],
       });
       const max = Math.max(1, ...data.map((r) => r.total_qty || 0));
       const rows = data
@@ -123,10 +115,9 @@
   function loadByGroup() {
     return area("#rptByGroup", RPT.byGroup, (d) => {
       const data = d.data;
-      const total = data.reduce((s, r) => s + (r.total_qty || 0), 0);
+      const total = data.reduce((sum, r) => sum + (r.total_qty || 0), 0);
       const colors = data.map((_, i) => PALETTE[i % PALETTE.length]);
-      if (groupChart) groupChart.destroy();
-      groupChart = new Chart(document.getElementById("rptGroupChart"), {
+      ChartKit.render("rptGroupChart", {
         type: "doughnut",
         data: {
           labels: data.map((r) => r.name),
@@ -139,11 +130,13 @@
         },
       });
       $("#rptGroupTotal").text(fmt(total));
+      // bang chu thich: thay ro ca nhom rat nho (so luong + %)
       $("#rptByGroup .rpt-legend tbody").html(
         data
           .map(
             (r, i) =>
-              `<tr><td title="${esc(r.name)}"><span class="rpt-dot" style="background:${colors[i]}"></span>${esc(r.name)}</td><td class="text-right text-muted">${total ? ((r.total_qty / total) * 100).toFixed(1).replace(".", ",") : 0}%</td><td class="text-right"><b>${fmt(r.total_qty)}</b></td></tr>`,
+              `<tr><td title="${esc(r.name)}"><span class="rpt-dot" style="background:${colors[i]}"></span>${esc(r.name)}</td>` +
+              `<td class="text-right text-muted">${formatRate(total ? r.total_qty / total : 0)}</td><td class="text-right"><b>${fmt(r.total_qty)}</b></td></tr>`,
           )
           .join(""),
       );

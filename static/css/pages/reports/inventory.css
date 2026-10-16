@@ -31,22 +31,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.rpt-stack {
-  display: flex;
-  height: 12px;
-  border-radius: 6px;
-  overflow: hidden;
-  background: #f1f3f5;
-  min-width: 160px;
-}
-#rptTopSku .rpt-stack {
-  min-width: 0;
-}
-.rpt-stack span {
-  display: block;
-  height: 100%;
-}
-#rptLocTable thead th {
+#rptTopSku #rptLocTable thead th {
   padding-right: 22px !important;
   background: #f8f9fb;
   color: #374151;
@@ -114,7 +99,7 @@
   width: 11%;
 }
 #rptTopSku .rpt-col-name {
-  width: 40%;
+  width: 33%;
 }
 #rptTopSku .rpt-col-uom {
   width: 9%;
@@ -123,5 +108,58 @@
   width: 11%;
 }
 #rptTopSku .rpt-col-split {
-  width: 24%;
+  width: 31%;
+}
+
+/* the "theo nhom hang" cao bang the "theo kho" ben canh -> donut + chu thich can giua theo chieu doc */
+#rptByGroup {
+  display: flex;
+  flex-direction: column;
+}
+#rptByGroup .rpt-donut-wrap {
+  flex: 1 1 auto;
+}
+#rptByGroup .rpt-donut {
+  width: 200px;
+  height: 200px;
+  flex-basis: 200px;
+}
+/* Top 10 ma hang - cot "Ton theo kho": 1 dong, kho chinh ben trai + "+N kho" can phai */
+.rpt-whs-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.rpt-whs-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rpt-whs-main i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 5px;
+}
+.rpt-whs-main small {
+  color: #6b7280;
+}
+.rpt-whs-more {
+  flex: 0 0 auto;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: #f1f3f5;
+  color: #4b5563;
+  font-size: 0.75rem;
+  cursor: help;
+}
+/* trang nay: tieu de bang + cot "Tong ton" de chu thuong (khong dam) */
+.rpt-table thead th,
+table.dataTable.rpt-table thead th,
+.rpt-table tbody .total {
+  font-weight: 400;
 }
