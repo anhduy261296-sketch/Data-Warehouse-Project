@@ -73,10 +73,13 @@ def _login() -> str:
     if isinstance(payload, str) and payload.strip():
         return payload.strip().strip('"')
     if isinstance(payload, dict):
-        for key in ('access_token', 'token', 'Token', 'AccessToken', 'accessToken'):
-            if payload.get(key):
-                return str(payload[key])
-    raise RuntimeError(f'API Token SAP khong tra ve token: {str(payload)[:300]}')
+        # ten truong token khong co dinh (accesstoken / accessToken / access_token / token...) -> so khong phan biet hoa thuong, bo "_"
+        for key, value in payload.items():
+            if str(key).replace('_', '').lower() in ('accesstoken', 'token') and value:
+                return str(value)
+        # khong in gia tri (co the chua token) - chi in ten truong
+        raise RuntimeError(f'API Token SAP khong tra ve token. Cac truong nhan duoc: {sorted(payload)}')
+    raise RuntimeError(f'API Token SAP khong tra ve token (phan hoi kieu {type(payload).__name__}, rong hoac khong hop le).')
 
 
 def _fetch_items(token: str, from_date: str, to_date: str) -> list[dict]:
@@ -159,6 +162,14 @@ def _log_run(
         f'INSERT INTO {TARGET_SCHEMA}.{LOG_TABLE} (from_date, to_date, row_count, inserted, updated, status, message) VALUES (%s, %s, %s, %s, %s, %s, %s)',
         (from_date, to_date, row_count, inserted, updated, status, (message or '')[:1000] or None),
     )
+
+
+def last_success_to(target_conn: Any) -> str | None:
+    """Moc den (to_date) cua lan nap SAP Items thanh cong gan nhat - DAG chay tay keo tiep tu day."""
+    cursor = target_conn.cursor()
+    cursor.execute(f"SELECT MAX(to_date) FROM {TARGET_SCHEMA}.{LOG_TABLE} WHERE status = 'SUCCESS'")
+    value = cursor.fetchone()[0]
+    return str(value)[:19] if value else None
 
 
 def sync_sap_items(target_conn: Any, *, from_date: str, to_date: str, **_ignored: Any) -> int:
