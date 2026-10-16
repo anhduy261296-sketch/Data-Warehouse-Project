@@ -43,6 +43,8 @@ const APP = Object.freeze({
     WMS: Object.freeze({ text: "#1565c0", fill: "rgba(21, 101, 192, 0.40)", border: "#1565c0" }),
     MATCH: "#d3adf7",
     DIFF: "#e57373",
+    // mau pastel nhe cho bieu do cot (moi cot 1 mau)
+    PASTEL: Object.freeze(["#a5c8ec", "#b7e1c7", "#f6d3a3", "#d3c3ee", "#f3b9c6", "#a9dbd8", "#f9e2a6", "#c4d2f4", "#cfe6bf", "#efc7de"]),
     // mau theo thu tu kho / nhom hang tren bieu do
     PALETTE: Object.freeze([
       "#3b82f6",

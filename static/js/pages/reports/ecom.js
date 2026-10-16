@@ -8,11 +8,16 @@
   const esc = escapeHtml;
   // tien / so luong hien so nguyen (du lieu goc co so le do phan bo giam gia; file Excel giu nguyen)
   const money = (v) => formatAmount(v === null || v === undefined || v === "" ? v : Math.round(v));
-  const BLUE = APP.COLORS.PALETTE[0];
   const BLUE_LIGHT = "rgba(59, 130, 246, 0.35)";
   const NAVY = "#1e3a8a";
   const CUSTOM = "custom";
-  const STATUS_BADGE = { "Thành công": "badge-success", Hủy: "badge-secondary", "Trả hàng": "badge-warning", "Đang xử lý": "badge-info" };
+  const STATUS_BADGE = {
+    "Thêm mới": "badge-primary",
+    "Đang xử lý": "badge-info",
+    "Hoàn thành": "badge-success",
+    Hủy: "badge-secondary",
+    "Trả hàng": "badge-warning",
+  };
   let meta = { months: [], channels: [], shops: [], max_range_days: 30 };
   const charts = {};
   let ordersTable = null;
@@ -141,19 +146,22 @@
   }
 
   // ---- tung vung -----------------------------------------------------------------------------------------
-  const KPI_CARDS = ["#ecKpiRevenue", "#ecKpiOrders", "#ecKpiSuccess", "#ecKpiCancel", "#ecKpiAov"];
+  const KPI_CARDS = $(".ec-stat")
+    .map((_, el) => `#${el.id}`)
+    .get();
   function loadKpi() {
     return area(KPI_CARDS, RPT.kpi, (d) => {
       const set = (key, text) => $(`[data-kpi="${key}"]`).text(text);
+      set("revenue_short", formatMoneyShort(d.revenue, 2));
       set("revenue", money(d.revenue));
       set("total_orders", money(d.total_orders));
-      set("processing_orders", money(d.processing_orders));
-      set("success_orders", money(d.success_orders));
-      set("success_rate", formatRate(d.success_rate));
-      set("cancel_return_orders", money(d.cancel_orders + d.return_orders));
-      set("cancel_return_rate", formatRate(d.cancel_return_rate));
-      set("cancel_return_split", `hủy ${money(d.cancel_orders)} · trả ${money(d.return_orders)}`);
+      ["new", "processing", "success", "cancel", "return"].forEach((k) => {
+        set(`${k}_orders`, money(d[`${k}_orders`]));
+        set(`${k}_rate`, formatRate(d[`${k}_rate`]));
+      });
       set("avg_order_value", formatMoneyShort(d.avg_order_value));
+      set("avg_sku_per_order", formatQty(d.avg_sku_per_order));
+      set("avg_qty_per_order", formatQty(d.avg_qty_per_order));
     });
   }
 
@@ -210,46 +218,95 @@
     });
   }
 
-  function hbar(id, rows, key, color, fmtValue) {
+  // in gia tri tren dau moi cot (khong can plugin ngoai)
+  const valueLabels = {
+    id: "valueLabels",
+    afterDatasetsDraw(c, _args, opts) {
+      const { ctx } = c;
+      ctx.save();
+      ctx.font = `11px ${APP.FONT_FAMILY}`;
+      ctx.fillStyle = APP.COLORS.CHART_TEXT;
+      ctx.textAlign = "center";
+      c.getDatasetMeta(0).data.forEach((bar, i) => ctx.fillText(opts.format(c.data.datasets[0].data[i]), bar.x, bar.y - 5));
+      ctx.restore();
+    },
+  };
+  /** Bieu do cot dung, moi cot 1 mau pastel; format: nhan tren cot + truc; tooltip(i): [tieu de, dong 1, dong 2...] khi re chuot. */
+  function vbar(id, labels, values, format, tooltip) {
     chart(id, {
       type: "bar",
       data: {
-        labels: rows.map((r) => r.name),
-        datasets: [{ data: rows.map((r) => r[key]), backgroundColor: color, borderRadius: 4, maxBarThickness: 22 }],
+        labels,
+        datasets: [
+          {
+            data: values,
+            backgroundColor: labels.map((_, i) => APP.COLORS.PASTEL[i % APP.COLORS.PASTEL.length]),
+            borderRadius: 6,
+            maxBarThickness: 56,
+          },
+        ],
       },
+      plugins: [valueLabels],
       options: {
-        indexAxis: "y",
         maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: (c) => fmtValue(c.raw, true) } } },
+        layout: { padding: { top: 18 } },
+        plugins: {
+          legend: { display: false },
+          valueLabels: { format },
+          tooltip: { callbacks: { title: (c) => tooltip(c[0].dataIndex)[0], label: (c) => tooltip(c.dataIndex).slice(1) } },
+        },
         scales: {
-          x: { ticks: { callback: (v) => fmtValue(v) }, grid: { color: APP.COLORS.CHART_GRID } },
-          y: { grid: { display: false }, ticks: { font: { size: 11 }, autoSkip: false } },
+          y: { beginAtZero: true, ticks: { callback: (v) => format(v) }, grid: { color: APP.COLORS.CHART_GRID } },
+          x: {
+            grid: { display: false },
+            ticks: {
+              font: { size: 11 },
+              autoSkip: false,
+              maxRotation: 0,
+              callback(v) {
+                const t = this.getLabelForValue(v);
+                return t.length > 16 ? `${t.slice(0, 15)}…` : t;
+              },
+            },
+          },
         },
       },
     });
   }
 
   function loadBySale() {
-    return area(["#ecSaleRevenue", "#ecSaleOrders"], RPT.bySale, (d) => {
-      const rows = d.data.filter((r) => r.revenue || r.orders);
-      hbar("ecSaleRevenueChart", rows, "revenue", BLUE, (v, full) => (full ? money(v) : formatMoneyShort(v, 1)));
-      const byOrders = [...rows].sort((a, b) => b.orders - a.orders);
-      hbar("ecSaleOrdersChart", byOrders, "orders", NAVY, (v) => money(v));
+    return area(["#ecSaleRevenue", "#ecSaleQty"], RPT.bySale, (d) => {
+      const tip = (rows) => (i) => [rows[i].name, `Doanh thu: ${money(rows[i].revenue)} đ`, `Sản lượng: ${money(rows[i].qty)}`];
+      const rows = d.data.filter((r) => r.revenue || r.qty);
+      vbar(
+        "ecSaleRevenueChart",
+        rows.map((r) => r.name),
+        rows.map((r) => r.revenue),
+        (v) => formatMoneyShort(v, 1),
+        tip(rows),
+      );
+      // San luong ban (so san pham, bo don huy, gom qua KM) - giong Control Tower
+      const byQty = [...rows].sort((a, b) => b.qty - a.qty);
+      vbar(
+        "ecSaleQtyChart",
+        byQty.map((r) => r.name),
+        byQty.map((r) => r.qty),
+        money,
+        tip(byQty),
+      );
     });
   }
 
+  /** Dong bang Top 10; first = cot so dung truoc ("revenue" | "qty"), % theo cot do. Bam ma SKU -> loc bang chi tiet. */
   function topRows(rows, first) {
+    const cols = first === "revenue" ? ["revenue", "qty"] : ["qty", "revenue"];
     return rows
-      .map((r, i) => {
-        const cells =
-          first === "revenue"
-            ? `<td class="num total">${money(r.revenue)}</td><td class="num">${money(r.qty)}</td><td class="num">${formatRate(r.revenue_share)}</td>`
-            : `<td class="num total">${money(r.qty)}</td><td class="num">${money(r.revenue)}</td><td class="num">${formatRate(r.qty_share)}</td>`;
-        return (
+      .map(
+        (r, i) =>
           `<tr><td>${i + 1}</td><td class="text-nowrap"><a href="#" class="ec-sku-link" data-sku="${esc(r.sku)}" title="Xem chi tiết đơn của SKU này">${esc(r.sku)}</a></td>` +
-          `<td class="rpt-name-fill" title="${esc(r.item_name)}">${esc(r.item_name)}</td>${cells}</tr>`
-        );
-      })
+          `<td class="rpt-name-fill" title="${esc(r.item_name)}">${esc(r.item_name)}</td>` +
+          `<td class="num total">${money(r[cols[0]])}</td><td class="num">${money(r[cols[1]])}</td><td class="num">${formatRate(r[`${first}_share`])}</td></tr>`,
+      )
       .join("");
   }
   function loadTopProducts() {
@@ -305,6 +362,7 @@
           createdCell: (td, v) => td.setAttribute("title", v || ""),
         },
         { data: "quantity", title: "SL", className: "num", render: money },
+        { data: "price", title: "Giá niêm yết", className: "num", render: money },
         { data: "amount_before_vat", title: "Trước VAT", className: "num", render: money },
         { data: "amount", title: "Sau VAT", className: "num", render: money },
         { data: "net_amount", title: "Doanh thu tính BC", className: "num total", render: money },
@@ -322,6 +380,12 @@
       .html(skuFilter ? `SKU: ${esc(skuFilter)} <a href="#" class="text-white ml-1" id="ecSkuClear" title="Bỏ lọc SKU">&times;</a>` : "");
     if (ordersTable) ordersTable.ajax.reload();
     else buildOrdersTable();
+  }
+
+  function filterSku(sku) {
+    skuFilter = sku;
+    loadOrders();
+    document.getElementById("ecOrdersCard").scrollIntoView({ behavior: "smooth" });
   }
 
   function loadAll() {
@@ -415,9 +479,7 @@
 
     $(document).on("click", ".ec-sku-link", function (e) {
       e.preventDefault();
-      skuFilter = $(this).data("sku").toString();
-      loadOrders();
-      document.getElementById("ecOrdersCard").scrollIntoView({ behavior: "smooth" });
+      filterSku($(this).data("sku").toString());
     });
     $(document).on("click", "#ecSkuClear", (e) => {
       e.preventDefault();

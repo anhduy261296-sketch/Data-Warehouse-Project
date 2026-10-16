@@ -1,6 +1,6 @@
 """Bao cao > E-commerce: KPI, doanh thu theo ngay / Sale, top san pham, bang chi tiet.
 
-Nguon: view dbo.ECOM_ORDER_LINES (db_migrations/0024) - quy tac doanh thu / trang thai / qua tang KM nam trong view.
+Nguon: view dbo.ECOM_ORDER_LINES (db_migrations/0024 -> 0030) - quy tac doanh thu / trang thai / qua tang KM nam trong view.
 Moi API nhan cung bo loc: date_from, date_to (ngay VN yyyy-mm-dd), channel (ma san), shop (shop_id).
 """
 
@@ -16,8 +16,8 @@ from ..core.sql import num, rows as fetch_rows
 
 ECOM_SOURCES = ('oms_orders', 'oms_sales_channels', 'sap_items')
 _FROM = 'FROM dbo.ECOM_ORDER_LINES t'
-# don "hop le" (khong huy) - dung cho so don theo ngay / Sale / san
-_VALID_ORDER = "CASE WHEN t.order_type = 'Sales' AND t.status_group <> 'cancel' THEN t.order_number END"
+# so don = moi don co dong ban (ke ca huy) - giong 'Tong so don' o KPI (bieu do theo ngay)
+_VALID_ORDER = "CASE WHEN t.order_type = 'Sales' THEN t.order_number END"
 
 
 def _today_vn() -> dt.date:
@@ -69,13 +69,10 @@ def get_meta(_params: Any = None) -> dict[str, Any]:
             {_FROM} GROUP BY CONVERT(CHAR(7), t.created_at, 126) ORDER BY month DESC
             """)
         months = [{'value': m, 'first_day': f.isoformat(), 'last_day': last.isoformat()} for m, f, last in cursor.fetchall()]
-        # dropdown San: danh muc kenh ban OMS (online + offline, dang Active) + ma kenh co trong du lieu ma danh muc chua co
+        # dropdown San: chi kenh co don E-com; nhom online / offline theo danh muc kenh ban OMS
         cursor.execute(f"""
-            SELECT c.code, c.operation, CASE WHEN c.operation = 'online' AND ISNULL(c.display_name, N'') <> N'' THEN c.display_name ELSE c.code END
-            FROM dbo.OMS_SALES_CHANNELS c WHERE c.status = 'Active'
-            UNION
-            SELECT t.sales_channel, NULL, MAX(t.channel_name) {_FROM}
-            WHERE NOT EXISTS (SELECT 1 FROM dbo.OMS_SALES_CHANNELS c WHERE c.code = t.sales_channel AND c.status = 'Active')
+            SELECT t.sales_channel, MAX(c.operation), MAX(t.channel_name)
+            {_FROM} LEFT JOIN dbo.OMS_SALES_CHANNELS c ON c.code = t.sales_channel
             GROUP BY t.sales_channel
             """)
         channels = sorted(
@@ -102,38 +99,55 @@ def get_meta(_params: Any = None) -> dict[str, Any]:
 
 @cached(*ECOM_SOURCES)
 def get_kpi(params: Any) -> dict[str, Any]:
-    """Phan loai theo DON: huy > tra hang > thanh cong > dang xu ly (don co dong tra hang khong huy = tra hang)."""
+    """Phan loai theo DON theo trang thai DONG BAN (giong Control Tower): huy > hoan thanh > dang xu ly > them moi.
+
+    huy = moi dong ban deu huy; hoan thanh = co dong ban Delivered / Shipped (hoac da giao roi tra: nhom return);
+    dang xu ly = con dong ban o trang thai trung gian (Approved, ReadyToShip...); them moi = chi con dong ban
+    New/Created. Nhom trang thai dinh nghia 1 cho trong view (db_migrations/0028). Tra hang KHONG la nhom rieng - chi dem them (return_orders) de hien dong phu.
+    SKU / SL trung binh tinh tren don khong huy, ke ca qua KM.
+    """
     where, args = _filters(params)
     rows = _query(
         f"""
         ;WITH o AS (
             SELECT t.order_number,
                    MAX(CASE WHEN t.order_type = 'Sales' THEN 1 ELSE 0 END) AS has_sale,
-                   -- don huy = moi dong ban deu huy (don huy 1 phan van tinh la don hop le, khop so don o bieu do)
                    1 - MAX(CASE WHEN t.order_type = 'Sales' AND t.status_group <> 'cancel' THEN 1 ELSE 0 END) AS is_cancel,
                    MAX(CASE WHEN (t.order_type = 'Return' AND t.status_group <> 'cancel')
                               OR (t.order_type = 'Sales' AND t.status_group = 'return') THEN 1 ELSE 0 END) AS is_return,
-                   MAX(CASE WHEN t.order_type = 'Sales' AND t.status_group = 'success' THEN 1 ELSE 0 END) AS is_success,
-                   SUM(t.net_amount) AS revenue
+                   MAX(CASE WHEN t.order_type = 'Sales' AND t.status_group IN ('success', 'return') THEN 1 ELSE 0 END) AS is_success,
+                   MAX(CASE WHEN t.order_type = 'Sales' AND t.status_group = 'processing' THEN 1 ELSE 0 END) AS is_processing,
+                   SUM(t.net_amount) AS revenue,
+                   -- SKU / SL trung binh: dong ban khong huy, KE CA qua KM (khop Control Tower)
+                   COUNT(DISTINCT CASE WHEN t.order_type = 'Sales' AND t.status_group <> 'cancel' THEN t.sku END) AS sku_count,
+                   SUM(CASE WHEN t.order_type = 'Sales' AND t.status_group <> 'cancel' THEN t.quantity ELSE 0 END) AS qty
             {_FROM} WHERE {where} GROUP BY t.order_number
+        ), c AS (
+            SELECT *, CASE WHEN has_sale = 0 THEN NULL WHEN is_cancel = 1 THEN 'cancel'
+                           WHEN is_success = 1 THEN 'success' WHEN is_processing = 1 THEN 'processing' ELSE 'new' END AS grp
+            FROM o
         )
         SELECT ISNULL(SUM(revenue), 0) AS revenue,
-               ISNULL(SUM(has_sale), 0) AS total_orders,
-               ISNULL(SUM(CASE WHEN has_sale = 1 AND is_cancel = 1 THEN 1 ELSE 0 END), 0) AS cancel_orders,
-               ISNULL(SUM(CASE WHEN has_sale = 1 AND is_cancel = 0 AND is_return = 1 THEN 1 ELSE 0 END), 0) AS return_orders,
-               ISNULL(SUM(CASE WHEN has_sale = 1 AND is_cancel = 0 AND is_return = 0 AND is_success = 1 THEN 1 ELSE 0 END), 0) AS success_orders
-        FROM o
+               COUNT(grp) AS total_orders,
+               SUM(CASE WHEN grp = 'new' THEN 1 ELSE 0 END) AS new_orders,
+               SUM(CASE WHEN grp = 'processing' THEN 1 ELSE 0 END) AS processing_orders,
+               SUM(CASE WHEN grp = 'success' THEN 1 ELSE 0 END) AS success_orders,
+               SUM(CASE WHEN grp = 'cancel' THEN 1 ELSE 0 END) AS cancel_orders,
+               SUM(CASE WHEN grp IS NOT NULL AND is_return = 1 THEN 1 ELSE 0 END) AS return_orders,  -- thong tin, khong la nhom
+               SUM(CASE WHEN grp IS NOT NULL AND grp <> 'cancel' THEN sku_count ELSE 0 END) AS sku_sum,
+               SUM(CASE WHEN grp IS NOT NULL AND grp <> 'cancel' THEN qty ELSE 0 END) AS qty_sum
+        FROM c
         """,
         args,
     )
-    kpi = rows[0]
-    total = kpi['total_orders'] or 0
-    valid = total - (kpi['cancel_orders'] or 0)
-    kpi['processing_orders'] = total - kpi['cancel_orders'] - kpi['return_orders'] - kpi['success_orders']
-    kpi['success_rate'] = kpi['success_orders'] / total if total else None
-    kpi['cancel_return_rate'] = (kpi['cancel_orders'] + kpi['return_orders']) / total if total else None
-    # gia tri don TB = doanh thu / so don khong huy (doanh thu da loai don huy)
-    kpi['avg_order_value'] = kpi['revenue'] / valid if valid else None
+    kpi = {k: (v or 0) for k, v in rows[0].items()}
+    total = kpi['total_orders']
+    valid = total - kpi['cancel_orders']  # don khong huy (mau so cua SKU / SL trung binh)
+    for key in ('new', 'processing', 'success', 'cancel', 'return'):
+        kpi[f'{key}_rate'] = kpi[f'{key}_orders'] / total if total else None
+    kpi['avg_order_value'] = kpi['revenue'] / total if total else None  # chia TONG don (gom huy) - giong Control Tower
+    kpi['avg_sku_per_order'] = kpi.pop('sku_sum') / valid if valid else None
+    kpi['avg_qty_per_order'] = kpi.pop('qty_sum') / valid if valid else None
     return kpi
 
 
@@ -164,7 +178,7 @@ def get_by_sale(params: Any) -> dict[str, Any]:
     rows = _query(
         f"""
         SELECT ISNULL(t.employee_code, '') AS code, ISNULL(MAX(t.employee_name), N'(Chưa gán Sale)') AS name,
-               SUM(t.net_amount) AS revenue, COUNT(DISTINCT {_VALID_ORDER}) AS orders
+               SUM(t.net_amount) AS revenue, SUM(t.net_qty) AS qty
         {_FROM} WHERE {where} GROUP BY t.employee_code ORDER BY revenue DESC
         """,
         args,
@@ -174,7 +188,7 @@ def get_by_sale(params: Any) -> dict[str, Any]:
 
 @cached(*ECOM_SOURCES)
 def get_top_products(params: Any) -> dict[str, Any]:
-    """Top san pham theo doanh thu va theo so luong (khong tinh qua tang KM; hang tra da tru)."""
+    """Top san pham theo doanh thu va theo so luong (khong tinh qua tang KM, khong tinh don huy, khong tru hang tra)."""
     where, args = _filters(params)
     rows = _query(
         f"""
@@ -216,6 +230,7 @@ ECOM_DETAIL_CONFIG = DetailReportConfig(
         DetailColumn('t.sku', 'sku', searchable=True, title='SKU'),
         DetailColumn('t.item_name', 'item_name', searchable=True, title='Tên sản phẩm'),
         DetailColumn('t.quantity', 'quantity', title='SL'),
+        DetailColumn('t.price', 'price', title='Giá niêm yết'),
         DetailColumn('t.amount_before_vat', 'amount_before_vat', title='Trước VAT'),
         DetailColumn('t.amount', 'amount', title='Sau VAT'),
         DetailColumn('t.net_amount', 'net_amount', title='Doanh thu tính BC'),

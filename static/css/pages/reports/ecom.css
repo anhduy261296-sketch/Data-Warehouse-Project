@@ -6,74 +6,111 @@
 .rpt-table .total {
   font-weight: 500;
 }
-.ec-kpi-body {
-  min-width: 0;
-}
-.ec-kpi-card .rpt-kpi-label,
-.ec-kpi-sub {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ec-kpi-value {
-  font-size: 1.55rem;
-  font-weight: 500;
-  color: #1f2430;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-.ec-kpi-sub {
-  font-size: 0.8rem;
-  margin-top: 2px;
-}
-.ec-up {
-  color: #1e7e34;
-}
-.ec-down {
-  color: #c62828;
-}
-/* so KPI cung mau voi icon ben canh */
-.ec-kpi-value--revenue {
-  color: #e67e00;
-}
-.ec-kpi-value--orders {
-  color: #1565c0;
-}
-.ec-kpi-value--success {
-  color: #1e7e34;
-}
-.ec-kpi-value--cancel {
-  color: #c62828;
-}
-.ec-kpi-value--aov {
-  color: #0f766e;
-}
-.ec-icon--revenue {
-  background: #fff4e5;
-  color: #e67e00;
-}
-.ec-icon--orders {
-  background: #e8f1fd;
-  color: #1565c0;
-}
-.ec-icon--success {
-  background: #e9f7ef;
-  color: #1e7e34;
-}
-.ec-icon--cancel {
-  background: #fdecea;
-  color: #c62828;
-}
-.ec-icon--aov {
-  background: #e6f6f4;
-  color: #0f766e;
-}
 .ec-chart-lg {
   height: 300px;
 }
 .ec-filter-error {
   color: #b42318;
   font-size: 0.85rem;
+}
+/* The KPI: nen gradient pastel nhe; moi the 1 tong mau qua --c (so / icon), --g1 -> --g2 (nen) */
+.ec-stat {
+  --c: #3b6fb6;
+  --g1: #e9f1fc;
+  --g2: #f7faff;
+  background: linear-gradient(135deg, var(--g1) 0%, var(--g2) 100%);
+  border: 1px solid rgba(15, 23, 42, 0.05);
+  padding: 14px 16px 12px;
+}
+.ec-stat-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  min-width: 0;
+}
+.ec-stat-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  color: var(--c);
+  font-size: 0.85rem;
+}
+.ec-stat-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ec-stat-value {
+  font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--c);
+  white-space: nowrap;
+}
+.ec-stat-sub {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ec-stat--revenue {
+  --c: #2f8a63;
+  --g1: #e3f6ec;
+  --g2: #f6fcf9;
+}
+.ec-stat--orders {
+  --c: #3b6fb6;
+  --g1: #e6effc;
+  --g2: #f7faff;
+}
+.ec-stat--new {
+  --c: #2b8597;
+  --g1: #e2f5f8;
+  --g2: #f5fbfc;
+}
+.ec-stat--processing {
+  --c: #b7791f;
+  --g1: #fdf1df;
+  --g2: #fffaf3;
+}
+.ec-stat--success {
+  --c: #3f8f4f;
+  --g1: #e8f6e8;
+  --g2: #f7fcf7;
+}
+.ec-stat--cancel {
+  --c: #c0485a;
+  --g1: #fce8eb;
+  --g2: #fff7f8;
+}
+.ec-stat--aov {
+  --c: #7a5bc0;
+  --g1: #f0eafc;
+  --g2: #faf8ff;
+}
+.ec-stat--sku {
+  --c: #5563c1;
+  --g1: #e9ebfc;
+  --g2: #f8f8ff;
+}
+.ec-stat--qty {
+  --c: #3a83b8;
+  --g1: #e5f2fb;
+  --g2: #f6fafe;
 }
 .ec-channels-msg {
   font-size: 0.88rem;
@@ -142,7 +179,7 @@
   font-size: 0.82rem;
 }
 @media (max-width: 575.98px) {
-  .ec-kpi-value {
+  .ec-stat-value {
     font-size: 1.3rem;
   }
   .ec-orders-tools {

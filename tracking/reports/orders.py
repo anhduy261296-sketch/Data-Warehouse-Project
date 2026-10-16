@@ -9,6 +9,8 @@ _ECOM_ORDER_FILTER = "t.outbound_order_type IN ('L03', 'L04') AND st.StatusSync 
 _DMS_XUATKHO_ORDER_FILTER = "t.outbound_order_type IN ('L01', 'L05', 'L07', 'L08', 'L12', 'L14', 'L18', 'L25') AND st.StatusSync = 'Sync'"
 _WRT_ORDER_FILTER = "t.IsCreateBy = 'SYSTEM' AND st.StatusSync = 'Sync'"
 _DMS_DUYET_ORDER_FILTER = "t.OrderStatus = 'sale' AND st.StatusSync = 'Sync'"
+# loc ngay theo gio VN (_k_created_at la gio UTC) - khop Bao cao > E-commerce
+_OMS_DATE_VN = 'DATEADD(HOUR, 7, t._k_created_at)'
 _OMS_ORDERS_COLUMNS = [
     DetailColumn('st.StatusSync', 'status_sync', orderable=False),
     DetailColumn('t.order_number', 'order_code', searchable=True),
@@ -85,7 +87,7 @@ DETAIL_CONFIGS: dict[str, DetailReportConfig] = {
         columns=_OMS_ORDERS_COLUMNS,
         join_sql=_status_tracking_join('dbo.OMS_ORDERS', 'order_number', 'ECOM'),
         status_sync_expr='st.StatusSync',
-        date_expr='t._k_created_at',
+        date_expr=_OMS_DATE_VN,
     ),
     'dms-xuatkho': DetailReportConfig(
         table='dbo.OMS_ORDERS',
@@ -95,7 +97,7 @@ DETAIL_CONFIGS: dict[str, DetailReportConfig] = {
         columns=_OMS_ORDERS_COLUMNS,
         join_sql=_status_tracking_join('dbo.OMS_ORDERS', 'order_number', 'DMS_XUATKHO'),
         status_sync_expr='st.StatusSync',
-        date_expr='t._k_created_at',
+        date_expr=_OMS_DATE_VN,
     ),
     'dms-duyet': DetailReportConfig(
         table='dbo.DMS_SO',

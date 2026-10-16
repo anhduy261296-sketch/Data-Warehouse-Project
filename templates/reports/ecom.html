@@ -51,41 +51,73 @@
   <div class="ec-filter-error d-none" id="ecFilterError"></div>
 </div>
 
-<!-- KPI: hang 1 = tien (doanh thu, gia tri don TB), hang 2 = don hang -->
+<!-- KPI: hang 1 = doanh thu + tong don, hang 2 = don theo trang thai, hang 3 = trung binh moi don -->
 <div class="row rpt-row">
   <div class="col-md-6 mb-3">
-    <div class="rpt-card ec-kpi-card" id="ecKpiRevenue"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
-      <div class="rpt-kpi"><div class="rpt-kpi-icon ec-icon--revenue"><i class="fas fa-coins"></i></div>
-        <div class="ec-kpi-body"><div class="rpt-kpi-label">Tổng doanh thu</div><div class="ec-kpi-value ec-kpi-value--revenue" data-kpi="revenue">—</div>
-          <div class="ec-kpi-sub text-muted">Sau VAT, đã trừ hàng trả</div></div></div>
+    <div class="rpt-card ec-stat ec-stat--revenue" id="ecKpiRevenue"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="fas fa-money-bill-wave"></i></span><span class="ec-stat-label">Tổng doanh thu</span></div>
+      <div class="ec-stat-value" data-kpi="revenue_short">—</div>
+      <div class="ec-stat-sub"><span data-kpi="revenue">—</span> đ · giá niêm yết × SL, không gồm đơn hủy, chưa trừ hàng trả</div>
     </div>
   </div>
   <div class="col-md-6 mb-3">
-    <div class="rpt-card ec-kpi-card" id="ecKpiAov"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
-      <div class="rpt-kpi"><div class="rpt-kpi-icon ec-icon--aov"><i class="fas fa-money-bill-wave"></i></div>
-        <div class="ec-kpi-body"><div class="rpt-kpi-label">Giá trị đơn hàng TB</div><div class="ec-kpi-value ec-kpi-value--aov" data-kpi="avg_order_value">—</div>
-          <div class="ec-kpi-sub text-muted">Doanh thu / đơn không hủy</div></div></div>
+    <div class="rpt-card ec-stat ec-stat--orders" id="ecKpiOrders"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="fas fa-shopping-bag"></i></span><span class="ec-stat-label">Tổng số lượng đơn hàng</span></div>
+      <div class="ec-stat-value" data-kpi="total_orders">—</div>
+      <div class="ec-stat-sub">Trả hàng: <span data-kpi="return_orders">—</span> đơn (<span data-kpi="return_rate">—</span>)</div>
+    </div>
+  </div>
+</div>
+<div class="row rpt-row">
+  <div class="col-xl-3 col-md-6 mb-3">
+    <div class="rpt-card ec-stat ec-stat--new" id="ecKpiNew"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="fas fa-box-open"></i></span><span class="ec-stat-label">Thêm mới</span></div>
+      <div class="ec-stat-value" data-kpi="new_orders">—</div>
+      <div class="ec-stat-sub"><span data-kpi="new_rate">—</span></div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6 mb-3">
+    <div class="rpt-card ec-stat ec-stat--processing" id="ecKpiProcessing"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="far fa-clock"></i></span><span class="ec-stat-label">Đang xử lý</span></div>
+      <div class="ec-stat-value" data-kpi="processing_orders">—</div>
+      <div class="ec-stat-sub"><span data-kpi="processing_rate">—</span></div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6 mb-3">
+    <div class="rpt-card ec-stat ec-stat--success" id="ecKpiSuccess"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="far fa-check-circle"></i></span><span class="ec-stat-label">Hoàn thành</span></div>
+      <div class="ec-stat-value" data-kpi="success_orders">—</div>
+      <div class="ec-stat-sub"><span data-kpi="success_rate">—</span></div>
+    </div>
+  </div>
+  <div class="col-xl-3 col-md-6 mb-3">
+    <div class="rpt-card ec-stat ec-stat--cancel" id="ecKpiCancel"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="far fa-times-circle"></i></span><span class="ec-stat-label">Hủy</span></div>
+      <div class="ec-stat-value" data-kpi="cancel_orders">—</div>
+      <div class="ec-stat-sub"><span data-kpi="cancel_rate">—</span></div>
+    </div>
+  </div>
+</div>
+<div class="row rpt-row">
+  <div class="col-md-4 mb-3">
+    <div class="rpt-card ec-stat ec-stat--aov" id="ecKpiAov"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="fas fa-chart-line"></i></span><span class="ec-stat-label">Giá trị đơn hàng TRUNG BÌNH</span></div>
+      <div class="ec-stat-value" data-kpi="avg_order_value">—</div>
+      <div class="ec-stat-sub">Doanh thu / tổng số đơn</div>
     </div>
   </div>
   <div class="col-md-4 mb-3">
-    <div class="rpt-card ec-kpi-card" id="ecKpiOrders"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
-      <div class="rpt-kpi"><div class="rpt-kpi-icon ec-icon--orders"><i class="fas fa-shopping-cart"></i></div>
-        <div class="ec-kpi-body"><div class="rpt-kpi-label">Tổng số đơn hàng</div><div class="ec-kpi-value ec-kpi-value--orders" data-kpi="total_orders">—</div>
-          <div class="ec-kpi-sub text-muted">Đang xử lý: <span data-kpi="processing_orders">—</span></div></div></div>
+    <div class="rpt-card ec-stat ec-stat--sku" id="ecKpiSku"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="fas fa-layer-group"></i></span><span class="ec-stat-label">SỐ LƯỢNG SKU TRUNG BÌNH / đơn</span></div>
+      <div class="ec-stat-value" data-kpi="avg_sku_per_order">—</div>
+      <div class="ec-stat-sub">Số mã hàng khác nhau mỗi đơn (tính cả quà KM)</div>
     </div>
   </div>
   <div class="col-md-4 mb-3">
-    <div class="rpt-card ec-kpi-card" id="ecKpiSuccess"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
-      <div class="rpt-kpi"><div class="rpt-kpi-icon ec-icon--success"><i class="fas fa-clipboard-check"></i></div>
-        <div class="ec-kpi-body"><div class="rpt-kpi-label">Đơn thành công</div><div class="ec-kpi-value ec-kpi-value--success" data-kpi="success_orders">—</div>
-          <div class="ec-kpi-sub"><b class="ec-up" data-kpi="success_rate">—</b> <span class="text-muted">tỷ lệ hoàn thành</span></div></div></div>
-    </div>
-  </div>
-  <div class="col-md-4 mb-3">
-    <div class="rpt-card ec-kpi-card" id="ecKpiCancel"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
-      <div class="rpt-kpi"><div class="rpt-kpi-icon ec-icon--cancel"><i class="far fa-times-circle"></i></div>
-        <div class="ec-kpi-body"><div class="rpt-kpi-label">Đơn hủy / Trả hàng</div><div class="ec-kpi-value ec-kpi-value--cancel" data-kpi="cancel_return_orders">—</div>
-          <div class="ec-kpi-sub"><b class="ec-down" data-kpi="cancel_return_rate">—</b> <span class="text-muted" data-kpi="cancel_return_split"></span></div></div></div>
+    <div class="rpt-card ec-stat ec-stat--qty" id="ecKpiQty"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="fas fa-boxes"></i></span><span class="ec-stat-label">Số lượng TRUNG BÌNH sản phẩm / đơn</span></div>
+      <div class="ec-stat-value" data-kpi="avg_qty_per_order">—</div>
+      <div class="ec-stat-sub">Số sản phẩm mỗi đơn (tính cả quà KM)</div>
     </div>
   </div>
 </div>
@@ -107,9 +139,9 @@
     </div>
   </div>
   <div class="col-xl-6 mb-3">
-    <div class="rpt-card" id="ecSaleOrders"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
-      <div class="rpt-card-title"><i class="fas fa-user-check"></i> Số đơn hàng theo Sale</div>
-      <div class="rpt-chart ec-chart-lg"><canvas id="ecSaleOrdersChart"></canvas></div>
+    <div class="rpt-card" id="ecSaleQty"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-user-check"></i> Sản lượng bán theo Sale</div>
+      <div class="rpt-chart ec-chart-lg"><canvas id="ecSaleQtyChart"></canvas></div>
     </div>
   </div>
 </div>
@@ -141,8 +173,9 @@
       <input type="search" class="form-control form-control-sm ec-orders-search" id="ecOrdersSearch" placeholder="Tìm mã đơn, SKU, tên SP, gian hàng, Sale..." autocomplete="off" />
       <select class="form-control form-control-sm ec-status-select" id="ecStatusGroup" title="Nhóm trạng thái của dòng hàng">
         <option value="">Tất cả trạng thái</option>
-        <option value="success">Thành công</option>
+        <option value="new">Thêm mới</option>
         <option value="processing">Đang xử lý</option>
+        <option value="success">Hoàn thành</option>
         <option value="cancel">Hủy</option>
         <option value="return">Trả hàng</option>
       </select>
