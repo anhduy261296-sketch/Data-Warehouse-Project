@@ -1,12 +1,6 @@
-/*
- * Báo cáo > E-commerce (templates/reports/ecom.html).
- * Moi vung goi 1 API rieng voi cung bo loc (date_from, date_to, channel, shop); server cache theo phien ban du lieu OMS.
- * Bang chi tiet: DataTables server-side co cache trang; bam SKU o bang Top 10 -> loc bang chi tiet theo SKU.
- */
 (function () {
   const RPT = ENDPOINTS.reports.ecom;
   const esc = escapeHtml;
-  // tien / so luong hien so nguyen (du lieu goc co so le do phan bo giam gia; file Excel giu nguyen)
   const money = (v) => formatAmount(v === null || v === undefined || v === "" ? v : Math.round(v));
   const BLUE_LIGHT = "rgba(59, 130, 246, 0.35)";
   const NAVY = "#1e3a8a";
@@ -22,7 +16,6 @@
   let ordersTable = null;
   let skuFilter = "";
 
-  // ---- bo loc ------------------------------------------------------------------------------------------
   function iso(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }
@@ -83,12 +76,11 @@
           .text(`Tháng ${mo.value.slice(5)}/${mo.value.slice(0, 4)}`),
       ),
     );
-    $p.append($("<option>").val(CUSTOM).text("Khoảng ngày tùy chọn..."));
+    $p.append($("<option>").val(CUSTOM).text("Khoảng ngày..."));
     $p.val(keep && $p.find(`option[value="${keep}"]`).length ? keep : m.months.length ? m.months[0].value : CUSTOM);
     const $c = $("#ecChannel");
     const keepChannel = $c.val();
     $c.empty().append($("<option>").val("").text("Tất cả"));
-    // nhom theo danh muc OMS: san online / kenh offline (kenh chua co don E-com van hien de chon)
     [
       ["online", "Sàn online"],
       ["offline", "Kênh offline"],
@@ -120,7 +112,6 @@
     }
   }
 
-  // ---- khoa nut khi dang tai (core/report.js, dung chung voi trang Ton kho) ------------------------------
   const pageCache = Api.createPageCache();
   const SEARCH_HTML = '<i class="fas fa-search mr-1"></i> Xem báo cáo';
   function setBusy(on) {
@@ -140,7 +131,6 @@
     return `<tr><td colspan="${cols}" class="text-center text-muted">${APP.MESSAGES.NO_DATA}</td></tr>`;
   }
 
-  // ---- tung vung -----------------------------------------------------------------------------------------
   const KPI_CARDS = $(".ec-stat")
     .map((_, el) => `#${el.id}`)
     .get();
@@ -213,7 +203,6 @@
     });
   }
 
-  /** Nhan truc x: tach thanh 2 dong dai gan bang nhau tai dau cach (vd "Tran Hoang / Lien Thao") de ten khong de nhau. */
   function wrapLabel(text) {
     const words = (text || "").split(" ");
     if (words.length < 2) return text;
@@ -227,7 +216,6 @@
     return best;
   }
 
-  /** Bieu do cot dung, moi cot 1 mau pastel; format: nhan tren cot + truc; tooltip(i): [tieu de, dong 1, dong 2...] khi re chuot. */
   function vbar(id, labels, values, format, tooltip) {
     ChartKit.render(id, {
       type: "bar",
@@ -280,7 +268,6 @@
         (v) => formatMoneyShort(v, 1),
         tip(rows),
       );
-      // San luong ban (so san pham, bo don huy, gom qua KM) - giong Control Tower
       const byQty = [...rows].sort((a, b) => b.qty - a.qty);
       vbar(
         "ecSaleQtyChart",
@@ -292,7 +279,6 @@
     });
   }
 
-  /** Dong bang Top 10; first = cot so dung truoc ("revenue" | "qty"), % theo cot do. Bam ma SKU -> loc bang chi tiet. */
   function topRows(rows, first) {
     const cols = first === "revenue" ? ["revenue", "qty"] : ["qty", "revenue"];
     return rows
@@ -311,7 +297,6 @@
     });
   }
 
-  // ---- bang chi tiet -------------------------------------------------------------------------------------
   let ordersFilters = {};
   function buildOrdersTable() {
     ordersTable = $("#ecOrdersTable").DataTable({
@@ -319,7 +304,6 @@
       processing: true,
       searchDelay: 500,
       pageLength: APP.DATATABLE.PAGE_LENGTH,
-      // o tim kiem dat cung hang voi bo loc tren tieu de card (#ecOrdersSearch) -> bo "f" mac dinh cua DataTables
       dom: "<'table-responsive'tr><'d-flex justify-content-between align-items-center flex-wrap mt-2'i<'d-flex align-items-center rpt-pager'lp>>",
       order: [[0, "desc"]],
       ajax: Api.dataTableSource(RPT.orders, () => ordersFilters, pageCache),
@@ -401,7 +385,6 @@
       .always(end);
   }
 
-  // ---- nut "Cap nhat kenh ban" (chi quan tri): kich hoat DAG chay tay tren Airflow roi cho ket qua --------
   const POLL_MS = 3000;
   const POLL_MAX = 60;
   function channelsMsg(text, kind) {

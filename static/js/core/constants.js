@@ -1,7 +1,3 @@
-/*
- * Hang so dung chung phia trinh duyet. Muon doi mau, thong bao, gioi han... chi sua o day.
- * (Duong dan API nam o core/endpoints.js)
- */
 const APP = Object.freeze({
   LOCALE: "vi-VN",
   TIMEZONE: "Asia/Ho_Chi_Minh",
@@ -19,12 +15,10 @@ const APP = Object.freeze({
     NOT_RECONCILED: "Chưa đối soát",
   }),
 
-  // Bo loc ngay cua bang don hang: so ngay toi da giua Tu ngay - Den ngay (backend cung chan MAX_DATE_RANGE_DAYS)
   DATE_FILTER_MAX_RANGE_DAYS: 30,
 
   STATUS_SYNC: Object.freeze({ SYNC: "Sync", NOT_SYNC: "Not Sync" }),
 
-  // Doi chieu ton kho SAP - WMS: trang thai -> class badge
   INVENTORY_STATUS_BADGE: Object.freeze({
     Khớp: "badge-success",
     Lệch: "badge-danger",
@@ -43,9 +37,7 @@ const APP = Object.freeze({
     WMS: Object.freeze({ text: "#1565c0", fill: "rgba(21, 101, 192, 0.40)", border: "#1565c0" }),
     MATCH: "#d3adf7",
     DIFF: "#e57373",
-    // mau pastel nhe cho bieu do cot (moi cot 1 mau)
     PASTEL: Object.freeze(["#a5c8ec", "#b7e1c7", "#f6d3a3", "#d3c3ee", "#f3b9c6", "#a9dbd8", "#f9e2a6", "#c4d2f4", "#cfe6bf", "#efc7de"]),
-    // mau theo thu tu kho / nhom hang tren bieu do
     PALETTE: Object.freeze([
       "#3b82f6",
       "#22c3a6",
@@ -68,12 +60,10 @@ const APP = Object.freeze({
     ]),
   }),
 
-  // Cache trang da xem cua bang DataTables (trong bo nho trang)
   PAGE_CACHE_MAX: 200,
 
   DATATABLE: Object.freeze({
     PAGE_LENGTH: 10,
-    // ngon ngu cho bang bao cao moi (bang cu giu mac dinh tieng Anh cua DataTables + lengthMenu "_MENU_")
     LANGUAGE_VI: Object.freeze({
       thousands: ".",
       lengthMenu: "_MENU_ / trang",

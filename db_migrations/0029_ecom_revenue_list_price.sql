@@ -1,8 +1,3 @@
--- Bao cao > E-commerce: doanh thu theo cach tinh cua Control Tower (doi tu 0027/0028).
---   net_amount: GIA NIEM YET (price) x SL, chi dong ban, BO don huy, GOM qua KM; dong tra hang = 0 (khong tru)
---   net_qty   : SL dong ban, bo don huy, gom qua KM (San luong ban). Top 10 tu loc bo qua KM (is_gift = 0)
---   status_group: new (New, Created) | processing (Approved, ReadyToShip, Shipped...) | success (Delivered) | cancel | return
---   Pham vi: moi loai xuat kho cua cac san E-com + moi don L03/L04
 EXEC(N'
 CREATE OR ALTER VIEW dbo.ECOM_ORDER_LINES AS
 SELECT
@@ -33,7 +28,6 @@ SELECT
     CASE WHEN o.order_type = ''Return'' OR g.status_group = ''cancel'' THEN 0 ELSE q.quantity END AS net_qty,
     CASE WHEN o.order_type = ''Return'' OR g.status_group = ''cancel'' THEN 0 ELSE q.price * q.quantity END AS net_amount
 FROM dbo.OMS_ORDERS o
--- cot OMS la NVARCHAR(MAX): ep ve do dai co dinh (thuc te <= 30 ky tu) de GROUP BY / JOIN nhanh
 CROSS APPLY (
     SELECT CAST(o.sales_channel AS NVARCHAR(50)) AS sales_channel, CAST(o.shop_id AS NVARCHAR(50)) AS shop_id,
            CAST(o.logistic_sku AS NVARCHAR(50)) AS sku
@@ -54,7 +48,6 @@ CROSS APPLY (
 ) q
 LEFT JOIN dbo.OMS_SALES_CHANNELS c ON c.code = k.sales_channel
 LEFT JOIN dbo.SAP_ITEMS i ON i.ItemCode = k.sku
--- san E-com: lay moi loai xuat kho (vd L08 gui qua tang); them san moi -> them ma vao danh sach nay
 WHERE o.outbound_order_type IN (''L03'', ''L04'')
    OR k.sales_channel IN (''SPE'', ''TTS'', ''LAZ'', ''SAPOGO'', ''TIK'', ''PANCAKE'')
 ');

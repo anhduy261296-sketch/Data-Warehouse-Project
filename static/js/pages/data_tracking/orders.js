@@ -1,7 +1,3 @@
-/*
- * Data Tracking > Đơn hàng E-com / DMS duyệt / DMS xuất kho / WRT (bảng đối soát).
- * Template: templates/data_tracking/{ecom,dms_duyet,dms_xuatkho,wrt}.html  ->  <table data-table-key="...">
- */
 DataTablePage.autoInit({
   ecom: {
     kind: "recon",

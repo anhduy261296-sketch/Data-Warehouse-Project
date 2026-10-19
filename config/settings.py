@@ -73,8 +73,6 @@ LANGUAGE_CODE = 'en-us'
 
 CACHES = {
     'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache', 'LOCATION': 'systems-tracking'},
-    # Cache bao cao (tracking/core/cache.py): vuot MAX_ENTRIES thi xoa bot 1/CULL_FREQUENCY so muc ngay;
-    # tran RAM ~ MAX_ENTRIES x REPORT_CACHE_MAX_ITEM_KB / tien trinh. STOCK_REPORT_* la ten bien cu, van doc.
     'reports': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'reports',

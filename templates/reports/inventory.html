@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
-{# Báo cáo > Tồn kho - CSS: css/pages/reports/inventory.css, JS: js/pages/reports/inventory.js #}
+
 {% block title %}Báo cáo tồn kho{% endblock %}
 {% block page_css %}<link href="{% static 'css/pages/reports/inventory.css' %}" rel="stylesheet" />{% endblock %}
 {% block content %}
@@ -61,7 +61,7 @@
   </form>
 </div>
 
-<!-- hang 1: bang SKU x kho (full) | hang 2: theo kho 2/3 + theo nhom hang 1/3 | hang 3: Top 10 ma hang 2/3 + Top 10 kho 1/3 -->
+
 <div class="row rpt-row">
   <div class="col-12 mb-3">
     <div class="rpt-card is-loading rpt-boot" id="rptSkuCard"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>

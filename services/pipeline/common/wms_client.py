@@ -1,13 +1,3 @@
-"""WMS Smartlog: cau hinh, dang nhap va goi API co retry - dung chung cho inbound / outbound / inventory / transaction.
-
-    rows = call_with_retry(lambda token: _fetch_once(token, ...), token, label='WMS inbound kho WH102 [...]')
-
-Chinh sach retry (giu nguyen nhu ban cu cua tung pipeline):
-    - 401 (token bi tu choi, vd co noi khac dang nhap cung tai khoan): dang nhap lai, toi da MAX_RELOGINS lan
-    - "server is busy": cho BUSY_RETRY_DELAY_SEC, toi da BUSY_MAX_RETRIES lan
-    - loi khac (HTTP / timeout / mat ket noi): cho FETCH_RETRY_DELAY_SEC, toi da MAX_FETCH_RETRIES lan
-"""
-
 from __future__ import annotations
 
 import logging
@@ -31,9 +21,8 @@ BUSY_MAX_RETRIES = 5
 BUSY_RETRY_DELAY_SEC = 20
 MAX_RELOGINS = 3
 RELOGIN_DELAY_SEC = 5
-REQUEST_DELAY_SEC = 1.0  # nghi giua cac trang / cac lan goi lien tiep de khong don WMS
+REQUEST_DELAY_SEC = 1.0
 
-# token moi nhat sau khi dang nhap lai - dung chung trong 1 tien trinh (1 task Airflow)
 _TOKEN_CACHE: dict[str, str] = {}
 
 
@@ -50,7 +39,6 @@ def login() -> str:
 
 
 def start_session() -> str:
-    """Dang nhap dau moi lan sync va dat lam token hien hanh (bo token cu cua lan chay truoc trong cung tien trinh)."""
     token = login()
     _TOKEN_CACHE['token'] = token
     return token
@@ -61,7 +49,6 @@ def _is_server_busy(response: requests.Response | None) -> bool:
 
 
 def call_with_retry(request_once: Callable[[str], T], token: str, label: str) -> T:
-    """Goi request_once(token) va retry theo chinh sach o dau file. label dung cho log (vd 'WMS inbound kho WH102 [a -> b]')."""
     busy_retries = 0
     other_retries = 0
     relogins = 0

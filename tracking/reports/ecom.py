@@ -1,9 +1,3 @@
-"""Bao cao > E-commerce: KPI, doanh thu theo ngay / Sale, top san pham, bang chi tiet.
-
-Nguon: view dbo.ECOM_ORDER_LINES (db_migrations/0024 -> 0030) - quy tac doanh thu / trang thai / qua tang KM nam trong view.
-Moi API nhan cung bo loc: date_from, date_to (ngay VN yyyy-mm-dd), channel (ma san), shop (shop_id).
-"""
-
 from __future__ import annotations
 import datetime as dt
 from typing import Any
@@ -16,7 +10,6 @@ from ..core.sql import num, rows as fetch_rows
 
 ECOM_SOURCES = ('oms_orders', 'oms_sales_channels', 'sap_items')
 _FROM = 'FROM dbo.ECOM_ORDER_LINES t'
-# so don = moi don co dong ban (ke ca huy) - giong 'Tong so don' o KPI (bieu do theo ngay)
 _VALID_ORDER = "CASE WHEN t.order_type = 'Sales' THEN t.order_number END"
 
 
@@ -25,7 +18,6 @@ def _today_vn() -> dt.date:
 
 
 def _period(params: Any) -> tuple[dt.date, dt.date]:
-    """Khoang ngay VN cua bao cao; thieu / sai -> thang hien tai. Qua dai -> cat con ECOM_MAX_RANGE_DAYS."""
     try:
         d_from = dt.date.fromisoformat((params.get('date_from') or '').strip())
         d_to = dt.date.fromisoformat((params.get('date_to') or '').strip())
@@ -41,7 +33,6 @@ def _period(params: Any) -> tuple[dt.date, dt.date]:
 
 def _filters(params: Any) -> tuple[str, list[Any]]:
     d_from, d_to = _period(params)
-    # loc tren cot UTC co index (gio VN 00:00 = 17:00 UTC ngay truoc)
     where = [
         't.created_at_utc >= DATEADD(HOUR, -7, CAST(%s AS DATETIME2))',
         't.created_at_utc < DATEADD(HOUR, -7, DATEADD(DAY, 1, CAST(%s AS DATETIME2)))',
@@ -69,7 +60,6 @@ def get_meta(_params: Any = None) -> dict[str, Any]:
             {_FROM} GROUP BY CONVERT(CHAR(7), t.created_at, 126) ORDER BY month DESC
             """)
         months = [{'value': m, 'first_day': f.isoformat(), 'last_day': last.isoformat()} for m, f, last in cursor.fetchall()]
-        # dropdown San: chi kenh co don E-com; nhom online / offline theo danh muc kenh ban OMS
         cursor.execute(f"""
             SELECT t.sales_channel, MAX(c.operation), MAX(t.channel_name)
             {_FROM} LEFT JOIN dbo.OMS_SALES_CHANNELS c ON c.code = t.sales_channel
@@ -83,7 +73,7 @@ def get_meta(_params: Any = None) -> dict[str, Any]:
             f'SELECT t.sales_channel, t.shop_id, MAX(t.shop_name) AS name {_FROM} GROUP BY t.sales_channel, t.shop_id ORDER BY t.sales_channel, name'
         )
         shops = [{'channel': c, 'id': i, 'name': n} for c, i, n in cursor.fetchall()]
-        cursor.execute(SOURCES['oms_orders'])  # thoi diem nap OMS gan nhat (cung SQL voi phien ban cache)
+        cursor.execute(SOURCES['oms_orders'])
         updated_at = cursor.fetchone()[0]
         cursor.execute(SOURCES['oms_sales_channels'])
         channels_loaded_at = cursor.fetchone()[0]
@@ -99,13 +89,6 @@ def get_meta(_params: Any = None) -> dict[str, Any]:
 
 @cached(*ECOM_SOURCES)
 def get_kpi(params: Any) -> dict[str, Any]:
-    """Phan loai theo DON theo trang thai DONG BAN (giong Control Tower): huy > hoan thanh > dang xu ly > them moi.
-
-    huy = moi dong ban deu huy; hoan thanh = co dong ban Delivered / Shipped (hoac da giao roi tra: nhom return);
-    dang xu ly = con dong ban o trang thai trung gian (Approved, ReadyToShip...); them moi = chi con dong ban
-    New/Created. Nhom trang thai dinh nghia 1 cho trong view (db_migrations/0028). Tra hang KHONG la nhom rieng - chi dem them (return_orders) de hien dong phu.
-    SKU / SL trung binh tinh tren don khong huy, ke ca qua KM.
-    """
     where, args = _filters(params)
     rows = _query(
         f"""
@@ -118,7 +101,6 @@ def get_kpi(params: Any) -> dict[str, Any]:
                    MAX(CASE WHEN t.order_type = 'Sales' AND t.status_group IN ('success', 'return') THEN 1 ELSE 0 END) AS is_success,
                    MAX(CASE WHEN t.order_type = 'Sales' AND t.status_group = 'processing' THEN 1 ELSE 0 END) AS is_processing,
                    SUM(t.net_amount) AS revenue,
-                   -- SKU / SL trung binh: dong ban khong huy, KE CA qua KM (khop Control Tower)
                    COUNT(DISTINCT CASE WHEN t.order_type = 'Sales' AND t.status_group <> 'cancel' THEN t.sku END) AS sku_count,
                    SUM(CASE WHEN t.order_type = 'Sales' AND t.status_group <> 'cancel' THEN t.quantity ELSE 0 END) AS qty
             {_FROM} WHERE {where} GROUP BY t.order_number
@@ -133,7 +115,7 @@ def get_kpi(params: Any) -> dict[str, Any]:
                SUM(CASE WHEN grp = 'processing' THEN 1 ELSE 0 END) AS processing_orders,
                SUM(CASE WHEN grp = 'success' THEN 1 ELSE 0 END) AS success_orders,
                SUM(CASE WHEN grp = 'cancel' THEN 1 ELSE 0 END) AS cancel_orders,
-               SUM(CASE WHEN grp IS NOT NULL AND is_return = 1 THEN 1 ELSE 0 END) AS return_orders,  -- thong tin, khong la nhom
+               SUM(CASE WHEN grp IS NOT NULL AND is_return = 1 THEN 1 ELSE 0 END) AS return_orders,
                SUM(CASE WHEN grp IS NOT NULL AND grp <> 'cancel' THEN sku_count ELSE 0 END) AS sku_sum,
                SUM(CASE WHEN grp IS NOT NULL AND grp <> 'cancel' THEN qty ELSE 0 END) AS qty_sum
         FROM c
@@ -142,10 +124,10 @@ def get_kpi(params: Any) -> dict[str, Any]:
     )
     kpi = {k: (v or 0) for k, v in rows[0].items()}
     total = kpi['total_orders']
-    valid = total - kpi['cancel_orders']  # don khong huy (mau so cua SKU / SL trung binh)
+    valid = total - kpi['cancel_orders']
     for key in ('new', 'processing', 'success', 'cancel', 'return'):
         kpi[f'{key}_rate'] = kpi[f'{key}_orders'] / total if total else None
-    kpi['avg_order_value'] = kpi['revenue'] / total if total else None  # chia TONG don (gom huy) - giong Control Tower
+    kpi['avg_order_value'] = kpi['revenue'] / total if total else None
     kpi['avg_sku_per_order'] = kpi.pop('sku_sum') / valid if valid else None
     kpi['avg_qty_per_order'] = kpi.pop('qty_sum') / valid if valid else None
     return kpi
@@ -165,7 +147,7 @@ def get_daily(params: Any) -> dict[str, Any]:
     d_from, d_to = _period(params)
     data = []
     day = d_from
-    while day <= d_to:  # du moi ngay trong ky (ngay khong co don = 0) de truc ngay lien tuc
+    while day <= d_to:
         r = by_day.get(day, {})
         data.append({'day': day.isoformat(), 'revenue': r.get('revenue') or 0, 'orders': r.get('orders') or 0})
         day += dt.timedelta(days=1)
@@ -188,7 +170,6 @@ def get_by_sale(params: Any) -> dict[str, Any]:
 
 @cached(*ECOM_SOURCES)
 def get_top_products(params: Any) -> dict[str, Any]:
-    """Top san pham theo doanh thu va theo so luong (khong tinh qua tang KM, khong tinh don huy, khong tru hang tra)."""
     where, args = _filters(params)
     rows = _query(
         f"""
@@ -207,8 +188,6 @@ def get_top_products(params: Any) -> dict[str, Any]:
     return {'by_revenue': by_revenue, 'by_qty': by_qty, 'total_revenue': num(total_revenue), 'total_qty': num(total_qty)}
 
 
-# ---- Bang chi tiet (DataTables server-side dung bo may chung) ------------------------------------------
-# Loc ngay qua date_from/date_to giong cac API tren (gio VN); bang chi tiet tu cat khoang > MAX_DATE_RANGE_DAYS.
 ECOM_DETAIL_CONFIG = DetailReportConfig(
     table='dbo.ECOM_ORDER_LINES',
     where='1=1',

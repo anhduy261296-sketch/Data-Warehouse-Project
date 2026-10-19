@@ -1,5 +1,3 @@
-"""Route nhom theo menu. Doi ten route (name=...) se lam hong {% url %} trong template + menu.py -> giu nguyen."""
-
 from django.urls import path
 from django.views.generic import RedirectView
 
@@ -12,7 +10,6 @@ from .views.common import datatable_export_view, datatable_report_view, page_vie
 
 
 def datatable_routes(page_url: str, api_url: str, name: str, template: str, config, export_filename: str):
-    """1 trang bang DataTables = trang HTML + API /report/ + API /export/ (Excel)."""
     return [
         path(page_url, page_view(template), name=name),
         path(f'{api_url}report/', datatable_report_view(config, f'{name}-report'), name=f'{name}-report'),
@@ -20,7 +17,6 @@ def datatable_routes(page_url: str, api_url: str, name: str, template: str, conf
     ]
 
 
-# (slug url, khoa config, ten file template) - dung chung cho Data Tracking va Chi tiet don hang
 ORDER_PAGES = (
     ('ecom', 'ecom', 'ecom'),
     ('dms-duyet', 'dms-duyet', 'dms_duyet'),
@@ -29,11 +25,9 @@ ORDER_PAGES = (
 )
 
 urlpatterns = [
-    # trang goc -> trang chu (giong bam logo)
     path('', RedirectView.as_view(pattern_name=HOME_URL_NAME), name='home'),
 ]
 
-# ---- Menu Data Tracking ------------------------------------------------------------------------------
 for slug, key, tpl in ORDER_PAGES:
     urlpatterns += datatable_routes(
         f'recon/{slug}/',
@@ -60,13 +54,11 @@ urlpatterns += [
     path('api/recon/inventory/diff-list/export/', data_tracking.recon_inventory_diff_export, name='recon-inventory-diff-export'),
 ]
 
-# ---- Menu Chi tiet don hang ----------------------------------------------------------------------------
 for slug, key, tpl in ORDER_PAGES:
     urlpatterns += datatable_routes(
         f'detail/{slug}/', f'api/detail/{slug}/', f'detail-{slug}', f'order_detail/{tpl}.html', DETAIL_CONFIGS[key], f'chi_tiet_{tpl}.xlsx'
     )
 
-# ---- Menu Bao cao ----------------------------------------------------------------------------------------
 urlpatterns += datatable_routes(
     'detail/employee/dms/',
     'api/detail/employee/dms/',

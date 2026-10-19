@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
-{# Báo cáo > E-commerce - CSS: css/pages/reports/ecom.css (+ components/report.css), JS: js/pages/reports/ecom.js #}
+
 {% block title %}Báo cáo E-commerce{% endblock %}
 {% block page_css %}<link href="{% static 'css/pages/reports/ecom.css' %}" rel="stylesheet" />{% endblock %}
 {% block content %}
@@ -51,7 +51,7 @@
   <div class="ec-filter-error d-none" id="ecFilterError"></div>
 </div>
 
-<!-- KPI: hang 1 = doanh thu + tong don, hang 2 = don theo trang thai, hang 3 = trung binh moi don -->
+
 <div class="row rpt-row">
   <div class="col-md-6 mb-3">
     <div class="rpt-card ec-stat ec-stat--revenue" id="ecKpiRevenue"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>

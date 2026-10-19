@@ -1,6 +1,3 @@
-/* Báo cáo > Tồn kho (templates/reports/inventory.html) */
-/* Phan dung chung (card, KPI, bang...) nam o components/report.css */
-
 .rpt-kpi-value-sku {
   font-size: 1.7rem;
   font-weight: 700;
@@ -76,7 +73,6 @@
 #rptSkuTable_wrapper .dataTables_info {
   font-size: 0.82rem;
 }
-/* --- Thay cho style="..." truoc day viet trong HTML --- */
 .rpt-kpi-icon--sku {
   background: #e8f1fd;
   color: #1565c0;
@@ -111,7 +107,6 @@
   width: 31%;
 }
 
-/* the "theo nhom hang" cao bang the "theo kho" ben canh -> donut + chu thich can giua theo chieu doc */
 #rptByGroup {
   display: flex;
   flex-direction: column;
@@ -124,7 +119,6 @@
   height: 200px;
   flex-basis: 200px;
 }
-/* Top 10 ma hang - cot "Ton theo kho": 1 dong, kho chinh ben trai + "+N kho" can phai */
 .rpt-whs-cell {
   display: flex;
   align-items: center;
@@ -157,7 +151,6 @@
   font-size: 0.75rem;
   cursor: help;
 }
-/* trang nay: tieu de bang + cot "Tong ton" de chu thuong (khong dam) */
 .rpt-table thead th,
 table.dataTable.rpt-table thead th,
 .rpt-table tbody .total {

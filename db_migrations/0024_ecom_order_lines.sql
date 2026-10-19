@@ -1,7 +1,3 @@
--- Lop du lieu sach cho Bao cao > E-commerce: dong hang OMS cua don E-com (L03, L04), gio VN, nhom trang thai,
--- so luong / doanh thu da tinh theo quy tac bao cao. Moi API bao cao doc tu view nay -> cong thuc nam 1 cho.
---   status_group: success (Delivered, Shipped) | cancel | return | processing
---   net_amount / net_qty: 0 voi dong qua tang KM va dong bi huy; dong tra hang (order_type = Return) mang dau am
 EXEC(N'
 CREATE OR ALTER VIEW dbo.ECOM_ORDER_LINES AS
 SELECT
@@ -32,7 +28,6 @@ SELECT
          WHEN o.order_type = ''Return'' THEN -ABS(q.quantity) ELSE q.quantity END AS net_qty,
     CASE WHEN o.item_type_display = ''KM'' OR g.status_group = ''cancel'' THEN 0 ELSE q.amount END AS net_amount
 FROM dbo.OMS_ORDERS o
--- cot OMS la NVARCHAR(MAX): ep ve do dai co dinh (thuc te <= 30 ky tu) de GROUP BY / JOIN nhanh
 CROSS APPLY (
     SELECT CAST(o.sales_channel AS NVARCHAR(50)) AS sales_channel, CAST(o.shop_id AS NVARCHAR(50)) AS shop_id,
            CAST(o.logistic_sku AS NVARCHAR(50)) AS sku

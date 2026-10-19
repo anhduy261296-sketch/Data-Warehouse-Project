@@ -1,5 +1,3 @@
-"""Bao cao > Ton kho: KPI, bang SKU x kho, top SKU, theo kho, theo nhom, chi tiet theo kho & trang thai (nguon WMS_INVENTORY)."""
-
 from __future__ import annotations
 from typing import Any
 from django.db import connection
@@ -50,7 +48,6 @@ def _filters(params: Any) -> tuple[str, list[Any]]:
     return (' AND '.join(where) or '1=1', args)
 
 
-# Bao cao doc WMS_INVENTORY + ten hang / nhom / DVT tu SAP -> cache tu het han khi 1 trong cac nguon nay nap lai
 STOCK_SOURCES = ('wms_inventory', 'sap_items', 'sap_item_groups', 'sap_uom')
 
 
@@ -77,7 +74,7 @@ def get_meta(_params: Any = None) -> dict[str, Any]:
         groups = [{'code': c, 'name': n} for c, n in cursor.fetchall()]
         cursor.execute("SELECT DISTINCT status FROM dbo.WMS_INVENTORY WHERE ISNULL(status, '') <> '' ORDER BY status")
         statuses = [r[0] for r in cursor.fetchall()]
-        cursor.execute(SOURCES['wms_inventory'])  # thoi diem nap ton WMS gan nhat (cung SQL voi phien ban cache)
+        cursor.execute(SOURCES['wms_inventory'])
         snapshot_at = cursor.fetchone()[0]
     return {
         'warehouses': warehouses,

@@ -1,7 +1,3 @@
-/*
- * Báo cáo > ĐH theo NV - DMS / ĐH theo NV - OMS/WMS (đang ẩn khỏi menu, URL vẫn hoạt động).
- * Template: templates/reports/{employee_dms,employee_oms}.html  ->  <table data-table-key="...">
- */
 DataTablePage.autoInit({
   employeeDms: {
     kind: "detail",

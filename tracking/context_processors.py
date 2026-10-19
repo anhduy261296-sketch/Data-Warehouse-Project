@@ -6,7 +6,6 @@ from .menu import HOME_URL_NAME, MENU
 
 
 def sidebar_menu(request) -> dict[str, Any]:
-    """Dua menu sidebar vao moi template; danh dau trang dang mo (active) va mo san nhom chua no."""
     match = getattr(request, 'resolver_match', None)
     current = match.url_name if match else None
     groups = []

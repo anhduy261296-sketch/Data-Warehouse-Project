@@ -28,7 +28,6 @@
       href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    {# CSS goc cho moi trang; CSS rieng tung trang qua block page_css (static/css/pages/<menu>/...) #}
     <link href="{% static 'css/index.css' %}" rel="stylesheet" />
     {% block page_css %}{% endblock %}
     <script src="{% static 'js/core/loading.js' %}"></script>
@@ -63,13 +62,11 @@
     <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
     <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.bootstrap4.min.js"></script>
     <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
-    {# JS dung chung (thu tu phu thuoc: constants -> endpoints -> format -> api -> datatable) #}
     <script src="{% static 'js/core/constants.js' %}"></script>
     <script src="{% static 'js/core/endpoints.js' %}"></script>
     <script src="{% static 'js/core/format.js' %}"></script>
     <script src="{% static 'js/core/api.js' %}"></script>
     <script src="{% static 'js/core/datatable.js' %}"></script>
-    {# JS rieng tung trang (static/js/pages/<menu>/...) #}
     {% block page_js %}{% endblock %}
   </body>
 </html>

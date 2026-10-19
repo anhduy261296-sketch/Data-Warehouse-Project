@@ -1,8 +1,3 @@
-"""Menu Data Tracking > Tồn kho SAP-WMS: API rieng (meta, popup chi tiet, danh sach lech) + xuat Excel nhieu sheet.
-
-Cac bang doi soat don hang (E-com, DMS, WRT) dung view chung - khai bao trong tracking/urls.py.
-"""
-
 from __future__ import annotations
 
 import re
@@ -19,7 +14,6 @@ def _col(key: str, header: str, width: float) -> ExcelColumn:
     return ExcelColumn(key, header, width, is_date=key.endswith('_date'))
 
 
-# Popup chi tiet chung tu 1 dong: 3 sheet tuong ung 3 bang
 DETAIL_EXPORT_SHEETS = (
     (
         'both',
@@ -63,7 +57,6 @@ _ITEM_COLUMNS = [
     _col('whs_code', 'Kho', 10),
     _col('status_item', 'Trạng thái', 14),
 ]
-# Popup danh sach lech tat ca kho
 DIFF_EXPORT_SHEETS = (
     ('both', 'Hai bên có', [*_ITEM_COLUMNS, _col('sap_qty', 'SAP', 12), _col('wms_qty', 'WMS', 12), _col('diff_qty', 'Lệch', 12)]),
     ('sap_only', 'SAP có WMS không', [*_ITEM_COLUMNS, _col('sap_qty', 'SL', 12)]),

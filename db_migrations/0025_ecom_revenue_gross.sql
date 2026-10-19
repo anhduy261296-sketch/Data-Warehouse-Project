@@ -1,7 +1,3 @@
--- Bao cao > E-commerce: doanh thu KHONG tru hang tra (doi tu 0024). Dinh nghia lai view dbo.ECOM_ORDER_LINES.
---   net_amount / net_qty: chi dong ban (order_type = Sales), khong KM, khong huy; dong tra hang (Return) = 0
---   (dong tra hang van nam trong view: bang chi tiet, dem don tra hang o KPI)
---   status_group: success (Delivered, Shipped) | cancel | return | processing
 EXEC(N'
 CREATE OR ALTER VIEW dbo.ECOM_ORDER_LINES AS
 SELECT
@@ -33,7 +29,6 @@ SELECT
     CASE WHEN o.item_type_display = ''KM'' OR g.status_group = ''cancel'' OR o.order_type = ''Return'' THEN 0
          ELSE q.amount END AS net_amount
 FROM dbo.OMS_ORDERS o
--- cot OMS la NVARCHAR(MAX): ep ve do dai co dinh (thuc te <= 30 ky tu) de GROUP BY / JOIN nhanh
 CROSS APPLY (
     SELECT CAST(o.sales_channel AS NVARCHAR(50)) AS sales_channel, CAST(o.shop_id AS NVARCHAR(50)) AS shop_id,
            CAST(o.logistic_sku AS NVARCHAR(50)) AS sku

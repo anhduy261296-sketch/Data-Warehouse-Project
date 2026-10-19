@@ -1,15 +1,11 @@
-# Chi dung cho cong cu dev (dinh dang / kiem tra code). Thu vien chay that nam o requirements.txt.
-#   python -m ruff format .            dinh dang Python
-#   python -m ruff check .             kiem tra loi thuong gap (import thua, bien chua dung...)
 [tool.ruff]
 line-length = 140
 target-version = "py312"
 extend-exclude = [".venv", "staticfiles", "airflow/logs", "*/migrations/0001_initial.py"]
 
 [tool.ruff.format]
-# giu nguyen nhay don / nhay kep dang co - tranh doi hang loat chuoi SQL
 quote-style = "preserve"
 
 [tool.ruff.lint]
-select = ["E9", "F"]   # loi cu phap + pyflakes (import thua, ten chua dinh nghia...)
-ignore = ["E402"]      # DAG phai them sys.path truoc khi import services/
+select = ["E9", "F"]
+ignore = ["E402"]

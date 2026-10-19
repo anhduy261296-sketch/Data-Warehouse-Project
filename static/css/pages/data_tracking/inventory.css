@@ -1,6 +1,3 @@
-/* Data Tracking > Tồn kho SAP-WMS (templates/data_tracking/inventory.html) */
-
-/* --- The tong hop + bieu do --- */
 .inv-stat-card {
   background: #fff;
   border: 1px solid #eceef2;
@@ -114,7 +111,6 @@ a.inv-stat-card.inv-fill {
   display: flex;
 }
 
-/* --- Popup chi tiet chung tu / danh sach lech (3 bang) --- */
 .inv-detail-both,
 .inv-detail-sap,
 .inv-detail-wms {

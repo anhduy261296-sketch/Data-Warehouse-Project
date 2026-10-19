@@ -1,15 +1,3 @@
-/*
- * Bang DataTables server-side dung chung (gop reconciliation.js + detail.js cu).
- *
- * 2 kieu bang:
- *   "recon"  - Data Tracking (doi soat): loc Status Sync + loc ngay (+ SO Status voi WRT), nut Excel.
- *   "detail" - Chi tiet don hang / Bao cao NV: nut chon cot + nut Excel, loc ngay neu options.dateFilter.
- *
- * Trang chi can khai bao cot trong pages/<menu>/*.js va goi DataTablePage.autoInit(registry):
- *   <table data-table-key="ecom" id="...">  ->  registry["ecom"] = { kind, endpoints, columns, ... }
- */
-
-// Menu chon cot nam trong .table-responsive (overflow) -> cho tran ra ngoai khi dang mo
 $(document).on("show.bs.dropdown", ".dt-buttons", function () {
   $(this).closest(".table-responsive").css("overflow", "visible");
 });
@@ -27,22 +15,18 @@ const EXPORT_EXCEL_ICON = `
 const EXPORT_BUTTON_CLASS =
   "btn btn-sm bg-white border shadow-sm d-inline-flex align-items-center justify-content-center detail-export-btn";
 
-// Thanh cong cu: [o loc ...] [o tim kiem] [nut]   /   bang   /   [thong tin] [so dong + phan trang]
 const DT_DOM_FOOTER =
   "<'row'<'col-sm-12't>>" + "<'row align-items-center'<'col-sm-6'i>" + "<'col-sm-6 d-flex justify-content-end align-items-center'lp>>";
 const dtToolbarDom = (slots) =>
   "<'row align-items-center'<'col-sm-12 d-flex justify-content-end align-items-center'" + slots + "fB>>" + DT_DOM_FOOTER;
 
-/* ---------- Cot dung chung ---------- */
 const COLUMNS = Object.freeze({
-  /** Status Sync cua bang doi soat. */
   statusSync: {
     data: "status_sync",
     title: "Status Sync",
     orderable: false,
     render: (data) => renderStatusSyncBadge(data),
   },
-  /** Status Sync cua bang chi tiet: chua co -> "Chua doi soat". */
   statusSyncDetail: {
     data: "status_sync",
     title: "Status Sync",
@@ -64,7 +48,6 @@ const DataTablePage = (function () {
     return d.toISOString().slice(0, 10);
   }
 
-  /** O "Tu ngay - Den ngay" (mac dinh 30 ngay gan nhat, toi da APP.DATE_FILTER_MAX_RANGE_DAYS ngay). */
   function addDateRangeFilter(tableId) {
     const maxDays = APP.DATE_FILTER_MAX_RANGE_DAYS;
     $(`#${tableId}_wrapper .detail-date-filter`).html(`
@@ -81,7 +64,6 @@ const DataTablePage = (function () {
     $from.val(dateInputValue(maxDays));
     $to.val(dateInputValue(0));
 
-    // giu khoang ngay <= maxDays: doi o nao thi keo o con lai theo
     function clampRange(changedField) {
       const fromDate = new Date($from.val());
       const toDate = new Date($to.val());
@@ -137,12 +119,10 @@ const DataTablePage = (function () {
     });
   }
 
-  /** Gia tri o "Tu ngay / Den ngay" dang hien (undefined neu bang khong co bo loc ngay). */
   function dateValues(tableId) {
     return { date_from: $(`#${tableId}_date_from`).val(), date_to: $(`#${tableId}_date_to`).val() };
   }
 
-  /** Nut xuat Excel: gui kem khoang ngay (+ tu khoa tim kiem neu includeSearch). */
   function exportButton(tableId, exportEndpoint, includeSearch) {
     return {
       text: EXPORT_EXCEL_ICON,
@@ -155,7 +135,6 @@ const DataTablePage = (function () {
     };
   }
 
-  /** Nut chon cot (cot visible:false mac dinh an) + muc "Chon tat ca / Huy chon tat ca". */
   function columnPickerButton(columns) {
     return {
       extend: "colvis",
@@ -182,14 +161,9 @@ const DataTablePage = (function () {
     };
   }
 
-  /**
-   * Tao bang. options: { kind: "recon" | "detail", exportEndpoint, dateFilter (detail) }.
-   * Tra ve Promise xong khi bang ve lan dau.
-   */
   function render(tableId, endpoint, columns, options) {
     const isRecon = options.kind === "recon";
     const withDateFilter = isRecon || !!options.dateFilter;
-    // bo loc dang chon tren thanh cong cu -> gui kem moi request
     const filterParams = () => ({
       ...(isRecon
         ? {
@@ -197,7 +171,6 @@ const DataTablePage = (function () {
             so_status: $(`#${tableId}_wrapper .recon-so-status-filter select`).val() || "",
           }
         : {}),
-      // o ngay chi duoc chen sau lan ve dau -> lan goi dau dung san khoang mac dinh (giong gia tri o se hien)
       ...(withDateFilter
         ? {
             date_from: dateValues(tableId).date_from || dateInputValue(APP.DATE_FILTER_MAX_RANGE_DAYS),
@@ -209,7 +182,6 @@ const DataTablePage = (function () {
       tables[tableId] = $(`#${tableId}`).DataTable({
         serverSide: true,
         processing: true,
-        // cache trang da xem (mat khi roi trang); server cung cache theo phien ban du lieu
         ajax: Api.dataTableSource(endpoint, filterParams, pageCache),
         columns,
         order: [],
@@ -222,7 +194,6 @@ const DataTablePage = (function () {
         ],
         language: { lengthMenu: "_MENU_" },
         initComplete: function () {
-          // lan goi dau da kem khoang ngay mac dinh -> chi chen o loc, khong can ve lai (truoc day goi API 2 lan)
           if (withDateFilter) addDateRangeFilter(tableId);
           resolve();
         },
@@ -235,10 +206,6 @@ const DataTablePage = (function () {
     return Loading.wrapPage(() => render(tableId, endpoint, columns, options || {}), APP.MESSAGES.LOADING);
   }
 
-  /**
-   * Khoi tao bang cua trang theo the <table data-table-key="...">.
-   * registry[key] = { kind, endpoints: { report, export, soStatusOptions? }, columns, dateFilter?, soStatusFilter? }
-   */
   function autoInit(registry) {
     $(function () {
       $("table[data-table-key]").each(function () {

@@ -1,6 +1,3 @@
-/* Báo cáo > E-commerce (templates/reports/ecom.html). Phan dung chung (card, KPI, bang...) nam o components/report.css */
-
-/* trang nay nhat hon trang Ton kho (700 -> 500): tieu de trang, tieu de card, so dam trong bang */
 .rpt-title,
 .rpt-card-title,
 .rpt-table tbody .total {
@@ -13,7 +10,6 @@
   color: #b42318;
   font-size: 0.85rem;
 }
-/* The KPI: nen gradient pastel nhe; moi the 1 tong mau qua --c (so / icon), --g1 -> --g2 (nen) */
 .ec-stat {
   --c: #3b6fb6;
   --g1: #e9f1fc;
@@ -118,35 +114,31 @@
   margin: -6px 0 12px;
 }
 
-/* Top 10 */
 .ec-top-table {
   table-layout: fixed;
   width: 100%;
-  min-width: 560px;
-}
-.ec-top-table thead th {
-  padding-right: 0.5rem !important;
-}
-.ec-col-no {
-  width: 5%;
-}
-.ec-col-sku {
-  width: 12%;
-}
-.ec-col-name {
-  width: 37%;
-}
-.ec-col-num {
-  width: 18%;
-}
-.ec-col-qty {
-  width: 13%;
-}
-.ec-col-share {
-  width: 15%;
+  min-width: 420px;
 }
 
-/* Bang chi tiet */
+.ec-top-table thead th {
+  padding-right: 0.3rem !important;
+}
+.ec-col-no {
+  width: 28px;
+}
+.ec-col-sku {
+  width: 68px;
+}
+.ec-col-num {
+  width: 112px;
+}
+.ec-col-qty {
+  width: 52px;
+}
+.ec-col-share {
+  width: 54px;
+}
+
 .ec-orders-tools {
   gap: 8px;
   font-weight: 400;

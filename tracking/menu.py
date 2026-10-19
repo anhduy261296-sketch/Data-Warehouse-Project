@@ -1,9 +1,3 @@
-"""Menu sidebar - nguon duy nhat. Them / an / doi ten trang chi sua o day.
-
-Thu muc template + static cua moi trang dat theo `key` cua nhom menu:
-    templates/<group.key>/<trang>.html, static/js/pages/<group.key>/..., static/css/pages/<group.key>/...
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,7 +7,7 @@ from dataclasses import dataclass
 class MenuItem:
     label: str
     url_name: str
-    hidden: bool = False  # an khoi sidebar, URL van hoat dong
+    hidden: bool = False
 
 
 @dataclass(frozen=True)
@@ -65,5 +59,4 @@ MENU: tuple[MenuGroup, ...] = (
     ),
 )
 
-# trang mo khi bam logo "Data Warehouse"
 HOME_URL_NAME = 'recon-ecom'

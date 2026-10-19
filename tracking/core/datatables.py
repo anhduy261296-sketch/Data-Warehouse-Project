@@ -1,13 +1,8 @@
-"""Bo may DataTables server-side dung chung: khai bao cot SQL -> phan trang, sap xep, tim kiem, loc, xuat.
-
-Moi bang chi can 1 DetailReportConfig (xem tracking/reports/orders.py, recon_inventory.py).
-"""
-
 from __future__ import annotations
 import datetime
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any
+from typing import Any, Callable
 from django.db import connection
 from ..constants import EXPORT_MAX_ROWS, MAX_DATE_RANGE_DAYS, MAX_PAGE_LENGTH
 
@@ -34,9 +29,7 @@ class DetailReportConfig:
     default_hidden_status: str = ''
     default_order_sql: str = ''
     filter_params: tuple[tuple[str, str], ...] = ()
-    # nguon du lieu (tracking/core/cache.py SOURCES) -> bat cache API theo phien ban du lieu; rong = khong cache
     cache_sources: tuple[str, ...] = ()
-    # khoa dong duy nhat (vd '_row_id') -> phan trang tren khoa truoc roi moi lay du cot (bang co cot rong / NVARCHAR(MAX))
     row_key: str = ''
 
 
@@ -100,7 +93,7 @@ def _build_where_extra(config: DetailReportConfig, params: dict[str, Any]) -> tu
     return (where_extra, query_params)
 
 
-def run_detail_report(config: DetailReportConfig, params: dict[str, Any]) -> dict[str, Any]:
+def run_detail_report(config: DetailReportConfig, params: dict[str, Any], counts: Callable | None = None) -> dict[str, Any]:
     draw = int(params.get('draw') or 1)
     start = max(int(params.get('start') or 0), 0)
     length = int(params.get('length') or 10)
@@ -126,14 +119,15 @@ def run_detail_report(config: DetailReportConfig, params: dict[str, Any]) -> dic
     base_from = f'\n        FROM {config.table} t\n        {config.join_sql}\n        WHERE {config.where}\n    '
     where_extra, query_params = _build_where_extra(config, params)
     with connection.cursor() as cursor:
-        cursor.execute(f'SELECT COUNT(*) {base_from}')
-        records_total = cursor.fetchone()[0]
-        cursor.execute(f'SELECT COUNT(*) {base_from} {where_extra}', query_params)
-        records_filtered = cursor.fetchone()[0]
+
+        def count_rows() -> tuple[int, int]:
+            cursor.execute(f'SELECT COUNT(*) {base_from}')
+            total = cursor.fetchone()[0]
+            cursor.execute(f'SELECT COUNT(*) {base_from} {where_extra}', query_params)
+            return total, cursor.fetchone()[0]
+
+        records_total, records_filtered = counts(count_rows) if counts else count_rows()
         if config.row_key:
-            # Phan trang tren khoa dong truoc (chi sap xep cot nho), roi moi lay du cot cho cac dong cua trang.
-            # Bang co cot NVARCHAR(MAX) (OMS_ORDERS): sap xep ca dong rong rat cham, nhat la trang cuoi.
-            # row_key lam tieu chi phu -> thu tu dong co dinh giua cac lan tai.
             cursor.execute(
                 f"""
                 ;WITH p AS (

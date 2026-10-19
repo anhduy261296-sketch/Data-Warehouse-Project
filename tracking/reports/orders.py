@@ -1,15 +1,11 @@
-"""Cau hinh bang Data Tracking (doi soat) + Chi tiet don hang + Bao cao don hang theo nhan vien."""
-
 from __future__ import annotations
 from ..constants import STATUS_TRACKING_TABLE
 from ..core.datatables import DetailColumn, DetailReportConfig
 
-# OMS_ORDERS: order_number / outbound_order_type co index (migration 0022); loc ngay dung cot tinh san _k_created_at
 _ECOM_ORDER_FILTER = "t.outbound_order_type IN ('L03', 'L04') AND st.StatusSync = 'Sync'"
 _DMS_XUATKHO_ORDER_FILTER = "t.outbound_order_type IN ('L01', 'L05', 'L07', 'L08', 'L12', 'L14', 'L18', 'L25') AND st.StatusSync = 'Sync'"
 _WRT_ORDER_FILTER = "t.IsCreateBy = 'SYSTEM' AND st.StatusSync = 'Sync'"
 _DMS_DUYET_ORDER_FILTER = "t.OrderStatus = 'sale' AND st.StatusSync = 'Sync'"
-# loc ngay theo gio VN (_k_created_at la gio UTC) - khop Bao cao > E-commerce
 _OMS_DATE_VN = 'DATEADD(HOUR, 7, t._k_created_at)'
 _OMS_ORDERS_COLUMNS = [
     DetailColumn('st.StatusSync', 'status_sync', orderable=False),

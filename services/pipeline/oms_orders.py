@@ -76,7 +76,6 @@ def _build_filter(from_iso: str, to_iso: str) -> list[dict[str, str]]:
 
 
 def _oms_get(access_token: str, url: str, params: dict | None = None) -> Any:
-    """GET 1 API OMS (Bearer token) -> JSON. Dung chung cho don hang + danh muc kenh ban (oms_sales_channels)."""
     response = requests.get(url, params=params, headers={'Authorization': f'Bearer {access_token}'}, timeout=60)
     response.raise_for_status()
     return response.json()
@@ -118,8 +117,6 @@ def _coerce_value(value: Any) -> Any:
 
 
 def _delete_window(target_conn: Any, from_iso: str, to_iso: str) -> None:
-    # So sanh chuoi ISO theo tung byte (BIN2). Collation mac dinh cua cot (SQL_Latin1_General_CP1_CI_AS) so theo quy tac
-    # ngon ngu -> don tao dung giay cuoi ngay VN ('...16:59:59+00:00') bi coi > '...16:59:59.999Z' -> khong bi xoa, moi lan chay chen them 1 ban.
     cursor = target_conn.cursor()
     cursor.execute(
         f'DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} '
@@ -129,16 +126,10 @@ def _delete_window(target_conn: Any, from_iso: str, to_iso: str) -> None:
 
 
 def _record_key(row: dict) -> tuple[str, str, str]:
-    """1 ban ghi OMS = don + loai dong (Sales/Return) + phieu tra (rong voi dong ban)."""
     return (str(row.get('order_number') or ''), str(row.get('order_type') or ''), str(row.get('return_order_id') or ''))
 
 
 def _delete_fetched_records(target_conn: Any, rows: list[dict]) -> None:
-    """Xoa ban cu cua dung cac ban ghi vua keo ve (ke ca khi created_date nam ngoai cua so).
-
-    API loc dong tra hang theo ngay khac voi created_date (= ngay don goc) -> cung 1 dong tra hang ve o 2 cua so,
-    _delete_window cua cua so nay khong xoa duoc ban da ghi tu cua so kia -> trung lap.
-    """
     keys = sorted({_record_key(r) for r in rows if r.get('order_number')})
     cursor = target_conn.cursor()
     per_batch = max(1, MAX_SQL_PARAMS // 3)

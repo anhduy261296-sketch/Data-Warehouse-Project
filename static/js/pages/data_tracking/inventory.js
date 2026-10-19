@@ -1,7 +1,3 @@
-/*
- * Data Tracking > Tồn kho SAP-WMS (templates/data_tracking/inventory.html).
- * Tong hop + bieu do, bang doi chieu, popup chung tu tung dong, popup danh sach lech.
- */
 const INV_API = ENDPOINTS.dataTracking.inventory;
 
 function inventoryFilterParams() {
@@ -258,7 +254,6 @@ $(function () {
   const table = $("#reconInventoryTable").DataTable({
     serverSide: true,
     processing: true,
-    // cache trang da xem (mat khi roi trang); server cung cache theo phien ban du lieu
     ajax: Api.dataTableSource(INV_API.report, inventoryFilterParams, Api.createPageCache()),
     columns: [
       {

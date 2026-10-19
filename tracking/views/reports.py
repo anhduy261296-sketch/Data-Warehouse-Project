@@ -1,5 +1,3 @@
-"""Menu Bao cao > Ton kho, E-commerce: API tung vung + xuat Excel. (Bao cao DH theo NV dung view chung - xem tracking/urls.py.)"""
-
 from __future__ import annotations
 
 from django.http import JsonResponse
@@ -60,7 +58,6 @@ def inventory_export(request):
     return excel_response([ExcelSheet('Ton kho theo SKU', columns, rows, freeze='D2')], 'ton_kho_theo_sku_va_kho.xlsx')
 
 
-# ---- Bao cao > E-commerce ----------------------------------------------------------------------------
 ecom_meta = _json(lambda params: ecom.get_meta())
 ecom_kpi = _json(ecom.get_kpi)
 ecom_daily = _json(ecom.get_daily)
@@ -76,12 +73,10 @@ def _staff_only(request):
 
 @require_POST
 def ecom_channels_refresh(request):
-    """Nut "Cap nhat kenh ban": kich hoat DAG chay tay keo danh muc kenh ban OMS (khong co lich)."""
     denied = _staff_only(request)
     if denied:
         return denied
     try:
-        # 2 DAG dung chung refresh token OMS (moi lan dang nhap token bi thay) -> khong chay chong nhau
         if airflow.has_active_run(OMS_ORDERS_DAG_ID):
             return JsonResponse({'error': 'DAG đơn hàng OMS đang chạy, thử lại sau ít phút.'}, status=409)
         if airflow.has_active_run(OMS_SALES_CHANNELS_DAG_ID):
@@ -105,5 +100,5 @@ def ecom_channels_refresh_status(request):
     except airflow.AirflowError as exc:
         return JsonResponse({'error': str(exc)}, status=502)
     if state == 'success':
-        invalidate_source('oms_sales_channels')  # ten kenh moi hien ngay, khong cho het han phien ban cache
+        invalidate_source('oms_sales_channels')
     return JsonResponse({'state': state})

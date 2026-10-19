@@ -1,5 +1,3 @@
-"""Data Tracking > Ton kho SAP-WMS: tong hop, danh sach lech, chi tiet chung tu SAP/WMS cua 1 dong."""
-
 from __future__ import annotations
 import datetime
 import time

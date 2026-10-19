@@ -1,15 +1,3 @@
-"""Kiem tra hoi quy (golden master) cho toan bo trang/API/xuat Excel.
-
-    python manage.py smoke_check --save /tmp/smoke_baseline.json      # chup ket qua goc
-    python manage.py smoke_check --compare /tmp/smoke_baseline.json   # so sanh sau khi sua code
-
-Goi moi URL theo ten route (reverse) voi tham so co dinh, dang nhap bang user superuser dau tien.
-- Trang HTML: chi kiem tra HTTP 200 (giao dien duoc phep doi khi refactor).
-- API JSON: so sanh toan bo noi dung.
-- Excel: so sanh ten sheet + hash gia tri tung o.
-Du lieu DB phai giu nguyen giua 2 lan chay (khong chay DAG o giua).
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -43,10 +31,7 @@ PAGES = [
     'report-inventory',
     'report-ecom',
 ]
-# route khong can kiem tra (khong phai tinh nang bao cao / kich hoat DAG Airflow that)
 SKIPPED = {'login', 'logout', 'login-captcha', 'home', 'report-ecom-channels-refresh', 'report-ecom-channels-refresh-status'}
-# Bang don hang sap mac dinh theo trang thai -> cac dong cung trang thai co the doi thu tu giua 2 lan goi.
-# Neu khac baseline: van phai khop tong so dong / so dong sau loc / cau truc cot, chi canh bao.
 UNSTABLE_ORDER = ('recon-', 'detail-')
 
 
@@ -135,7 +120,6 @@ def _xlsx_summary(content: bytes) -> dict[str, Any]:
     sheets = {}
     for ws in wb.worksheets:
         rows = [[None if v is None else str(v) for v in row] for row in ws.iter_rows(values_only=True)]
-        # bo qua thu tu dong (nhieu query xuat khong co ORDER BY) - chi so noi dung
         body = sorted(json.dumps(r, ensure_ascii=False) for r in rows[1:])
         sheets[ws.title] = {
             'rows': len(rows),
@@ -196,7 +180,6 @@ class Command(BaseCommand):
         if r.status_code != 302 or r.get('Location') != reverse('recon-ecom'):
             failures.append(f'PAGE home: phai chuyen huong ve trang chu, nhan {r.status_code} {r.get("Location")}')
 
-        # khoa = ten route + tham so (khong theo so thu tu -> them/bot truong hop khong lam lech baseline)
         def case_key(route: str, p: Any) -> str:
             return f'{route} {json.dumps(p, ensure_ascii=False, sort_keys=True)}'
 

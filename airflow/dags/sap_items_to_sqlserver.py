@@ -16,11 +16,10 @@ from services.pipeline.sap_items import FULL_LOAD_START, last_success_to, sync_s
 LOCAL_TZ = 'Asia/Ho_Chi_Minh'
 SQLSERVER_CONNECTION = 'sqlserver_tracking'
 SAP_HANA_CONNECTION = 'sap_hana'
-OVERLAP_DAYS = 1  # keo chong lan 1 ngay so voi lan thanh cong truoc (tranh sot ma sua sat moc)
+OVERLAP_DAYS = 1
 
 
 def _window_from_context(target_connection: object, **context: object) -> tuple[str, str]:
-    """conf: full=true | from_date + to_date | trong -> tu lan nap thanh cong gan nhat (lui OVERLAP_DAYS) den hien tai."""
     dag_run = context.get('dag_run')
     run_conf = getattr(dag_run, 'conf', None) or {}
     if run_conf.get('full'):
@@ -67,7 +66,6 @@ with DAG(
     dag_id='sap_items_to_sqlserver_daily',
     description='Manual only: SAP item master (API /api/Items) -> dbo.SAP_ITEMS, item groups (HANA OITB) -> dbo.SAP_ITEM_GROUPS, UoM (HANA OUOM) -> dbo.SAP_UOM.',
     start_date=pendulum.datetime(2026, 10, 13, tz=LOCAL_TZ),
-    # khong co lich: chay tay (Trigger tren Airflow UI), giong oms_sales_channels_manual
     schedule=None,
     catchup=False,
     max_active_runs=1,

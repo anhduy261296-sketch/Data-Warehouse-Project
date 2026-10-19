@@ -1,5 +1,3 @@
-"""Doc ket qua cursor SQL Server thanh dict JSON-ready (Decimal -> float) - dung chung cho cac API bao cao."""
-
 from __future__ import annotations
 from decimal import Decimal
 from typing import Any

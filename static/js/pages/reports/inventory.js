@@ -1,8 +1,3 @@
-/*
- * Báo cáo > Tồn kho (templates/reports/inventory.html).
- * Moi vung goi 1 API rieng; bang SKU x kho + bang chi tiet: DataTables server-side co cache trang.
- * Bang chi tiet chi tai khi chon dropdown / bam Tim kiem (co it nhat 1 bo loc).
- */
 (function () {
   const RPT = ENDPOINTS.reports.inventory;
   const fmt = formatQty;
@@ -17,7 +12,6 @@
     return { q: $("#rptQ").val().trim(), group: $("#rptGroup").val(), whs: $("#rptWhs").val(), status: $("#rptStatus").val() };
   }
 
-  // cache trang da xem cua 2 bang (mat khi roi trang / bam Lam moi); server cung cache theo phien ban du lieu
   const pageCache = Api.createPageCache();
   let skuFilters = {};
   const SEARCH_HTML = '<i class="fas fa-search mr-1"></i> Tìm kiếm';
@@ -29,7 +23,6 @@
     $("#rptSearch").html(on ? '<span class="spinner-border spinner-border-sm mr-1"></span> Đang tải...' : SEARCH_HTML);
   }
 
-  // khoa nut chi khi bam Tim kiem / Lam moi (lock()); doi dropdown thi khong khoa - xem core/report.js
   const loader = ReportLoader.create({ setBusy, lockAlways: false });
   const { lock, begin, end } = loader;
   function area(id, path, render) {
@@ -52,7 +45,6 @@
       .always(() => ["#rptKpiSku", "#rptKpiWhs", "#rptKpiQty"].forEach((id) => $(id).removeClass("is-loading")));
   }
 
-  /** Cot "Ton theo kho" cua Top 10 (1 dong): kho ton nhieu nhat + so luong + % tren tong ton ma hang; nhan "+N kho" (re chuot xem du). */
   function whsCell(byWhs, total) {
     const list = Object.entries(byWhs || {}).sort((a, b) => b[1] - a[1]);
     if (!list.length) return "";
@@ -86,7 +78,6 @@
     return area("#rptByWhs", RPT.byWarehouse, (d) => {
       const data = d.data;
       const total = data.reduce((sum, r) => sum + (r.total_qty || 0), 0);
-      // cot ngang + do dai toi thieu: kho ton rat it van thay cot va so luong
       ChartKit.hbar("rptWhsChart", {
         labels: data.map((r) => r.code),
         values: data.map((r) => r.total_qty),
@@ -130,7 +121,6 @@
         },
       });
       $("#rptGroupTotal").text(fmt(total));
-      // bang chu thich: thay ro ca nhom rat nho (so luong + %)
       $("#rptByGroup .rpt-legend tbody").html(
         data
           .map(
@@ -257,7 +247,6 @@
     });
     $(".rpt-card").has(".rpt-loading").addClass("is-loading");
     begin();
-    // done dang ky truoc always: loadAll() bat dau dem request truoc khi end() cua meta chay -> nut van khoa trong lan tai dau
     Api.get(RPT.meta)
       .done((m) => {
         meta = m;

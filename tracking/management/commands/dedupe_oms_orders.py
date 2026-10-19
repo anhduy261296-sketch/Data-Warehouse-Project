@@ -1,11 +1,3 @@
-"""Xoa dong trung lap trong dbo.OMS_ORDERS (do loi xoa cua so cu cua pipeline OMS - da sua trong services/pipeline/oms_orders.py).
-
-    python manage.py dedupe_oms_orders            # chi dem (khong xoa)
-    python manage.py dedupe_oms_orders --apply    # xoa ban thua, giu dong ghi som nhat (_row_id nho nhat)
-
-Trung = giong het moi cot du lieu (bo qua _row_id, _scraped_at va cot tinh san).
-"""
-
 from __future__ import annotations
 
 from django.core.management.base import BaseCommand
@@ -25,7 +17,6 @@ class Command(BaseCommand):
         with connection.cursor() as cursor:
             cursor.execute("SELECT name FROM sys.columns WHERE object_id = OBJECT_ID(%s) AND is_computed = 0 ORDER BY column_id", [TABLE])
             columns = [r[0] for r in cursor.fetchall() if r[0] not in _TECH_COLUMNS]
-            # dau van tay cua dong: moi cot (NULL danh dau rieng de khong lan voi chuoi rong)
             fingerprint = ' + '.join(f"ISNULL(CAST([{c}] AS NVARCHAR(MAX)), N'<NULL>') + N'|'" for c in columns)
             dup_cte = f"""
                 ;WITH d AS (

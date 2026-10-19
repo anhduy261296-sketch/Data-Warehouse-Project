@@ -1,6 +1,3 @@
-"""Danh muc kenh ban OMS -> dbo.OMS_SALES_CHANNELS. KHONG co lich: chay khi bam "Cap nhat kenh ban" o Bao cao > E-commerce
-(web goi Airflow REST API) hoac bam Trigger tren Airflow UI."""
-
 from __future__ import annotations
 import sys
 from pathlib import Path
@@ -34,10 +31,8 @@ with DAG(
     schedule=None,
     catchup=False,
     max_active_runs=1,
-    # khong co lich nen bat san (moi truong dat DAGS_ARE_PAUSED_AT_CREATION=true) de nut tren web chay duoc ngay
     is_paused_upon_creation=False,
     tags=['oms', 'sqlserver', 'manual'],
-    # khong retry: refresh token OMS bi thay moi lan dang nhap, lan loi nen xem log truoc khi chay lai
     default_args={'retries': 0},
 ) as dag:
     PythonOperator(task_id='load_oms_sales_channels', python_callable=load_oms_sales_channels)

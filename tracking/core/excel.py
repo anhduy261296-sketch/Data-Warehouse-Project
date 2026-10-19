@@ -1,9 +1,3 @@
-"""Tao file Excel dung chung cho moi nut "Xuat Excel".
-
-columns = [ExcelColumn('sku', 'SKU', 14), ExcelColumn('qty', 'WMS', 12)]
-return excel_response([ExcelSheet('Ton kho', columns, rows)], 'ton_kho.xlsx')
-"""
-
 from __future__ import annotations
 
 import datetime
@@ -24,8 +18,8 @@ _BOLD = Font(bold=True)
 class ExcelColumn:
     key: str
     header: str
-    width: float | None = None  # None -> tu tinh theo do dai tieu de (toi thieu 14)
-    is_date: bool = False  # chuoi ISO -> ngay Excel dinh dang DD/MM/YYYY
+    width: float | None = None
+    is_date: bool = False
 
 
 @dataclass(frozen=True)
@@ -34,7 +28,7 @@ class ExcelSheet:
     columns: list[ExcelColumn]
     rows: Iterable[dict[str, Any]]
     freeze: str | None = 'A2'
-    total_label: str | None = None  # them dong tong cot cuoi (vd 'Tổng')
+    total_label: str | None = None
 
 
 def _cell(column: ExcelColumn, value: Any) -> Any:

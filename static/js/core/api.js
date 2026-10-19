@@ -1,11 +1,3 @@
-/*
- * Goi API dung chung. Moi trang goi qua Api.* thay vi tu ghep URL / $.getJSON.
- *   Api.get(ENDPOINTS.reports.inventory.kpi, { whs: "WH104" })   -> jqXHR (promise)
- *   Api.url(path, params)                                        -> URL tuyet doi (bo tham so rong)
- *   Api.post(path, data)                                         -> POST kem CSRF token (thao tac ghi)
- *   Api.download(path, params)                                   -> tai file (xuat Excel)
- *   Api.dataTableSource(path, getParams, cache)                  -> ham ajax cho DataTables server-side
- */
 const Api = (function () {
   function fullPath(path) {
     return `${ENDPOINTS.API_BASE}${path}`;
@@ -36,7 +28,6 @@ const Api = (function () {
     window.location.href = url(path, params);
   }
 
-  /** Bo nho dem trang da xem cho bang DataTables (mat khi roi trang). */
   function createPageCache(maxEntries) {
     const store = new Map();
     const limit = maxEntries || APP.PAGE_CACHE_MAX;
@@ -51,10 +42,6 @@ const Api = (function () {
     };
   }
 
-  /**
-   * Nguon du lieu cho DataTables server-side, co cache theo tham so (khong tinh "draw").
-   * getParams(): bo loc hien tai cua trang; cache: tu createPageCache (bo qua -> khong cache).
-   */
   function dataTableSource(path, getParams, cache) {
     return function (d, callback) {
       const draw = d.draw;

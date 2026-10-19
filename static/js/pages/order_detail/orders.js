@@ -1,10 +1,3 @@
-/*
- * Chi tiết đơn hàng > E-com / DMS duyệt / DMS xuất kho / WRT.
- * Template: templates/order_detail/{ecom,dms_duyet,dms_xuatkho,wrt}.html  ->  <table data-table-key="...">
- * Cot visible:false an mac dinh, bat lai bang nut chon cot.
- */
-
-// E-com va DMS xuat kho cung nguon OMS_ORDERS -> cung bo cot
 const OMS_ORDER_DETAIL_COLUMNS = [
   COLUMNS.statusSyncDetail,
   { data: "order_code", title: "Mã đơn hàng" },

@@ -1,11 +1,7 @@
-/* Dinh dang so / ngay gio / HTML dung chung. */
-
 const VN_NUMBER_FORMAT = new Intl.NumberFormat(APP.LOCALE);
-// so luong ton: toi da 2 chu so thap phan
 const VN_QTY_FORMAT = new Intl.NumberFormat(APP.LOCALE, { maximumFractionDigits: 2 });
 const VN_PERCENT_FORMAT = new Intl.NumberFormat(APP.LOCALE, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 
-/** So tien / so luong cho bang don hang: rong -> "—". */
 function formatAmount(value) {
   if (value === null || value === undefined || value === "") {
     return "—";
@@ -17,12 +13,10 @@ function formatAmount(value) {
   return VN_NUMBER_FORMAT.format(num);
 }
 
-/** So luong ton (toi da 2 so le): null/undefined -> "—". */
 function formatQty(value) {
   return value === null || value === undefined ? "—" : VN_QTY_FORMAT.format(value);
 }
 
-/** So tien rut gon cho bieu do / the KPI: 2,1 tỷ - 3,46 triệu - 950 nghìn. */
 function formatMoneyShort(value, digits) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "—";
   const n = Number(value);
@@ -37,7 +31,6 @@ function formatMoneyShort(value, digits) {
   return `${fmt.format(n / unit[0])} ${unit[1]}`;
 }
 
-/** Ty le 0..1 -> "96,1%". */
 function formatRate(value, digits) {
   if (value === null || value === undefined) return "—";
   return `${(value * 100).toLocaleString(APP.LOCALE, { minimumFractionDigits: digits ?? 1, maximumFractionDigits: digits ?? 1 })}%`;
@@ -55,7 +48,6 @@ function renderStatusSyncBadge(value) {
   return `<span class="badge ${cssClass}">${value}</span>`;
 }
 
-/** Thoat ky tu HTML truoc khi chen chuoi tu API vao markup. */
 function escapeHtml(value) {
   return $("<div>")
     .text(value === null || value === undefined ? "" : value)
@@ -74,7 +66,6 @@ const VN_DATE_TIME_FORMAT = new Intl.DateTimeFormat("en-GB", {
 });
 const formatDateTimeCache = new Map();
 
-/** Chuoi ISO -> "dd/mm/yyyy HH:MM:SS" gio Viet Nam. */
 function formatDateTime(value) {
   if (!value) {
     return "—";
@@ -97,13 +88,11 @@ function formatDateTimeUncached(value) {
   return `${get("day")}/${get("month")}/${get("year")} ${get("hour")}:${get("minute")}:${get("second")}`;
 }
 
-/** Thoi diem luu UTC khong kem mui gio (SQL Server) -> hien thi gio Viet Nam. */
 function formatUtcDateTime(value) {
   if (!value) return "—";
   return formatDateTime(/[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`);
 }
 
-/** Bo dau tieng Viet + chu thuong, dung cho tim kiem khong phan biet dau. */
 function normalizeSearchText(value) {
   return (value || "").toString().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
 }

@@ -1,10 +1,3 @@
-/*
- * Tien ich Chart.js dung chung cho trang bao cao (Bao cao > Ton kho, E-commerce). Nap sau chart.umd.min.js.
- *   ChartKit.render(canvasId, config)       -> ve lai bieu do vao canvas (huy ban cu)
- *   ChartKit.valueLabels                    -> plugin in gia tri: cot dung = tren dinh, cot ngang = sau cuoi cot
- *                                              (options.plugins.valueLabels.format(value, index))
- *   ChartKit.hbar(canvasId, {...})          -> cot ngang xep hang; cot rat nho van co do dai toi thieu + nhan so
- */
 const ChartKit = (function () {
   const charts = {};
 
@@ -31,7 +24,6 @@ const ChartKit = (function () {
           ctx.fillText(text, bar.x, bar.y - 5);
           return;
         }
-        // cot ngang: nhan sau cuoi cot; khong du cho (cot dai sat mep) -> in ben trong cot, chu trang
         if (bar.x + 6 + ctx.measureText(text).width <= c.chartArea.right) {
           ctx.fillStyle = APP.COLORS.CHART_TEXT;
           ctx.textAlign = "left";
@@ -46,11 +38,6 @@ const ChartKit = (function () {
     },
   };
 
-  /**
-   * Cot ngang (xep san tu lon -> nho). Thang tuyen tinh (dung ty le); minBarLength de gia tri rat nho van thay.
-   *   labels, values, colors; label(v, i): chu sau cot; tooltip(i): [tieu de, dong 1, ...]; tick(v): nhan truc x
-   *   autoHeight: true -> chieu cao theo so cot (26px/cot); false -> theo CSS cua khung
-   */
   function hbar(id, { labels, values, colors, label, tooltip, tick, autoHeight = true }) {
     if (autoHeight) document.getElementById(id).parentElement.style.height = `${Math.max(220, labels.length * 26 + 40)}px`;
     return render(id, {

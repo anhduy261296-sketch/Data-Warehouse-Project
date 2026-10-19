@@ -1,5 +1,3 @@
-/* Thanh cong cu DataTables: nut chon cot, nut xuat Excel, menu chon cot. */
-
 button.detail-colvis-btn {
   color: #fff;
   background-color: var(--pgi-primary) !important;
@@ -25,7 +23,6 @@ div.dt-button-collection {
   right: 0 !important;
 }
 
-/* Bo loc ngay (Tu ngay / Den ngay) chen vao thanh cong cu */
 .detail-date-input {
   width: 150px;
 }

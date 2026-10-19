@@ -1,11 +1,6 @@
-/*
- * Duong dan API, nhom theo menu (Data Tracking / Chi tiet don hang / Bao cao).
- * Them trang moi: them 1 muc o day, khong viet cung URL trong code trang.
- */
 const ENDPOINTS = Object.freeze({
   API_BASE: "",
 
-  // Menu "Data Tracking"
   dataTracking: Object.freeze({
     ecom: Object.freeze({ report: "/api/recon/ecom/report/", export: "/api/recon/ecom/export/" }),
     dmsDuyet: Object.freeze({ report: "/api/recon/dms-duyet/report/", export: "/api/recon/dms-duyet/export/" }),
@@ -26,7 +21,6 @@ const ENDPOINTS = Object.freeze({
     }),
   }),
 
-  // Menu "Chi tiet don hang"
   orderDetail: Object.freeze({
     ecom: Object.freeze({ report: "/api/detail/ecom/report/", export: "/api/detail/ecom/export/" }),
     dmsDuyet: Object.freeze({ report: "/api/detail/dms-duyet/report/", export: "/api/detail/dms-duyet/export/" }),
@@ -34,7 +28,6 @@ const ENDPOINTS = Object.freeze({
     wrt: Object.freeze({ report: "/api/detail/wrt/report/", export: "/api/detail/wrt/export/" }),
   }),
 
-  // Menu "Bao cao"
   reports: Object.freeze({
     employeeDms: Object.freeze({ report: "/api/detail/employee/dms/report/", export: "/api/detail/employee/dms/export/" }),
     employeeOms: Object.freeze({ report: "/api/detail/employee/oms/report/", export: "/api/detail/employee/oms/export/" }),

@@ -73,11 +73,9 @@ def _login() -> str:
     if isinstance(payload, str) and payload.strip():
         return payload.strip().strip('"')
     if isinstance(payload, dict):
-        # ten truong token khong co dinh (accesstoken / accessToken / access_token / token...) -> so khong phan biet hoa thuong, bo "_"
         for key, value in payload.items():
             if str(key).replace('_', '').lower() in ('accesstoken', 'token') and value:
                 return str(value)
-        # khong in gia tri (co the chua token) - chi in ten truong
         raise RuntimeError(f'API Token SAP khong tra ve token. Cac truong nhan duoc: {sorted(payload)}')
     raise RuntimeError(f'API Token SAP khong tra ve token (phan hoi kieu {type(payload).__name__}, rong hoac khong hop le).')
 
@@ -165,7 +163,6 @@ def _log_run(
 
 
 def last_success_to(target_conn: Any) -> str | None:
-    """Moc den (to_date) cua lan nap SAP Items thanh cong gan nhat - DAG chay tay keo tiep tu day."""
     cursor = target_conn.cursor()
     cursor.execute(f"SELECT MAX(to_date) FROM {TARGET_SCHEMA}.{LOG_TABLE} WHERE status = 'SUCCESS'")
     value = cursor.fetchone()[0]

@@ -1,5 +1,3 @@
-/* Khung trang bao cao dung chung (Bao cao > Ton kho, E-commerce...): header, card, KPI, bang, bieu do, loading, pager */
-
 .rpt-header {
   display: flex;
   justify-content: space-between;
@@ -126,7 +124,6 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-/* chi o du lieu (DataTables gan className cho ca th -> tieu de giu mau chung) */
 .rpt-table tbody .total {
   color: #1f2430;
   font-weight: 700;
@@ -137,7 +134,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* ten SP: chiem het be ngang o, chi cat "..." o mep o */
 td.rpt-name-fill {
   white-space: nowrap;
   overflow: hidden;
@@ -159,7 +155,6 @@ td.rpt-name-fill {
   position: relative;
   height: 260px;
 }
-/* gutter ngang = gutter dọc (16px) */
 .rpt-row {
   margin-left: -8px;
   margin-right: -8px;
@@ -209,7 +204,6 @@ td.rpt-name-fill {
 .rpt-actions {
   gap: 8px;
 }
-/* bieu do tron + bang chu thich (Bao cao > Ton kho: theo nhom hang) */
 .rpt-donut-wrap {
   display: flex;
   align-items: center;

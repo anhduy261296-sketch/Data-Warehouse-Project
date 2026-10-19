@@ -1,10 +1,3 @@
-/*
- * Root stylesheet - base.html nap tren MOI trang.
- *   base/        token, font, ghi de theme Bootstrap
- *   components/  thanh phan dung chung (loading, DataTables...)
- * CSS rieng tung trang nam o pages/<menu>/<trang>.css, nap qua {% block page_css %}.
- * Thu tu @import = thu tu cascade, khong doi tuy tien.
- */
 @import url("base/variables.css");
 @import url("base/typography.css");
 @import url("base/theme.css");

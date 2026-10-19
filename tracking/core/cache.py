@@ -1,17 +1,3 @@
-"""Cache ket qua bao cao theo PHIEN BAN DU LIEU - dung chung cho moi API bao cao / bang DataTables.
-
-Moi API khai bao no doc tu NGUON nao (SOURCES). Phien ban 1 nguon = thoi diem pipeline nap nguon do gan nhat
-(bang *_Load_Log / RECON_Refresh_Log). Khoa cache = ten + tham so + phien ban cac nguon:
-  - DAG nap du lieu moi -> phien ban doi -> khoa doi -> tu lay du lieu moi (cham nhat VERSION_TTL giay), khong can xoa tay.
-  - Phat hien phien ban moi -> xoa sach vung cache (giai phong RAM ngay, khong cho het TTL).
-  - Tran RAM moi tien trinh ~= CACHES['reports'] MAX_ENTRIES x CACHE_MAX_ITEM_BYTES (ket qua lon hon thi khong cache).
-
-    @cached('wms_inventory', 'sap_items')          # ham nhan params (request.GET) tra dict
-    def get_kpi(params): ...
-
-    cached_call('recon-ecom', ('recon',), lambda: run_detail_report(cfg, params), params)
-"""
-
 from __future__ import annotations
 
 import functools
@@ -27,13 +13,11 @@ from ..constants import REPORT_CACHE_MAX_ITEM_BYTES, REPORT_CACHE_TTL, REPORT_VE
 
 cache = caches['reports']
 
-# Nguon du lieu -> SQL tra 1 gia tri thay doi moi khi pipeline nap lai nguon do.
 SOURCES: dict[str, str] = {
     'wms_inventory': "SELECT MAX(loaded_at) FROM dbo.WMS_INVENTORY_Load_Log WHERE status = 'SUCCESS'",
     'sap_items': 'SELECT MAX(LoadedAt) FROM dbo.SAP_ITEMS',
     'sap_item_groups': 'SELECT MAX(LoadedAt) FROM dbo.SAP_ITEM_GROUPS',
     'sap_uom': 'SELECT MAX(LoadedAt) FROM dbo.SAP_UOM',
-    # DAG doi soat lam moi ca RECON_* lan STATUS_TRACKING (cot Status Sync cua bang chi tiet)
     'recon': 'SELECT MAX(refreshed_at) FROM dbo.RECON_Refresh_Log',
     'oms_orders': 'SELECT MAX(loaded_at) FROM dbo.OMS_ORDERS_Load_Log',
     'oms_sales_channels': 'SELECT MAX(loaded_at) FROM dbo.OMS_SALES_CHANNELS',
@@ -41,7 +25,6 @@ SOURCES: dict[str, str] = {
     'wrt_so': 'SELECT MAX(loaded_at) FROM dbo.WRT_SO_Load_Log',
 }
 
-# tham so khong anh huong ket qua: '_' (chong cache cua jQuery), 'draw' (so thu tu request cua DataTables)
 _IGNORED_PARAMS = {'_', 'draw'}
 _LAST_SEEN_KEY = 'reports:last_versions'
 
@@ -55,7 +38,6 @@ def _source_version(source: str) -> str:
             version = str(cursor.fetchone()[0])
         last_seen = cache.get(_LAST_SEEN_KEY) or {}
         if source in last_seen and last_seen[source] != version:
-            # du lieu moi -> bo het ket qua cu (cua moi nguon) de giai phong RAM; cac nguon khac tu doc lai version
             cache.clear()
             last_seen = {}
         cache.set(_LAST_SEEN_KEY, {**last_seen, source: version}, None)
@@ -64,7 +46,6 @@ def _source_version(source: str) -> str:
 
 
 def invalidate_source(source: str) -> None:
-    """Doc lai phien ban nguon ngay o request sau (vd vua cap nhat bang tay) thay vi cho het REPORT_VERSION_TTL."""
     cache.delete(f'reports:version:{source}')
 
 
@@ -89,7 +70,6 @@ def get_or_set(key: str, producer: Callable[[], Any]) -> Any:
 
 
 def cached_call(name: str, sources: Iterable[str], producer: Callable[[], dict[str, Any]], params: Any = None) -> dict[str, Any]:
-    """Lay ket qua tu cache (hoac tinh roi luu). DataTables: tra lai dung 'draw' cua request hien tai."""
     params = params if params is not None else {}
     result = get_or_set(cache_key(name, sources, params), producer)
     if isinstance(result, dict) and 'draw' in result and 'draw' in params:
@@ -99,7 +79,6 @@ def cached_call(name: str, sources: Iterable[str], producer: Callable[[], dict[s
 
 
 def cached(*sources: str):
-    """Decorator cho ham bao cao fn(params) -> dict."""
 
     def decorator(fn):
         name = f'{fn.__module__}.{fn.__name__}'

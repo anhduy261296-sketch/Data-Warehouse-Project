@@ -1,4 +1,3 @@
-/* Trang Đăng nhập (templates/accounts/login.html): hien/an mat khau, bat nut Dang nhap khi du thong tin, doi ma captcha. */
 (function () {
   const input = document.getElementById("loginPassword");
   const toggle = document.getElementById("loginTogglePassword");

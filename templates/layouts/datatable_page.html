@@ -1,14 +1,5 @@
 {% extends "base.html" %}
-{% comment %}
-  Layout chung cho trang 1 bang DataTables (Data Tracking, Chi tiet don hang, Bao cao NV).
-  Trang con khai bao:
-    {% block title %}       tieu de tab
-    {% block card_title %}  tieu de card
-    {% block table_id %}    id the <table> (giu nguyen id cu)
-    {% block table_key %}   khoa cau hinh cot trong static/js/pages/<menu>/*.js
-    {% block page_js %}     file JS khai bao cot cua menu
-  Header bang do DataTables tu tao tu "title" cua cot -> khong viet <th> o day.
-{% endcomment %}
+
 {% block early_loading %}<script>Loading.show("Đang tải dữ liệu...");</script>{% endblock %}
 {% block content %}
 <div class="card shadow mb-4">

@@ -1,13 +1,3 @@
-"""Danh muc kenh ban hang OMS (offline + online) -> dbo.OMS_SALES_CHANNELS. It thay doi nen KHONG co lich - chay tay khi can:
-
-  - Web: Bao cao > E-commerce > nut "Cap nhat kenh ban" (quan tri vien) -> kich hoat DAG oms_sales_channels_manual
-  - Airflow UI: Trigger DAG oms_sales_channels_manual
-  - Lenh: docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -w /opt/airflow/project airflow-scheduler \
-              python -m services.pipeline.oms_sales_channels
-
-Chay trong Airflow vi dung chung refresh token OMS va connection sqlserver_tracking voi pipeline oms_orders.
-"""
-
 from __future__ import annotations
 import logging
 import os
@@ -20,7 +10,6 @@ logger = logging.getLogger(__name__)
 OMS_SALES_CHANNELS_URL = os.environ.get('OMS_SALES_CHANNELS_URL', 'https://som-api.smartlogvn.com/api/sales-channels')
 OFFLINE_PAGE_SIZE = 100
 TARGET_TABLE = 'OMS_SALES_CHANNELS'
-# Kenh online OMS tra description la khoa dich (SETTING.SALE_CHANNEL.ONLINE.TIK_DES) -> dat ten hien thi (ngan) o day
 DISPLAY_NAMES = {'TIK': 'Tiki', 'TTS': 'TikTok', 'LAZ': 'Lazada', 'SPE': 'Shopee', 'PANCAKE': 'Pancake'}
 COLUMNS = ('code', 'display_name', 'description', 'operation', 'status', 'priority_order', 'oms_id', 'created_date', 'updated_date')
 

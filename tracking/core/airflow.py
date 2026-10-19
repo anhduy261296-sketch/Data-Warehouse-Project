@@ -1,9 +1,3 @@
-"""Goi Airflow REST API (v1, basic auth) tu web: kich hoat DAG chay tay + xem trang thai lan chay.
-
-Can bat basic auth cho API Airflow: AIRFLOW__API__AUTH_BACKENDS (docker-compose.yml). Tai khoan: AIRFLOW_API_USER/PASSWORD,
-mac dinh dung AIRFLOW_ADMIN_USER/PASSWORD trong .env (xem tracking/constants.py).
-"""
-
 from __future__ import annotations
 import base64
 import json
