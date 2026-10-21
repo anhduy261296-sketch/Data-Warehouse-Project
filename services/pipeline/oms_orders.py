@@ -22,6 +22,7 @@ PENDING_TABLE = 'OMS_ORDERS_Pending'
 VN_UTC_OFFSET = dt.timedelta(hours=7)
 VN_TZ = dt.timezone(VN_UTC_OFFSET)
 TERMINAL_STATUSES = {'Delivered', 'Cancelled', 'Refunded', 'RefundRejected'}
+RETURN_DONE_STATUSES = {'PackageReturned', 'Refunded'}
 
 
 def _get_stored_refresh_token() -> str | None:
@@ -219,6 +220,12 @@ def _sync_pending_table(target_conn: Any, rows: list[dict]) -> None:
             f'\n            IF NOT EXISTS (SELECT 1 FROM {TARGET_SCHEMA}.{PENDING_TABLE} WHERE order_number = %s)\n                INSERT INTO {TARGET_SCHEMA}.{PENDING_TABLE} (order_number, created_date, FirstSeenAt)\n                VALUES (%s, %s, SYSUTCDATETIME())\n            ',
             (order_number, order_number, created_date),
         )
+    done_list = ', '.join(f"'{status}'" for status in sorted(RETURN_DONE_STATUSES))
+    cursor.execute(
+        f'DELETE p FROM {TARGET_SCHEMA}.{PENDING_TABLE} p WHERE p.order_number IN ('
+        f"SELECT order_number FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE order_type = 'Return' AND status IN ({done_list}) "
+        f"UNION SELECT original_order_number FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE order_type = 'Return' AND status IN ({done_list}))"
+    )
 
 
 def _log_run(target_conn: Any, start_at: str, end_at: str, row_count: int, status: str) -> None:
