@@ -102,7 +102,8 @@ if os.getenv('HTTPS_ENABLED', 'False').lower() in {'1', 'true', 'yes'}:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '3600'))
-SESSION_COOKIE_AGE = int(os.getenv('SESSION_COOKIE_AGE', str(60 * 60 * 24 * 14)))
+SESSION_COOKIE_AGE = int(os.getenv('SESSION_COOKIE_AGE', str(60 * 60 * 12)))
+SESSION_EXPIRE_AT_BROWSER_CLOSE = os.getenv('SESSION_EXPIRE_AT_BROWSER_CLOSE', 'True').lower() in {'1', 'true', 'yes'}
 LOGIN_LOCKOUT_ATTEMPTS = int(os.getenv('LOGIN_LOCKOUT_ATTEMPTS', '5'))
 LOGIN_LOCKOUT_IP_ATTEMPTS = int(os.getenv('LOGIN_LOCKOUT_IP_ATTEMPTS', '20'))
 LOGIN_LOCKOUT_MINUTES = int(os.getenv('LOGIN_LOCKOUT_MINUTES', '15'))

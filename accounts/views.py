@@ -52,6 +52,7 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
+            request.session.clear_expired()
             LoginActivityLog.objects.create(
                 user=user,
                 username_attempted=username,
@@ -85,6 +86,8 @@ def login_captcha(request):
 
 @login_required
 def logout_view(request):
+    if request.method != 'POST':
+        return redirect(settings.LOGIN_REDIRECT_URL)
     LoginActivityLog.objects.create(
         user=request.user,
         username_attempted=request.user.username,
