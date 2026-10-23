@@ -7,7 +7,7 @@ from ..constants import OMS_ORDERS_DAG_ID, OMS_SALES_CHANNELS_DAG_ID
 from ..core import airflow
 from ..core.cache import invalidate_source
 from ..core.excel import ExcelColumn, ExcelSheet, excel_response
-from ..reports import ecom, stock
+from ..queries import ecom, stock
 
 
 def _json(fn):

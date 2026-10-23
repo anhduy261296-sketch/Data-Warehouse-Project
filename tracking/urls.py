@@ -1,9 +1,9 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from .reports.orders import DETAIL_CONFIGS, EMPLOYEE_REPORT_CONFIG_DMS, EMPLOYEE_REPORT_CONFIG_OMS, RECON_CONFIGS
-from .reports.ecom import ECOM_DETAIL_CONFIG
-from .reports.recon_inventory import INVENTORY_CONFIG
+from .queries.orders import DETAIL_CONFIGS, EMPLOYEE_REPORT_CONFIG_DMS, EMPLOYEE_REPORT_CONFIG_OMS, RECON_CONFIGS
+from .queries.ecom import ECOM_DETAIL_CONFIG
+from .queries.recon_inventory import INVENTORY_CONFIG
 from .views import data_tracking, reports
 from .menu import HOME_URL_NAME
 from .views.common import datatable_export_view, datatable_report_view, page_view

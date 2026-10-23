@@ -5,9 +5,9 @@ import re
 from django.http import JsonResponse
 
 from ..core.excel import ExcelColumn, ExcelSheet, excel_response
-from ..reports.orders import RECON_CONFIGS
+from ..queries.orders import RECON_CONFIGS
 from ..core.datatables import get_distinct_so_status
-from ..reports.recon_inventory import get_inventory_detail, get_inventory_diff_list, get_inventory_meta
+from ..queries.recon_inventory import get_inventory_detail, get_inventory_diff_list, get_inventory_meta
 
 
 def _col(key: str, header: str, width: float) -> ExcelColumn:
