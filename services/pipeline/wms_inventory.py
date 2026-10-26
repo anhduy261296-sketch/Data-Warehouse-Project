@@ -108,7 +108,7 @@ def _assert_table_exists(target_conn: Any) -> None:
 def _diff_and_log_changes(target_conn: Any, whseid: str, new_rows: list[dict]) -> int:
     cursor = target_conn.cursor()
     old_cols = ', '.join((f'[{c}]' for c in (*_BUSINESS_KEY, *_TRACKED_FIELDS)))
-    cursor.execute(f'SELECT {old_cols} FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE _whseid = %s', (whseid,))
+    cursor.execute(f'SELECT {old_cols} FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE whseid = %s', (whseid,))
     old_columns = [d[0] for d in cursor.description]
     old_by_key: dict[tuple, dict] = {}
     for row in cursor.fetchall():
@@ -133,7 +133,7 @@ def _diff_and_log_changes(target_conn: Any, whseid: str, new_rows: list[dict]) -
     key_cols = ', '.join((f'[{c}]' for c in _BUSINESS_KEY))
     old_val_cols = ', '.join((f'[old_{f}]' for f in _TRACKED_FIELDS))
     new_val_cols = ', '.join((f'[new_{f}]' for f in _TRACKED_FIELDS))
-    sql = f"INSERT INTO {TARGET_SCHEMA}.{CHANGELOG_TABLE} (_whseid, {key_cols}, change_type, {old_val_cols}, {new_val_cols}, _change_date, detected_at) VALUES (%s, {', '.join(('%s' for _ in _BUSINESS_KEY))}, %s, {', '.join(('%s' for _ in _TRACKED_FIELDS))}, {', '.join(('%s' for _ in _TRACKED_FIELDS))}, CAST(SYSUTCDATETIME() AS DATE), SYSUTCDATETIME())"
+    sql = f"INSERT INTO {TARGET_SCHEMA}.{CHANGELOG_TABLE} (whseid, {key_cols}, change_type, {old_val_cols}, {new_val_cols}, _change_date, detected_at) VALUES (%s, {', '.join(('%s' for _ in _BUSINESS_KEY))}, %s, {', '.join(('%s' for _ in _TRACKED_FIELDS))}, {', '.join(('%s' for _ in _TRACKED_FIELDS))}, CAST(SYSUTCDATETIME() AS DATE), SYSUTCDATETIME())"
     params = [(whseid, *change) for change in changes]
     cursor.executemany(sql, params)
     return len(changes)
@@ -142,7 +142,7 @@ def _diff_and_log_changes(target_conn: Any, whseid: str, new_rows: list[dict]) -
 def _replace_warehouse(target_conn: Any, whseid: str, rows: list[dict]) -> int:
     changed_count = _diff_and_log_changes(target_conn, whseid, rows)
     cursor = target_conn.cursor()
-    cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE _whseid = %s', (whseid,))
+    cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE whseid = %s', (whseid,))
     if not rows:
         return changed_count
     columns: list[str] = []
@@ -156,8 +156,8 @@ def _replace_warehouse(target_conn: Any, whseid: str, rows: list[dict]) -> int:
                 columns.append(key)
     insert_cols = ', '.join((f'[{c}]' for c in columns))
     placeholders = ', '.join(('%s' for _ in columns))
-    sql = f'INSERT INTO {TARGET_SCHEMA}.{TARGET_TABLE} (_whseid, _storerkey, {insert_cols}, _scraped_at) VALUES (%s, %s, {placeholders}, SYSUTCDATETIME())'
-    params = [(whseid, WMS_STORERKEY, *(row.get(c) for c in columns)) for row in rows]
+    sql = f'INSERT INTO {TARGET_SCHEMA}.{TARGET_TABLE} (whseid, {insert_cols}, _scraped_at) VALUES (%s, {placeholders}, SYSUTCDATETIME())'
+    params = [(whseid, *(row.get(c) for c in columns)) for row in rows]
     enable_fast_executemany(cursor)
     cursor.executemany(sql, params)
     return changed_count

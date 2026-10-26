@@ -183,9 +183,9 @@ def _merge_rows(target_conn: Any, whseid: str, rows: list[dict]) -> None:
         )
         match_params = [v for v in key_values if v is not None]
         column_values = [values[c] for c in columns]
-        params = [*match_params, *column_values, *match_params, whseid, WMS_STORERKEY, *column_values]
+        params = [*match_params, *column_values, *match_params, whseid, *column_values]
         cursor.execute(
-            f'\n            IF EXISTS (SELECT 1 FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE {exists_clause})\n                UPDATE {TARGET_SCHEMA}.{TARGET_TABLE}\n                SET {set_clause}, _scraped_at = SYSUTCDATETIME()\n                WHERE {exists_clause}\n            ELSE\n                INSERT INTO {TARGET_SCHEMA}.{TARGET_TABLE}\n                    (_whseid, _storerkey, {insert_cols})\n                VALUES (%s, %s, {insert_placeholders})\n            ',
+            f'\n            IF EXISTS (SELECT 1 FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE {exists_clause})\n                UPDATE {TARGET_SCHEMA}.{TARGET_TABLE}\n                SET {set_clause}, _scraped_at = SYSUTCDATETIME()\n                WHERE {exists_clause}\n            ELSE\n                INSERT INTO {TARGET_SCHEMA}.{TARGET_TABLE}\n                    (whseid, {insert_cols})\n                VALUES (%s, {insert_placeholders})\n            ',
             params,
         )
 
@@ -265,7 +265,7 @@ def _daterange_desc(start_at: str, end_at: str) -> list[tuple[str, str]]:
 def _delete_window(target_conn: Any, whseid: str, from_date: str, to_date: str) -> None:
     cursor = target_conn.cursor()
     cursor.execute(
-        f'DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE _whseid = %s AND adddate >= %s AND adddate < DATEADD(day, 1, %s)',
+        f'DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE whseid = %s AND adddate >= %s AND adddate < DATEADD(day, 1, %s)',
         (whseid, from_date[:10], to_date[:10]),
     )
 

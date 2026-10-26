@@ -39,7 +39,7 @@ def _filters(params: Any) -> tuple[str, list[Any]]:
         args.append(group)
     whs = (params.get('whs') or '').strip().upper()
     if _WHSE_RE.match(whs):
-        where.append('w._whseid = %s')
+        where.append('w.whseid = %s')
         args.append(whs)
     status = (params.get('status') or '').strip()
     if status:
@@ -56,7 +56,7 @@ def _warehouses(cursor: Any) -> list[dict[str, str]]:
 
 
 def _load_warehouses(cursor: Any) -> list[dict[str, str]]:
-    cursor.execute('SELECT DISTINCT _whseid FROM dbo.WMS_INVENTORY')
+    cursor.execute('SELECT DISTINCT whseid FROM dbo.WMS_INVENTORY')
     codes = sorted((r[0] for r in cursor.fetchall() if _WHSE_RE.match(r[0] or '')))
     cursor.execute('SELECT WhsCode, MAX(WhsName) FROM dbo.SAP_INVENTORY GROUP BY WhsCode')
     names = {code: name for code, name in cursor.fetchall()}
@@ -88,14 +88,14 @@ def get_meta(_params: Any = None) -> dict[str, Any]:
 def get_kpi(params: Any) -> dict[str, Any]:
     where, args = _filters(params)
     with connection.cursor() as cursor:
-        cursor.execute(f'SELECT COUNT(DISTINCT w.sku), COUNT(DISTINCT w._whseid), ISNULL(SUM({_QTY}), 0) {_FROM} WHERE {where}', args)
+        cursor.execute(f'SELECT COUNT(DISTINCT w.sku), COUNT(DISTINCT w.whseid), ISNULL(SUM({_QTY}), 0) {_FROM} WHERE {where}', args)
         sku_count, whs_count, total_qty = cursor.fetchone()
     return {'sku_count': sku_count, 'warehouse_count': whs_count, 'total_qty': _num(total_qty)}
 
 
 def _sku_agg(warehouses: list[str], where: str) -> str:
     codes = [c for c in warehouses if _WHSE_RE.match(c)]
-    pivot = ''.join((f", SUM(CASE WHEN w._whseid = '{code}' THEN {_QTY} ELSE 0 END) AS [{code}]" for code in codes))
+    pivot = ''.join((f", SUM(CASE WHEN w.whseid = '{code}' THEN {_QTY} ELSE 0 END) AS [{code}]" for code in codes))
     pivot_out = ''.join((f', a.[{code}]' for code in codes))
     return f"""
         ;WITH a AS (
@@ -148,7 +148,7 @@ def get_by_sku(params: Any) -> dict[str, Any]:
         if data:
             codes = [r['sku'] for r in data]
             cursor.execute(
-                f"SELECT w.sku, w._whseid, SUM({_QTY}) {_FROM} WHERE {where} AND w.sku IN ({', '.join(['%s'] * len(codes))}) GROUP BY w.sku, w._whseid",
+                f"SELECT w.sku, w.whseid, SUM({_QTY}) {_FROM} WHERE {where} AND w.sku IN ({', '.join(['%s'] * len(codes))}) GROUP BY w.sku, w.whseid",
                 [*args, *codes],
             )
             split: dict[str, dict[str, Any]] = {}
@@ -186,7 +186,7 @@ def get_top_sku(params: Any) -> dict[str, Any]:
         if top:
             codes = [r['sku'] for r in top]
             cursor.execute(
-                f"SELECT w.sku, w._whseid, SUM({_QTY}) {_FROM} WHERE {where} AND w.sku IN ({', '.join(['%s'] * len(codes))}) GROUP BY w.sku, w._whseid",
+                f"SELECT w.sku, w.whseid, SUM({_QTY}) {_FROM} WHERE {where} AND w.sku IN ({', '.join(['%s'] * len(codes))}) GROUP BY w.sku, w.whseid",
                 [*args, *codes],
             )
             split: dict[str, dict[str, float]] = {}
@@ -203,7 +203,7 @@ def get_by_warehouse(params: Any) -> dict[str, Any]:
     with connection.cursor() as cursor:
         names = {w['code']: w['name'] for w in _warehouses(cursor)}
         cursor.execute(
-            f'SELECT w._whseid AS code, SUM({_QTY}) AS total_qty, COUNT(DISTINCT w.sku) AS sku_count {_FROM} WHERE {where} GROUP BY w._whseid ORDER BY total_qty DESC',
+            f'SELECT w.whseid AS code, SUM({_QTY}) AS total_qty, COUNT(DISTINCT w.sku) AS sku_count {_FROM} WHERE {where} GROUP BY w.whseid ORDER BY total_qty DESC',
             args,
         )
         data = _rows(cursor)
@@ -242,9 +242,9 @@ def _paged_sql(agg_sql: str, cols: str, order_sql: str) -> str:
 def _location_sql(where: str, order_sql: str) -> str:
     return _paged_sql(
         f"""
-        SELECT w.sku, w._whseid AS whs, ISNULL(w.status, '') AS status, MAX(w.description) AS wms_name,
+        SELECT w.sku, w.whseid AS whs, ISNULL(w.status, '') AS status, MAX(w.description) AS wms_name,
                MAX(w.uom) AS wms_uom, SUM({_QTY}) AS qty
-        {_FROM} WHERE {where} GROUP BY w.sku, w._whseid, w.status""",
+        {_FROM} WHERE {where} GROUP BY w.sku, w.whseid, w.status""",
         'a.whs AS whs, a.status AS status, a.qty',
         order_sql,
     )
@@ -263,10 +263,10 @@ def get_by_location(params: Any) -> dict[str, Any]:
     order_sql = _location_order(params)
     with connection.cursor() as cursor:
         names = {w['code']: w['name'] for w in _warehouses(cursor)}
-        cursor.execute(f'SELECT COUNT(*) FROM (SELECT 1 AS x {_FROM} WHERE {where} GROUP BY w.sku, w._whseid, w.status) t', args)
+        cursor.execute(f'SELECT COUNT(*) FROM (SELECT 1 AS x {_FROM} WHERE {where} GROUP BY w.sku, w.whseid, w.status) t', args)
         filtered = cursor.fetchone()[0]
         if args:
-            cursor.execute('SELECT COUNT(*) FROM (SELECT 1 AS x FROM dbo.WMS_INVENTORY GROUP BY sku, _whseid, status) t')
+            cursor.execute('SELECT COUNT(*) FROM (SELECT 1 AS x FROM dbo.WMS_INVENTORY GROUP BY sku, whseid, status) t')
             total = cursor.fetchone()[0]
         else:
             total = filtered

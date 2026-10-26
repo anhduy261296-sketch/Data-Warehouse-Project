@@ -163,9 +163,9 @@ def _wms_status_change_rows(cursor: Any, item_code: str, whs_code: str, wms_whse
         f"""
         SELECT TOP {INVENTORY_DETAIL_MAX_ROWS} t.status, t.tostatus, t.trantype, t.sourcekey, t.tolpnid, DATEADD(hour, 7, t.adddate),
                CASE WHEN t.tostatus = %s THEN t.qty ELSE -t.qty END,
-               (SELECT TOP 1 i.externreceiptkey FROM dbo.WMS_INBOUND i WHERE i._whseid = t._whseid AND i.lpnid = t.tolpnid)
+               (SELECT TOP 1 i.externreceiptkey FROM dbo.WMS_INBOUND i WHERE i.whseid = t.whseid AND i.lpnid = t.tolpnid)
         FROM dbo.WMS_TRANSACTION t
-        WHERE t.sku = %s AND t._whseid = %s AND ISNULL(t.tostatus, '') <> '' AND t.status <> t.tostatus AND (t.status = %s OR t.tostatus = %s)
+        WHERE t.sku = %s AND t.whseid = %s AND ISNULL(t.tostatus, '') <> '' AND t.status <> t.tostatus AND (t.status = %s OR t.tostatus = %s)
         ORDER BY t.adddate DESC
         """,
         [status_item, item_code, wms_whse, status_item, status_item],
@@ -238,12 +238,12 @@ def get_inventory_detail(item_code: str, whs_code: str, status_item: str) -> dic
                 SELECT t.externreceiptkey AS doc_no, TRY_CONVERT(DATETIME2, ISNULL(t.datereceived, t.adddate)) AS doc_date, 'I' AS src, t.type AS doc_type,
                        TRY_CONVERT(DECIMAL(21,6), t.qtyreceivedpcs) AS qty
                 FROM dbo.WMS_INBOUND t
-                WHERE t.sku = %s AND t._whseid = %s {wms_status_sql} AND TRY_CONVERT(DECIMAL(21,6), t.qtyreceivedpcs) <> 0
+                WHERE t.sku = %s AND t.whseid = %s {wms_status_sql} AND TRY_CONVERT(DECIMAL(21,6), t.qtyreceivedpcs) <> 0
                 UNION ALL
                 SELECT t.externorderkey, MAX(TRY_CONVERT(DATETIME2, ISNULL(t.actualshipdate, t.adddate))), 'O', MAX(t.type),
                        -MAX(TRY_CONVERT(DECIMAL(21,6), t.shippedqtypcs))
                 FROM dbo.WMS_OUTBOUND t
-                WHERE t.sku = %s AND t._whseid = %s {wms_status_sql} AND TRY_CONVERT(DECIMAL(21,6), t.shippedqtypcs) <> 0
+                WHERE t.sku = %s AND t.whseid = %s {wms_status_sql} AND TRY_CONVERT(DECIMAL(21,6), t.shippedqtypcs) <> 0
                 GROUP BY t.externorderkey, t.orderkey, t.orderlinenumber
             ) x
             ORDER BY doc_date DESC

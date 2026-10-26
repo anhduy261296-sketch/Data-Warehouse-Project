@@ -161,7 +161,7 @@ def _ids_stored_on_other_day(target_conn: Any, whseid: str, day: dt.date, rows: 
     for i in range(0, len(ids), 1000):
         chunk = ids[i : i + 1000]
         cursor.execute(
-            f"SELECT COUNT(*) FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE id IN ({', '.join(['%s'] * len(chunk))}) AND NOT (_whseid = %s AND _txn_date = %s)",
+            f"SELECT COUNT(*) FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE id IN ({', '.join(['%s'] * len(chunk))}) AND NOT (whseid = %s AND _txn_date = %s)",
             (*chunk, whseid, day),
         )
         found += cursor.fetchone()[0]
@@ -253,12 +253,14 @@ def _to_db_row(whseid: str, day: dt.date, row: dict) -> tuple:
     values = []
     for col in COLUMNS:
         value = row_ci.get(col)
-        if col in DATETIME_COLUMNS:
+        if col == 'whseid' and not value:
+            value = whseid
+        elif col in DATETIME_COLUMNS:
             value = _to_datetime(value)
         elif col in DECIMAL_COLUMNS:
             value = _to_decimal(value)
         values.append(value)
-    return (whseid, day, *values)
+    return (day, *values)
 
 
 def _assert_table_exists(target_conn: Any) -> None:
@@ -267,18 +269,18 @@ def _assert_table_exists(target_conn: Any) -> None:
 
 def _replace_day(target_conn: Any, whseid: str, day: dt.date, rows: list[dict]) -> None:
     cursor = target_conn.cursor()
-    cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE _whseid = %s AND _txn_date = %s', (whseid, day))
+    cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE whseid = %s AND _txn_date = %s', (whseid, day))
     if not rows:
         return
-    insert_cols = ', '.join(('_whseid', '_txn_date', *(f'[{c}]' for c in COLUMNS)))
-    per_row = len(COLUMNS) + 2
+    insert_cols = ', '.join(('_txn_date', *(f'[{c}]' for c in COLUMNS)))
+    per_row = len(COLUMNS) + 1
     batch_size = max(1, MAX_SQL_PARAMS // per_row)
     placeholder = '(' + ', '.join(['%s'] * per_row) + ')'
     db_rows = [_to_db_row(whseid, day, row) for row in rows]
     replaced = 0
     for i in range(0, len(db_rows), batch_size):
         batch = db_rows[i : i + batch_size]
-        ids = [r[2] for r in batch]
+        ids = [r[1] for r in batch]
         cursor.execute(f"DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE id IN ({', '.join(['%s'] * len(ids))})", tuple(ids))
         replaced += cursor.rowcount or 0
         cursor.execute(

@@ -88,7 +88,7 @@ def _log_refresh(target_conn: Any, table_name: str, row_count: int, status: str)
 INVENTORY_TABLE = 'RECON_INVENTORY'
 _STATUS_FREE_SQL = ', '.join((f"'{w}'" for w in STATUS_FREE_WAREHOUSES))
 _SAP_STATUS_ITEM_EXPR = f"CASE WHEN WhsCode IN ({_STATUS_FREE_SQL}) THEN '' ELSE StatusItem END"
-_WMS_STATUS_ITEM_EXPR = f"CASE WHEN 'W' + SUBSTRING(_whseid, 3, 10) IN ({_STATUS_FREE_SQL}) THEN '' ELSE ISNULL(status, '') END"
+_WMS_STATUS_ITEM_EXPR = f"CASE WHEN 'W' + SUBSTRING(whseid, 3, 10) IN ({_STATUS_FREE_SQL}) THEN '' ELSE ISNULL(status, '') END"
 _INVENTORY_SQL = f"""
 WITH S AS (
     SELECT ItemCode, WhsCode, {_SAP_STATUS_ITEM_EXPR} AS StatusItem, MAX(ItemName) AS ItemName, MAX(WhsName) AS WhsName,
@@ -97,10 +97,10 @@ WITH S AS (
     GROUP BY ItemCode, WhsCode, {_SAP_STATUS_ITEM_EXPR}
 ),
 W AS (
-    SELECT sku AS ItemCode, 'W' + SUBSTRING(_whseid, 3, 10) AS WhsCode, {_WMS_STATUS_ITEM_EXPR} AS StatusItem,
+    SELECT sku AS ItemCode, 'W' + SUBSTRING(whseid, 3, 10) AS WhsCode, {_WMS_STATUS_ITEM_EXPR} AS StatusItem,
            MAX(description) AS ItemName, SUM(TRY_CONVERT(DECIMAL(21,6), qty)) AS Qty, MAX(uom) AS Uom
     FROM dbo.WMS_INVENTORY
-    GROUP BY sku, _whseid, {_WMS_STATUS_ITEM_EXPR}
+    GROUP BY sku, whseid, {_WMS_STATUS_ITEM_EXPR}
 ),
 WHS AS (
     SELECT WhsCode, MAX(WhsName) AS WhsName FROM dbo.SAP_INVENTORY GROUP BY WhsCode
