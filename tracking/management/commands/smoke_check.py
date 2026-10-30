@@ -30,8 +30,34 @@ PAGES = [
     'detail-employee-oms',
     'report-inventory',
     'report-ecom',
+    'zns-templates',
+    'zns-send',
+    'zns-template-new',
 ]
-SKIPPED = {'login', 'logout', 'login-captcha', 'home', 'report-ecom-channels-refresh', 'report-ecom-channels-refresh-status'}
+SKIPPED = {
+    'login',
+    'logout',
+    'login-captcha',
+    'home',
+    'report-ecom-channels-refresh',
+    'report-ecom-channels-refresh-status',
+    'zns-template-list',
+    'zns-template-edit',
+    'zns-template-save',
+    'zns-template-export',
+    'zns-template-import',
+    'zns-template-sample',
+    'zns-template-detail',
+    'zns-template-active',
+    'zns-send-sample',
+    'zns-send-upload',
+    'zns-send-evaluate',
+    'zns-send-confirm',
+    'zns-batch-list',
+    'zns-batch-detail',
+    'zns-batch-cancel',
+    'zns-batch-export',
+}
 UNSTABLE_ORDER = ('recon-', 'detail-')
 
 

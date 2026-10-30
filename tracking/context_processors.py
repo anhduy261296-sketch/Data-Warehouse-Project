@@ -10,7 +10,11 @@ def sidebar_menu(request) -> dict[str, Any]:
     current = match.url_name if match else None
     groups = []
     for group in MENU:
-        items = [{'label': i.label, 'url_name': i.url_name, 'active': i.url_name == current} for i in group.items if not i.hidden]
+        items = [
+            {'label': i.label, 'url_name': i.url_name, 'active': current == i.url_name or current in i.active_for}
+            for i in group.items
+            if not i.hidden
+        ]
         if items:
             groups.append(
                 {

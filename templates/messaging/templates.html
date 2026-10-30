@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Mẫu tin nhắn{% endblock %}
+{% block page_css %}<link href="{% static 'css/pages/messaging/messaging.css' %}" rel="stylesheet" />{% endblock %}
+{% block content %}
+{% csrf_token %}
+<div id="znsTemplatesPage" data-staff="{{ request.user.is_staff|yesno:'1,0' }}" data-edit-url="{% url 'zns-template-edit' 0 %}">
+  <div class="zns-page-head">
+    <nav aria-label="breadcrumb"><ol class="zns-breadcrumb"><li><a href="{% url 'zns-templates' %}" data-loading>Quản lý gửi tin</a></li><li class="is-current" aria-current="page">Mẫu tin nhắn</li></ol></nav>
+    <div class="zns-head-row">
+      <h1 class="rpt-title">Mẫu tin nhắn</h1>
+      <div class="rpt-header-tools">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="znsReset" title="Bỏ bộ lọc, trở về mặc định"><i class="fas fa-undo mr-1"></i> Reset</button>
+      <button type="button" class="btn btn-sm zns-btn-export" id="znsExport" title="Xuất danh sách mẫu tin theo bộ lọc hiện tại"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</button>
+      {% if request.user.is_staff %}
+      <a class="btn btn-sm btn-primary" href="{% url 'zns-template-new' %}" data-loading><i class="fas fa-plus mr-1"></i> Thêm mẫu</a>
+      {% else %}
+      <span class="d-inline-block" tabindex="0" data-toggle="tooltip" title="Chỉ quản trị viên (staff) được tạo / sửa mẫu tin">
+        <button type="button" class="btn btn-sm btn-primary" disabled><i class="fas fa-plus mr-1"></i> Thêm mẫu</button>
+      </span>
+      {% endif %}
+    </div>
+    </div>
+  </div>
+
+  <div class="rpt-card mb-3 rpt-filter">
+    <div class="form-row align-items-end">
+      <div class="col-lg-2 col-md-3 col-sm-6 mb-2">
+        <label for="znsFilterOwner">Chủ hàng</label>
+        <select class="form-control form-control-sm" id="znsFilterOwner">
+          <option value="">Tất cả</option>
+          <option value="PGI">PGI</option>
+          <option value="AWG">AWG</option>
+        </select>
+      </div>
+      <div class="col-lg-2 col-md-3 col-sm-6 mb-2">
+        <label for="znsFilterStatus">Trạng thái</label>
+        <select class="form-control form-control-sm" id="znsFilterStatus">
+          <option value="">Tất cả</option>
+          <option value="1">Hoạt động</option>
+          <option value="0">Ngừng hoạt động</option>
+        </select>
+      </div>
+      <div class="col-lg-4 col-md-6 mb-2">
+        <label for="znsFilterSearch">Tìm kiếm</label>
+        <input type="search" class="form-control form-control-sm" id="znsFilterSearch" placeholder="Tên mẫu hoặc mã template" autocomplete="off" />
+      </div>
+    </div>
+  </div>
+
+  <div class="rpt-card mb-3" id="znsTemplatesCard">
+    <div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+    <div class="rpt-card-title"><i class="fas fa-envelope-open-text"></i> Danh sách mẫu tin</div>
+    <div class="table-responsive">
+      <table class="table table-hover rpt-table zns-table">
+        <thead>
+          <tr>
+            <th class="zns-actions-col">Thao tác</th>
+            <th class="zns-code-col">Mã</th>
+            <th>Tên</th>
+            <th>Chủ hàng</th>
+            <th class="zns-center" title="Số tin đã đưa vào gửi (khách hợp lệ của các lô đã xác nhận, không tính lô hủy)">Số lượng</th>
+            <th>Trạng thái</th>
+            <th>Ngày tạo</th>
+            <th>Người tạo</th>
+            <th>Ngày cập nhật</th>
+            <th>Người cập nhật</th>
+          </tr>
+        </thead>
+        <tbody id="znsTemplateRows"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block page_js %}
+<script src="{% static 'js/pages/messaging/common.js' %}"></script>
+<script src="{% static 'js/pages/messaging/templates.js' %}"></script>
+{% endblock %}

@@ -8,6 +8,7 @@ class MenuItem:
     label: str
     url_name: str
     hidden: bool = False
+    active_for: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -55,6 +56,16 @@ MENU: tuple[MenuGroup, ...] = (
             MenuItem('ĐH theo NV - OMS/WMS', 'detail-employee-oms', hidden=True),
             MenuItem('Tồn kho', 'report-inventory'),
             MenuItem('E-commerce', 'report-ecom'),
+        ),
+    ),
+    MenuGroup(
+        'messaging',
+        'Quản lý gửi tin',
+        'fa-paper-plane',
+        'collapseMessaging',
+        (
+            MenuItem('Mẫu tin nhắn', 'zns-templates', active_for=('zns-template-new', 'zns-template-edit')),
+            MenuItem('Danh sách gửi tin', 'zns-send'),
         ),
     ),
 )

@@ -54,4 +54,21 @@ const ENDPOINTS = Object.freeze({
       channelsRefreshStatus: "/api/report/ecom/channels/refresh/status/",
     }),
   }),
+
+  messaging: Object.freeze({
+    templates: "/api/zns/templates/",
+    templateSave: "/api/zns/templates/save/",
+    templateExport: "/api/zns/templates/export/",
+    templateImport: "/api/zns/templates/import/",
+    template: (id) => `/api/zns/templates/${id}/`,
+    templateActive: (id) => `/api/zns/templates/${id}/active/`,
+    sample: "/api/zns/send/sample/",
+    upload: "/api/zns/send/upload/",
+    evaluate: "/api/zns/send/evaluate/",
+    confirm: "/api/zns/send/confirm/",
+    batches: "/api/zns/batches/",
+    batch: (id) => `/api/zns/batches/${id}/`,
+    batchCancel: (id) => `/api/zns/batches/${id}/cancel/`,
+    batchExport: (id) => `/api/zns/batches/${id}/export/`,
+  }),
 });

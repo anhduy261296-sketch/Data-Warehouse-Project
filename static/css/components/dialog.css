@@ -1,0 +1,76 @@
+.app-dialog .modal-dialog {
+  max-width: 440px;
+}
+.app-dialog .modal-content {
+  border: 0;
+  border-radius: 16px;
+  box-shadow: 0 20px 48px rgba(16, 24, 40, 0.18);
+  padding: 22px 22px 18px;
+}
+.app-dialog-body {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+.app-dialog-icon {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  background: var(--dialog-soft, #e6effc);
+  color: var(--dialog-strong, #2f5fa7);
+}
+.app-dialog-text {
+  min-width: 0;
+  padding-top: 2px;
+}
+.app-dialog-title {
+  font-size: 1.02rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 4px;
+}
+.app-dialog-message {
+  font-size: 0.9rem;
+  color: #4b5563;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.app-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+.app-dialog-actions .btn {
+  border-radius: 999px;
+  min-width: 88px;
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 6px 18px;
+}
+.app-dialog[data-variant="danger"] {
+  --dialog-soft: #fde8e8;
+  --dialog-strong: #c0392b;
+}
+.app-dialog[data-variant="warning"] {
+  --dialog-soft: #fdf1df;
+  --dialog-strong: #b7791f;
+}
+.app-dialog[data-variant="success"] {
+  --dialog-soft: #e3f6ec;
+  --dialog-strong: #2f7a4c;
+}
+.app-dialog[data-variant="info"] {
+  --dialog-soft: #e2f5f8;
+  --dialog-strong: #2b8597;
+}
+@media (max-width: 575.98px) {
+  .app-dialog .modal-dialog {
+    margin: 12px;
+  }
+}

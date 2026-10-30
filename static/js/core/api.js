@@ -24,6 +24,33 @@ const Api = (function () {
     return $.ajax({ url: fullPath(path), method: "POST", data: data || {}, dataType: "json", headers: { "X-CSRFToken": csrfToken() } });
   }
 
+  function postJson(path, data) {
+    return $.ajax({
+      url: fullPath(path),
+      method: "POST",
+      data: JSON.stringify(data || {}),
+      contentType: "application/json",
+      dataType: "json",
+      headers: { "X-CSRFToken": csrfToken() },
+    });
+  }
+
+  function upload(path, formData) {
+    return $.ajax({
+      url: fullPath(path),
+      method: "POST",
+      data: formData,
+      processData: false,
+      contentType: false,
+      dataType: "json",
+      headers: { "X-CSRFToken": csrfToken() },
+    });
+  }
+
+  function errorMessage(xhr, fallback) {
+    return (xhr && xhr.responseJSON && xhr.responseJSON.error) || fallback || "Không gọi được máy chủ.";
+  }
+
   function download(path, params) {
     window.location.href = url(path, params);
   }
@@ -61,5 +88,5 @@ const Api = (function () {
     };
   }
 
-  return { url, get, post, download, createPageCache, dataTableSource };
+  return { url, get, post, postJson, upload, errorMessage, download, createPageCache, dataTableSource };
 })();

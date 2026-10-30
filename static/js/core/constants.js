@@ -60,6 +60,23 @@ const APP = Object.freeze({
     ]),
   }),
 
+  ZNS: Object.freeze({
+    OWNERS: Object.freeze(["PGI", "AWG"]),
+    TYPES: Object.freeze({ text: "Text", number: "Number", date: "Date", datetime: "Datetime" }),
+    SOURCES: Object.freeze({ customer: "Khách hàng", fixed: "Cố định lô" }),
+    STATUS_BADGE: Object.freeze({
+      draft: "",
+      pending: "is-warn",
+      sending: "is-info",
+      done: "is-on",
+      cancelled: "",
+      invalid: "is-bad",
+      sent: "is-on",
+      failed: "is-bad",
+      simulated: "is-info",
+    }),
+  }),
+
   PAGE_CACHE_MAX: 200,
 
   DATATABLE: Object.freeze({

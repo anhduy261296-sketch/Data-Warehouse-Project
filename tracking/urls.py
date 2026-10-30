@@ -4,7 +4,7 @@ from django.views.generic import RedirectView
 from .queries.orders import DETAIL_CONFIGS, EMPLOYEE_REPORT_CONFIG_DMS, EMPLOYEE_REPORT_CONFIG_OMS, RECON_CONFIGS
 from .queries.ecom import ECOM_DETAIL_CONFIG
 from .queries.recon_inventory import INVENTORY_CONFIG
-from .views import data_tracking, reports
+from .views import data_tracking, messaging, reports
 from .menu import HOME_URL_NAME
 from .views.common import datatable_export_view, datatable_report_view, page_view
 
@@ -102,4 +102,25 @@ urlpatterns += [
     ),
     path('api/report/ecom/channels/refresh/', reports.ecom_channels_refresh, name='report-ecom-channels-refresh'),
     path('api/report/ecom/channels/refresh/status/', reports.ecom_channels_refresh_status, name='report-ecom-channels-refresh-status'),
+]
+urlpatterns += [
+    path('zns/templates/', page_view('messaging/templates.html'), name='zns-templates'),
+    path('zns/templates/new/', messaging.template_editor, name='zns-template-new'),
+    path('zns/templates/<int:template_id>/', messaging.template_editor, name='zns-template-edit'),
+    path('zns/send/', page_view('messaging/send.html'), name='zns-send'),
+    path('api/zns/templates/', messaging.template_list, name='zns-template-list'),
+    path('api/zns/templates/save/', messaging.template_save, name='zns-template-save'),
+    path('api/zns/templates/export/', messaging.template_export, name='zns-template-export'),
+    path('api/zns/templates/import/', messaging.template_import, name='zns-template-import'),
+    path('api/zns/templates/sample/', messaging.template_sample, name='zns-template-sample'),
+    path('api/zns/templates/<int:template_id>/', messaging.template_detail, name='zns-template-detail'),
+    path('api/zns/templates/<int:template_id>/active/', messaging.template_active, name='zns-template-active'),
+    path('api/zns/send/sample/', messaging.send_sample, name='zns-send-sample'),
+    path('api/zns/send/upload/', messaging.send_upload, name='zns-send-upload'),
+    path('api/zns/send/evaluate/', messaging.send_evaluate, name='zns-send-evaluate'),
+    path('api/zns/send/confirm/', messaging.send_confirm, name='zns-send-confirm'),
+    path('api/zns/batches/', messaging.batch_list, name='zns-batch-list'),
+    path('api/zns/batches/<int:batch_id>/', messaging.batch_detail, name='zns-batch-detail'),
+    path('api/zns/batches/<int:batch_id>/cancel/', messaging.batch_cancel, name='zns-batch-cancel'),
+    path('api/zns/batches/<int:batch_id>/export/', messaging.batch_export, name='zns-batch-export'),
 ]

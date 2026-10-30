@@ -31,6 +31,18 @@ AIRFLOW_API_PASSWORD = os.getenv('AIRFLOW_API_PASSWORD') or os.getenv('AIRFLOW_A
 OMS_ORDERS_DAG_ID = 'oms_orders_to_sqlserver_daily'
 OMS_SALES_CHANNELS_DAG_ID = 'oms_sales_channels_manual'
 
+# Gửi ZNS qua Incom Omni. Mặc định dry_run: KHÔNG gọi API, chỉ ghi nhận "Chạy thử".
+# Chỉ khi ZNS_SEND_MODE=live (đặt trong .env) mới gửi tin thật.
+ZNS_SEND_MODE = 'live' if os.getenv('ZNS_SEND_MODE', 'dry_run').strip().lower() == 'live' else 'dry_run'
+ZNS_API_URL = os.getenv('ZNS_API_URL', 'https://omni.incom.vn/api/OmniMessage/SendMessage')
+ZNS_ROUTE_RULE = [r.strip() for r in os.getenv('ZNS_ROUTE_RULE', '1').split(',') if r.strip()]
+ZNS_ACCOUNTS = {
+    'PGI': (os.getenv('ZNS_PGI_USERNAME', ''), os.getenv('ZNS_PGI_PASSWORD', '')),
+    'AWG': (os.getenv('ZNS_AWG_USERNAME', ''), os.getenv('ZNS_AWG_PASSWORD', '')),
+}
+ZNS_SEND_DELAY_MS = int(os.getenv('ZNS_SEND_DELAY_MS', '300'))
+ZNS_API_TIMEOUT = int(os.getenv('ZNS_API_TIMEOUT', '20'))
+
 REPORT_CACHE_TTL = 24 * 3600
 REPORT_CACHE_MAX_ITEM_BYTES = int(os.getenv('REPORT_CACHE_MAX_ITEM_KB', os.getenv('STOCK_REPORT_CACHE_MAX_ITEM_KB', '64'))) * 1024
 REPORT_VERSION_TTL = 60
