@@ -32,7 +32,7 @@
     {% block page_css %}{% endblock %}
     <script src="{% static 'js/core/loading.js' %}"></script>
   </head>
-  <body id="page-top">
+  <body id="page-top" data-can-export="{{ page_can_export|yesno:'1,0' }}">
     {% block early_loading %}{% endblock %}
     <div id="wrapper">
       {% include "partials/sidebar.html" %}

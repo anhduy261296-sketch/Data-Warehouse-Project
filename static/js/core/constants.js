@@ -67,6 +67,8 @@ const APP = Object.freeze({
     STATUS_BADGE: Object.freeze({
       draft: "",
       pending: "is-warn",
+      pending_approval: "is-warn",
+      rejected: "is-bad",
       sending: "is-info",
       done: "is-on",
       cancelled: "",
@@ -74,6 +76,10 @@ const APP = Object.freeze({
       sent: "is-on",
       failed: "is-bad",
       simulated: "is-info",
+      unknown: "is-warn",
+      skipped: "",
+      paused: "is-warn",
+      partial: "is-warn",
     }),
   }),
 
@@ -81,6 +87,7 @@ const APP = Object.freeze({
 
   DATATABLE: Object.freeze({
     PAGE_LENGTH: 10,
+    LENGTH_MENU: Object.freeze([10, 20, 50, 100]),
     LANGUAGE_VI: Object.freeze({
       thousands: ".",
       lengthMenu: "_MENU_ / trang",

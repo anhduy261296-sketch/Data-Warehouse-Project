@@ -1,12 +1,13 @@
-"""Gọi API Incom Omni (SendMessage) để gửi ZNS.
+"""Gọi API Incom Omni (SendMessage) để gửi ZNS và phân loại kết quả.
 
 Chế độ dry_run (mặc định) không mở kết nối mạng: chỉ dựng payload và trả kết quả "Chạy thử".
 """
 
 from __future__ import annotations
 
+import http.client
 import json
-import logging
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -15,15 +16,30 @@ from typing import Any
 from ..constants import ZNS_ACCOUNTS, ZNS_API_TIMEOUT, ZNS_API_URL, ZNS_ROUTE_RULE, ZNS_SEND_MODE
 from .values import MessagingError
 
-logger = logging.getLogger(__name__)
 RESPONSE_MAX_LEN = 2000
 _MSG_ID_KEYS = ('idomnimess', 'msgid', 'msg_id', 'messageid', 'message_id')
+
+# Loại lỗi của một lần gọi API.
+KIND_TEMPORARY = 'temporary'  # chắc chắn / gần như chắc chắn chưa gửi: tự thử lại được
+KIND_UNKNOWN = 'unknown'  # không biết tin đã đi chưa: không tự gửi lại
+KIND_CONFIG = 'config'  # khách nào cũng lỗi: sai template, thiếu tham số, sai tài khoản
+KIND_BUSINESS = 'business'  # Incom từ chối riêng khách này hoặc mã lỗi chưa phân loại
+
+SUCCESS_STATUS = 1
+CONFIG_STATUS_CODES = frozenset({-6, -2})  # -6: không có template, -2: thiếu tham số
+_TEMPORARY_HTTP = frozenset({429, 503})
+_UNKNOWN_HTTP = frozenset({500, 502, 504})
+_CONFIG_HTTP = frozenset({401, 403, 404})
+_MAYBE_SENT = 'Tin có thể đã được gửi.'
 
 
 @dataclass
 class SendResult:
     ok: bool
     simulated: bool = False
+    kind: str | None = None
+    http_status: int | None = None
+    duration_ms: int | None = None
     msg_id: str | None = None
     error: str | None = None
     response: str | None = None
@@ -54,8 +70,8 @@ def build_payload(owner: str, phone: str, template_code: str, params: dict[str, 
     }
 
 
-def masked(payload: dict[str, Any]) -> dict[str, Any]:
-    return {**payload, 'password': '***' if payload.get('password') else ''}
+def mask_phone(phone: str | None) -> str:
+    return f'{phone[:3]}****{phone[-3:]}' if phone and len(phone) > 6 else '***'
 
 
 def _msg_id(body: Any) -> str | None:
@@ -67,12 +83,35 @@ def _msg_id(body: Any) -> str | None:
     return None
 
 
-def send(owner: str, phone: str, template_code: str, params: dict[str, str]) -> SendResult:
-    payload = build_payload(owner, phone, template_code, params)
-    if ZNS_SEND_MODE != 'live':
-        logger.info('ZNS dry_run %s', json.dumps(masked(payload), ensure_ascii=False))
-        return SendResult(ok=True, simulated=True, response='dry_run: không gọi API')
+def _http_error(code: int, text: str) -> SendResult:
+    response = text[:RESPONSE_MAX_LEN]
+    if code in _TEMPORARY_HTTP:
+        return SendResult(ok=False, kind=KIND_TEMPORARY, http_status=code, error=f'Incom tạm thời lỗi (HTTP {code}).', response=response)
+    if code in _UNKNOWN_HTTP:
+        return SendResult(ok=False, kind=KIND_UNKNOWN, http_status=code, error=f'Incom lỗi HTTP {code}. {_MAYBE_SENT}', response=response)
+    if code in _CONFIG_HTTP:
+        return SendResult(ok=False, kind=KIND_CONFIG, http_status=code, error=f'Sai cấu hình API hoặc tài khoản (HTTP {code}).', response=response)
+    return SendResult(ok=False, kind=KIND_BUSINESS, http_status=code, error=f'Lỗi HTTP {code}.', response=response)
 
+
+def _parse_success(code: int, text: str) -> SendResult:
+    """HTTP 2xx: Incom báo kết quả trong body, vd. {"idOmniMess": "...", "status": "1", "code": "Success"}."""
+    response = text[:RESPONSE_MAX_LEN]
+    try:
+        body = json.loads(text) if text else None
+        status = int(str(body['status']).strip())
+    except (ValueError, TypeError, KeyError):
+        return SendResult(ok=False, kind=KIND_UNKNOWN, http_status=code, error=f'Không đọc được phản hồi của Incom. {_MAYBE_SENT}', response=response)
+    message = body.get('code') or 'không rõ'
+    if status == SUCCESS_STATUS:
+        return SendResult(ok=True, http_status=code, msg_id=_msg_id(body), response=response)
+    if status >= 0:
+        return SendResult(ok=False, kind=KIND_UNKNOWN, http_status=code, error=f'Incom {status}: {message}. {_MAYBE_SENT}'[:1000], response=response)
+    kind = KIND_CONFIG if status in CONFIG_STATUS_CODES else KIND_BUSINESS
+    return SendResult(ok=False, kind=kind, http_status=code, error=f'Incom {status}: {message}'[:1000], response=response)
+
+
+def _call(payload: dict[str, Any]) -> SendResult:
     req = urllib.request.Request(
         ZNS_API_URL,
         method='POST',
@@ -81,35 +120,22 @@ def send(owner: str, phone: str, template_code: str, params: dict[str, str]) -> 
     )
     try:
         with urllib.request.urlopen(req, timeout=ZNS_API_TIMEOUT) as resp:
-            text = resp.read().decode('utf-8', errors='replace')
-            code = resp.status
+            return _parse_success(resp.status, resp.read().decode('utf-8', errors='replace'))
     except urllib.error.HTTPError as exc:
-        text = exc.read().decode('utf-8', errors='replace')
-        return SendResult(ok=False, error=f'Lỗi HTTP {exc.code}', response=text[:RESPONSE_MAX_LEN])
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        return SendResult(ok=False, error=f'Lỗi kết nối: {exc}'[:500])
-
-    try:
-        body = json.loads(text) if text else None
-    except ValueError:
-        body = None
-    if not 200 <= code < 300:
-        return SendResult(ok=False, error=f'Lỗi HTTP {code}', response=text[:RESPONSE_MAX_LEN])
-    # Incom trả HTTP 200 cả khi lỗi nghiệp vụ, vd. {"idOmniMess": null, "status": "-6", "code": "Can't find template ..."}:
-    # status âm = lỗi.
-    error = _business_error(body)
-    if error:
-        return SendResult(ok=False, error=error[:1000], response=text[:RESPONSE_MAX_LEN])
-    return SendResult(ok=True, msg_id=_msg_id(body), response=text[:RESPONSE_MAX_LEN])
+        return _http_error(exc.code, exc.read().decode('utf-8', errors='replace'))
+    except urllib.error.URLError as exc:
+        # urllib chỉ bọc URLError khi lỗi lúc kết nối / gửi yêu cầu: Incom chưa xử lý.
+        return SendResult(ok=False, kind=KIND_TEMPORARY, error=f'Không kết nối được Incom: {exc.reason}'[:1000])
+    except TimeoutError:
+        return SendResult(ok=False, kind=KIND_UNKNOWN, error=f'Hết {ZNS_API_TIMEOUT} giây chờ, Incom không phản hồi. {_MAYBE_SENT}')
+    except (http.client.HTTPException, OSError):
+        return SendResult(ok=False, kind=KIND_UNKNOWN, error=f'Đứt kết nối sau khi đã gửi yêu cầu. {_MAYBE_SENT}')
 
 
-def _business_error(body: Any) -> str | None:
-    if not isinstance(body, dict) or body.get('status') is None:
-        return None
-    try:
-        status = int(str(body['status']).strip())
-    except ValueError:
-        return None
-    if status >= 0:
-        return None
-    return f'Incom {status}: {body.get("code") or "lỗi không rõ"}'
+def send(owner: str, phone: str, template_code: str, params: dict[str, str]) -> SendResult:
+    if ZNS_SEND_MODE != 'live':
+        return SendResult(ok=True, simulated=True, duration_ms=0, response='dry_run: không gọi API')
+    started = time.monotonic()
+    result = _call(build_payload(owner, phone, template_code, params))
+    result.duration_ms = int((time.monotonic() - started) * 1000)
+    return result

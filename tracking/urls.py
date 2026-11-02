@@ -1,12 +1,10 @@
 from django.urls import path
-from django.views.generic import RedirectView
 
 from .queries.orders import DETAIL_CONFIGS, EMPLOYEE_REPORT_CONFIG_DMS, EMPLOYEE_REPORT_CONFIG_OMS, RECON_CONFIGS
 from .queries.ecom import ECOM_DETAIL_CONFIG
 from .queries.recon_inventory import INVENTORY_CONFIG
-from .views import data_tracking, messaging, reports
-from .menu import HOME_URL_NAME
-from .views.common import datatable_export_view, datatable_report_view, page_view
+from .views import config, data_tracking, messaging, reports
+from .views.common import datatable_export_view, datatable_report_view, home, no_access, page_view
 
 
 def datatable_routes(page_url: str, api_url: str, name: str, template: str, config, export_filename: str):
@@ -25,7 +23,8 @@ ORDER_PAGES = (
 )
 
 urlpatterns = [
-    path('', RedirectView.as_view(pattern_name=HOME_URL_NAME), name='home'),
+    path('', home, name='home'),
+    path('no-access/', no_access, name='no-access'),
 ]
 
 for slug, key, tpl in ORDER_PAGES:
@@ -120,7 +119,26 @@ urlpatterns += [
     path('api/zns/send/evaluate/', messaging.send_evaluate, name='zns-send-evaluate'),
     path('api/zns/send/confirm/', messaging.send_confirm, name='zns-send-confirm'),
     path('api/zns/batches/', messaging.batch_list, name='zns-batch-list'),
+    path('api/zns/batches/export/', messaging.batch_list_export, name='zns-batch-list-export'),
     path('api/zns/batches/<int:batch_id>/', messaging.batch_detail, name='zns-batch-detail'),
+    path('api/zns/batches/<int:batch_id>/recipients/', messaging.batch_recipients, name='zns-batch-recipients'),
+    path('api/zns/batches/<int:batch_id>/approve/', messaging.batch_approve, name='zns-batch-approve'),
+    path('api/zns/batches/<int:batch_id>/reject/', messaging.batch_reject, name='zns-batch-reject'),
     path('api/zns/batches/<int:batch_id>/cancel/', messaging.batch_cancel, name='zns-batch-cancel'),
+    path('api/zns/batches/<int:batch_id>/skip/', messaging.batch_skip, name='zns-batch-skip'),
+    path('api/zns/batches/<int:batch_id>/retry/', messaging.batch_retry, name='zns-batch-retry'),
+    path('api/zns/batches/<int:batch_id>/retry-new/', messaging.batch_retry_new, name='zns-batch-retry-new'),
+    path('api/zns/batches/<int:batch_id>/recipients/<int:recipient_id>/attempts/', messaging.recipient_attempts, name='zns-recipient-attempts'),
     path('api/zns/batches/<int:batch_id>/export/', messaging.batch_export, name='zns-batch-export'),
+]
+urlpatterns += [
+    path('config/', config.page, name='config-page'),
+    path('api/config/users/', config.users, name='config-users'),
+    path('api/config/users/save/', config.user_save, name='config-user-save'),
+    path('api/config/roles/', config.roles, name='config-roles'),
+    path('api/config/roles/save/', config.role_save, name='config-role-save'),
+    path('api/config/roles/<int:role_id>/delete/', config.role_delete, name='config-role-delete'),
+    path('api/config/limits/', config.limits_list, name='config-limits'),
+    path('api/config/limits/save/', config.limits_save, name='config-limits-save'),
+    path('api/config/audit/', config.audit_list, name='config-audit'),
 ]

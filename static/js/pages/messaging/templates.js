@@ -1,7 +1,7 @@
 (function () {
   const EP = ENDPOINTS.messaging;
   const $page = $("#znsTemplatesPage");
-  const isStaff = $page.data("staff") === 1;
+  const canManage = $page.data("canManage") === 1;
   const editUrl = (id) => String($page.data("editUrl")).replace(/0\/$/, `${id}/`);
   const $rows = $("#znsTemplateRows");
   const $card = $("#znsTemplatesCard");
@@ -46,9 +46,9 @@
         .map(
           (t) => `<tr data-id="${t.id}">
         <td class="zns-actions zns-center">
-          <a class="zns-act zns-act--edit" href="${editUrl(t.id)}" data-loading title="${isStaff ? "Xem / chỉnh sửa" : "Xem chi tiết"}"><i class="fas ${isStaff ? "fa-pen" : "fa-eye"}"></i></a>
+          <a class="zns-act zns-act--edit" href="${editUrl(t.id)}" data-loading title="${canManage ? "Xem / chỉnh sửa" : "Xem chi tiết"}"><i class="fas ${canManage ? "fa-pen" : "fa-eye"}"></i></a>
           ${
-            isStaff
+            canManage
               ? `<button type="button" class="zns-mini-switch zns-toggle ${t.is_active ? "is-on" : ""}" role="switch" aria-checked="${t.is_active}" title="${t.is_active ? "Đang hoạt động - bấm để ngừng" : "Đang ngừng - bấm để bật hoạt động"}"><span></span></button>`
               : ""
           }

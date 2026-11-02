@@ -42,6 +42,10 @@ ZNS_ACCOUNTS = {
 }
 ZNS_SEND_DELAY_MS = int(os.getenv('ZNS_SEND_DELAY_MS', '300'))
 ZNS_API_TIMEOUT = int(os.getenv('ZNS_API_TIMEOUT', '20'))
+# Lỗi tạm thời tự thử lại: số giây chờ trước mỗi lần thử tiếp (2 phần tử = tối đa 3 lần gọi).
+ZNS_RETRY_DELAYS = tuple(float(x) for x in os.getenv('ZNS_RETRY_DELAYS', '2,5').split(',') if x.strip())
+ZNS_PAUSE_AFTER = int(os.getenv('ZNS_PAUSE_AFTER', '5'))
+ZNS_MAX_MANUAL_RETRIES = int(os.getenv('ZNS_MAX_MANUAL_RETRIES', '3'))
 
 REPORT_CACHE_TTL = 24 * 3600
 REPORT_CACHE_MAX_ITEM_BYTES = int(os.getenv('REPORT_CACHE_MAX_ITEM_KB', os.getenv('STOCK_REPORT_CACHE_MAX_ITEM_KB', '64'))) * 1024

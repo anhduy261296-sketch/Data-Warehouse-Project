@@ -9,9 +9,10 @@ from typing import Any
 import openpyxl
 from django.db import connection, transaction
 
-from ..constants import ZNS_SEND_DELAY_MS
+from ..constants import ZNS_MAX_MANUAL_RETRIES, ZNS_PAUSE_AFTER, ZNS_RETRY_DELAYS, ZNS_SEND_DELAY_MS
+from ..core import audit
 from ..core.sql import rows
-from . import provider
+from . import limits, provider
 from .templates import load_template
 from .values import (
     PHONE_KEYS,
@@ -30,8 +31,6 @@ MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 MAX_ROWS = 5000
 PREVIEW_ROWS = 20
 DRAFT_TTL_HOURS = 24
-HISTORY_PAGE_SIZE = 20
-DETAIL_PAGE_SIZE = 50
 MAX_SQL_PARAMS = 2000
 SEND_CHUNK = 50
 logger = logging.getLogger(__name__)
@@ -41,21 +40,49 @@ TEMPLATE_CODE_KEY = 'templatecode'
 STATUS_LABELS = {
     'draft': 'Nháp',
     'pending': 'Chờ gửi',
+    'pending_approval': 'Chờ duyệt',
+    'rejected': 'Từ chối',
     'sending': 'Đang gửi',
     'done': 'Đã gửi',
     'cancelled': 'Đã hủy',
     'invalid': 'Lỗi dữ liệu',
-    'sent': 'Đã gửi thành công',
-    'failed': 'Gửi thất bại',
-    'simulated': 'Chạy thử (không gửi)',
+    'sent': 'Thành công',
+    'failed': 'Thất bại',
+    'unknown': 'Chưa rõ',
+    'skipped': 'Bỏ qua',
+    'simulated': 'Chạy thử',
 }
+BATCH_STATUS_LABELS = {**STATUS_LABELS, 'paused': 'Tạm dừng', 'partial': 'Gửi một phần'}
+ATTEMPT_RESULT_LABELS = {
+    'sent': 'Thành công',
+    'simulated': 'Chạy thử',
+    'temporary': 'Lỗi tạm thời',
+    'unknown': 'Chưa rõ kết quả',
+    'config': 'Lỗi cấu hình',
+    'business': 'Incom từ chối',
+}
+ERROR_KIND_LABELS = {'temporary': 'Lỗi tạm thời', 'unknown': 'Chưa rõ kết quả', 'config': 'Lỗi cấu hình', 'business': 'Incom từ chối'}
+SKIPPABLE = ('partial', 'failed', 'paused')
+_SKIP_CLAUSE = "Status IN ('failed', 'unknown') AND RetriedInBatchId IS NULL"
+CANCELLABLE = ('pending', 'pending_approval', 'sending', 'paused')
+RECIPIENT_FILTERS = {
+    'sent': "Status IN ('sent', 'simulated')",
+    'failed': "Status = 'failed'",
+    'unknown': "Status = 'unknown'",
+    'invalid': "Status = 'invalid'",
+    'errors': "Status IN ('failed', 'unknown', 'invalid')",
+    'skipped': "Status = 'skipped'",
+    'waiting': "Status IN ('pending', 'sending')",
+    'cancelled': "Status = 'cancelled'",
+}
+_NEW_BATCH_CLAUSE = "(Status = 'failed' AND ErrorKind = 'config') OR Status = 'pending'"
 SEND_MODE_LABELS = {'dry_run': 'Chạy thử', 'live': 'Gửi thật'}
 
 
 def _status_label(status: str, send_mode: str | None) -> str:
     if status == 'done' and send_mode == 'dry_run':
         return 'Đã chạy thử'
-    return STATUS_LABELS.get(status, status)
+    return BATCH_STATUS_LABELS.get(status, status)
 
 
 def _sheet_rows(ws) -> list[tuple[int, list[Any]]]:
@@ -161,10 +188,10 @@ def create_draft(parsed: dict[str, Any], file_name: str, user: str) -> int:
         return int(cursor.fetchone()[0])
 
 
-def _draft(cursor: Any, batch_id: int) -> dict[str, Any]:
-    cursor.execute('SELECT Status, RawData, FileName FROM dbo.ZnsSendBatches WHERE Id = %s', [batch_id])
+def _draft(cursor: Any, batch_id: int, username: str) -> dict[str, Any]:
+    cursor.execute('SELECT Status, RawData, FileName, CreatedBy FROM dbo.ZnsSendBatches WHERE Id = %s', [batch_id])
     row = cursor.fetchone()
-    if not row:
+    if not row or row[3] != username:
         raise MessagingError('Không tìm thấy file đã upload, vui lòng upload lại.')
     if row[0] != 'draft':
         raise MessagingError('Danh sách này đã được xác nhận gửi trước đó.')
@@ -210,9 +237,11 @@ def _customer_label(variables: list[dict], values: dict[str, Any]) -> str | None
     return str(values[first]) if first else None
 
 
-def _evaluate(cursor: Any, batch_id: int, template_id: int, raw_mapping: Any, raw_fixed: Any) -> dict[str, Any]:
-    draft = _draft(cursor, batch_id)
+def _evaluate(cursor: Any, batch_id: int, template_id: int, raw_mapping: Any, raw_fixed: Any, actor: Any) -> dict[str, Any]:
+    draft = _draft(cursor, batch_id, actor.username)
     template = load_template(cursor, template_id)
+    if template['owner'] not in actor.owners:
+        raise MessagingError(f'Bạn chưa được phân quyền chủ hàng {template["owner"]}.')
     if not template['is_active']:
         raise MessagingError('Mẫu tin đang ngừng hoạt động.')
     variables = [v for v in template['variables'] if v['is_active']]
@@ -307,9 +336,9 @@ def _template_public(template: dict[str, Any]) -> dict[str, Any]:
     return {**{k: template[k] for k in keys}, 'variables': [v for v in template['variables'] if v['is_active']]}
 
 
-def evaluate(batch_id: int, template_id: int, mapping: Any, fixed: Any) -> dict[str, Any]:
+def evaluate(batch_id: int, template_id: int, mapping: Any, fixed: Any, actor: Any) -> dict[str, Any]:
     with connection.cursor() as cursor:
-        result = _evaluate(cursor, batch_id, template_id, mapping, fixed)
+        result = _evaluate(cursor, batch_id, template_id, mapping, fixed, actor)
     return {
         'template': _template_public(result['template']),
         'columns': result['draft']['columns'],
@@ -335,17 +364,18 @@ def _insert_many(cursor: Any, table: str, columns: list[str], values: list[list[
         cursor.execute(f'INSERT INTO {table} ({cols}) VALUES ' + ', '.join([placeholder] * len(chunk)), [x for r in chunk for x in r])
 
 
-def confirm(batch_id: int, template_id: int, mapping: Any, fixed: Any, user: str) -> dict[str, Any]:
-    """Chốt danh sách + tham số từng khách, chuyển lô sang "Đang gửi" và gửi ở luồng nền sau khi commit."""
+def confirm(batch_id: int, template_id: int, mapping: Any, fixed: Any, actor: Any) -> dict[str, Any]:
+    """Chốt danh sách + tham số từng khách và chuyển lô sang "Chờ duyệt". Chỉ gửi sau khi có người khác duyệt."""
     mode = provider.send_mode()
     with transaction.atomic(), connection.cursor() as cursor:
-        result = _evaluate(cursor, batch_id, template_id, mapping, fixed)
+        result = _evaluate(cursor, batch_id, template_id, mapping, fixed, actor)
         if result['mapping_errors'] or result['fixed_errors']:
             raise MessagingError('Còn lỗi ở cấu hình cột hoặc biến cố định, vui lòng kiểm tra lại.')
         if not result['summary']['valid']:
             raise MessagingError('Không có khách hàng hợp lệ để gửi.')
         provider.check_account(result['template']['owner'])
-        cursor.execute("UPDATE dbo.ZnsSendBatches SET Status = 'sending' WHERE Id = %s AND Status = 'draft'", [batch_id])
+        limits.check_batch(cursor, result['template']['owner'], result['summary']['valid'])
+        cursor.execute("UPDATE dbo.ZnsSendBatches SET Status = 'pending_approval' WHERE Id = %s AND Status = 'draft'", [batch_id])
         if cursor.rowcount != 1:
             raise MessagingError('Danh sách này đã được xác nhận gửi trước đó.')
         template = result['template']
@@ -369,51 +399,58 @@ def confirm(batch_id: int, template_id: int, mapping: Any, fixed: Any, user: str
         cursor.execute(
             """
             UPDATE dbo.ZnsSendBatches SET TemplateId = %s, Owner = %s, ColumnMapping = %s, FixedValues = %s, RawData = NULL,
-                   TotalRows = %s, ValidRows = %s, InvalidRows = %s, ConfirmedBy = %s, ConfirmedAt = SYSUTCDATETIME(),
-                   SendMode = %s, SentBy = %s, SendStartedAt = SYSUTCDATETIME()
+                   TotalRows = %s, ValidRows = %s, InvalidRows = %s, ConfirmedBy = %s, ConfirmedAt = SYSUTCDATETIME()
             WHERE Id = %s
             """,
             [template['id'], template['owner'], json.dumps(mapping_json, ensure_ascii=False), json.dumps(fixed_json, ensure_ascii=False),
-             summary['total'], summary['valid'], summary['invalid'], user, mode, user, batch_id],
+             summary['total'], summary['valid'], summary['invalid'], actor.username, batch_id],
         )
-        transaction.on_commit(lambda: _start_thread(batch_id))
+        audit.log('zns.confirm', actor.username, 'batch', batch_id, f'{template["owner"]} · mẫu {template["zns_code"]} · {summary["valid"]} khách')
     return {'batch_id': batch_id, 'data_table': template['data_table'], 'send_mode': mode, 'send_mode_label': SEND_MODE_LABELS[mode], **summary}
 
 
-def _pages(total: int, size: int, page: int) -> tuple[int, int]:
-    pages = max(1, -(-total // size))
-    return min(max(1, page), pages), pages
+def _visibility(actor: Any) -> tuple[str, list[Any]]:
+    if not actor.owners:
+        return '1 = 0', []
+    clause = f"b.Owner IN ({', '.join(['%s'] * len(actor.owners))})"
+    if actor.view_all:
+        return clause, [*actor.owners]
+    return f'{clause} AND (b.CreatedBy = %s OR b.ConfirmedBy = %s)', [*actor.owners, actor.username, actor.username]
 
 
-def list_batches(page: int = 1) -> dict[str, Any]:
+def list_batches(draw: int, start: int, length: int, actor: Any) -> dict[str, Any]:
+    visible, args = _visibility(actor)
     with connection.cursor() as cursor:
-        cursor.execute("SELECT COUNT(*) FROM dbo.ZnsSendBatches WHERE Status <> 'draft'")
+        cursor.execute(f"SELECT COUNT(*) FROM dbo.ZnsSendBatches b WHERE b.Status <> 'draft' AND {visible}", args)
         total = cursor.fetchone()[0]
-        page, pages = _pages(total, HISTORY_PAGE_SIZE, page)
         cursor.execute(
             f"""
             SELECT b.Id AS id, b.FileName AS file_name, b.Owner AS owner, b.Status AS status,
                    b.TotalRows AS total_rows, b.ValidRows AS valid_rows, b.InvalidRows AS invalid_rows,
                    b.CreatedBy AS created_by, b.ConfirmedAt AS confirmed_at, t.Name AS template_name, t.ZnsCode AS zns_code,
-                   b.SendMode AS send_mode, b.SentRows AS sent_rows, b.FailedRows AS failed_rows
+                   b.SendMode AS send_mode, b.SentRows AS sent_rows, b.FailedRows AS failed_rows, b.UnknownRows AS unknown_rows, b.SkippedRows AS skipped_rows,
+                   b.ParentBatchId AS parent_batch_id, b.ConfirmedBy AS confirmed_by
             FROM dbo.ZnsSendBatches b LEFT JOIN dbo.ZnsTemplates t ON t.Id = b.TemplateId
-            WHERE b.Status <> 'draft'
+            WHERE b.Status <> 'draft' AND {visible}
             ORDER BY b.Id DESC
-            OFFSET {(page - 1) * HISTORY_PAGE_SIZE} ROWS FETCH NEXT {HISTORY_PAGE_SIZE} ROWS ONLY
-            """
+            OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
+            """,
+            [*args, start, length],
         )
         data = rows(cursor)
     for r in data:
         r['confirmed_at'] = iso_utc(r['confirmed_at'])
         r['status_label'] = _status_label(r['status'], r['send_mode'])
-    return {'data': data, 'page': page, 'pages': pages, 'page_size': HISTORY_PAGE_SIZE, 'total': total}
+        r['can_cancel'] = r['status'] in CANCELLABLE and actor.can_cancel(r['owner'], r['created_by'], r.pop('confirmed_by'))
+    return {'draw': draw, 'recordsTotal': total, 'recordsFiltered': total, 'data': data}
 
 
 def _batch(cursor: Any, batch_id: int) -> dict[str, Any]:
     cursor.execute(
         """
         SELECT b.Id, b.FileName, b.Owner, b.Status, b.TotalRows, b.ValidRows, b.InvalidRows, b.FixedValues, b.ColumnMapping,
-               b.CreatedBy, b.ConfirmedAt, t.Name, t.ZnsCode, b.SendMode, b.SendFinishedAt, b.SentRows, b.FailedRows
+               b.CreatedBy, b.ConfirmedAt, t.Name, t.ZnsCode, b.SendMode, b.SendFinishedAt, b.SentRows, b.FailedRows,
+               b.UnknownRows, b.ParentBatchId, b.ConfirmedBy, b.ApprovedBy, b.ApprovedAt, b.RejectedBy, b.RejectReason, b.PauseReason, b.SkippedRows
         FROM dbo.ZnsSendBatches b LEFT JOIN dbo.ZnsTemplates t ON t.Id = b.TemplateId
         WHERE b.Id = %s AND b.Status <> 'draft'
         """,
@@ -422,68 +459,220 @@ def _batch(cursor: Any, batch_id: int) -> dict[str, Any]:
     row = cursor.fetchone()
     if not row:
         raise MessagingError('Không tìm thấy lô gửi.')
-    keys = ('id', 'file_name', 'owner', 'status', 'total_rows', 'valid_rows', 'invalid_rows', 'fixed', 'mapping', 'created_by', 'confirmed_at', 'template_name', 'zns_code', 'send_mode', 'finished_at', 'sent_rows', 'failed_rows')
+    keys = ('id', 'file_name', 'owner', 'status', 'total_rows', 'valid_rows', 'invalid_rows', 'fixed', 'mapping', 'created_by', 'confirmed_at', 'template_name', 'zns_code', 'send_mode', 'finished_at', 'sent_rows', 'failed_rows',
+            'unknown_rows', 'parent_batch_id', 'confirmed_by', 'approved_by', 'approved_at', 'rejected_by', 'reject_reason', 'pause_reason', 'skipped_rows')
     batch = dict(zip(keys, row))
     batch['fixed'] = json.loads(batch['fixed'] or '{}')
     batch['mapping'] = json.loads(batch['mapping'] or '{}')
     batch['confirmed_at'] = iso_utc(batch['confirmed_at'])
     batch['finished_at'] = iso_utc(batch['finished_at'])
+    batch['approved_at'] = iso_utc(batch['approved_at'])
     batch['send_mode_label'] = SEND_MODE_LABELS.get(batch['send_mode'] or '')
     batch['status_label'] = _status_label(batch['status'], batch['send_mode'])
     return batch
 
 
-def _recipients(cursor: Any, batch_id: int, page: int | None = None) -> list[dict[str, Any]]:
-    paging = f'OFFSET {(int(page) - 1) * DETAIL_PAGE_SIZE} ROWS FETCH NEXT {DETAIL_PAGE_SIZE} ROWS ONLY' if page else ''
+def _visible_batch(cursor: Any, batch_id: int, actor: Any) -> dict[str, Any]:
+    batch = _batch(cursor, batch_id)
+    if not actor.can_see(batch['owner'], batch['created_by'], batch['confirmed_by']):
+        raise MessagingError('Không tìm thấy lô gửi.')
+    return batch
+
+
+def _recipients(cursor: Any, batch_id: int, status: str | None = None, start: int | None = None, length: int | None = None) -> list[dict[str, Any]]:
+    paging = f'OFFSET {int(start)} ROWS FETCH NEXT {int(length)} ROWS ONLY' if length else ''
+    where = f'AND {RECIPIENT_FILTERS[status]}' if status in RECIPIENT_FILTERS else ''
     cursor.execute(
         f"""
-        SELECT RowNo AS row_no, Phone AS phone, CustomerName AS customer, Content AS content, Status AS status,
-               ErrorMessage AS error, SentAt AS sent_at
-        FROM dbo.ZnsSendRecipients WHERE BatchId = %s ORDER BY RowNo {paging}
+        SELECT Id AS id, RowNo AS row_no, Phone AS phone, CustomerName AS customer, Content AS content, Status AS status,
+               ErrorMessage AS error, ErrorKind AS error_kind, AttemptCount AS attempt_count, RetryCount AS retry_count,
+               RetriedInBatchId AS retried_in, SentAt AS sent_at, SkipReason AS skip_reason, SkippedBy AS skipped_by
+        FROM dbo.ZnsSendRecipients WHERE BatchId = %s {where} ORDER BY RowNo {paging}
         """,
         [batch_id],
     )
     data = rows(cursor)
     for r in data:
         r['status_label'] = STATUS_LABELS.get(r['status'], r['status'])
+        r['error_kind_label'] = ERROR_KIND_LABELS.get(r['error_kind'])
         r['sent_at'] = iso_utc(r['sent_at'])
     return data
 
 
-def batch_detail(batch_id: int, page: int = 1) -> dict[str, Any]:
+def _retry_options(cursor: Any, batch_id: int, batch_status: str) -> dict[str, int]:
+    eligible = f'RetriedInBatchId IS NULL AND RetryCount < {ZNS_MAX_MANUAL_RETRIES}'
+    cursor.execute(
+        f"""
+        SELECT COUNT(CASE WHEN {eligible} AND Status = 'failed' AND ErrorKind = 'temporary' THEN 1 END),
+               COUNT(CASE WHEN {eligible} AND Status = 'unknown' THEN 1 END),
+               COUNT(CASE WHEN RetriedInBatchId IS NULL AND ({_NEW_BATCH_CLAUSE}) THEN 1 END)
+        FROM dbo.ZnsSendRecipients WHERE BatchId = %s
+        """,
+        [batch_id],
+    )
+    temporary, unknown, new_batch = cursor.fetchone()
+    finished = batch_status in ('partial', 'failed')
+    if new_batch and _has_pending_retry(cursor, batch_id):
+        new_batch = 0
+    return {
+        'temporary': temporary if finished else 0,
+        'unknown': unknown if finished else 0,
+        'new_batch': new_batch if finished or batch_status == 'paused' else 0,
+    }
+
+
+def _has_pending_retry(cursor: Any, batch_id: int) -> bool:
+    cursor.execute("SELECT COUNT(*) FROM dbo.ZnsSendBatches WHERE ParentBatchId = %s AND Status = 'pending_approval'", [batch_id])
+    return cursor.fetchone()[0] > 0
+
+
+def list_recipients(batch_id: int, actor: Any, draw: int, start: int, length: int, status: str | None = None) -> dict[str, Any]:
+    status = status if status in RECIPIENT_FILTERS else None
     with connection.cursor() as cursor:
-        batch = _batch(cursor, batch_id)
-        page, pages = _pages(batch['total_rows'], DETAIL_PAGE_SIZE, page)
-        batch['recipients'] = _recipients(cursor, batch_id, page)
-    return {**batch, 'page': page, 'pages': pages, 'page_size': DETAIL_PAGE_SIZE}
+        _visible_batch(cursor, batch_id, actor)
+        cursor.execute('SELECT COUNT(*) FROM dbo.ZnsSendRecipients WHERE BatchId = %s', [batch_id])
+        total = cursor.fetchone()[0]
+        filtered = total
+        if status:
+            cursor.execute(f'SELECT COUNT(*) FROM dbo.ZnsSendRecipients WHERE BatchId = %s AND {RECIPIENT_FILTERS[status]}', [batch_id])
+            filtered = cursor.fetchone()[0]
+        data = _recipients(cursor, batch_id, status, start, length)
+    return {'draw': draw, 'recordsTotal': total, 'recordsFiltered': filtered, 'data': data}
 
 
-def batch_export_rows(batch_id: int) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def batch_detail(batch_id: int, actor: Any) -> dict[str, Any]:
     with connection.cursor() as cursor:
-        return _batch(cursor, batch_id), _recipients(cursor, batch_id)
-
-
-def cancel_batch(batch_id: int, user: str, is_staff: bool) -> None:
-    with transaction.atomic(), connection.cursor() as cursor:
-        cursor.execute('SELECT Status, CreatedBy, ConfirmedBy FROM dbo.ZnsSendBatches WHERE Id = %s', [batch_id])
-        row = cursor.fetchone()
-        if not row or row[0] not in ('pending', 'sending'):
-            raise MessagingError('Chỉ hủy được lô đang "Chờ gửi" hoặc "Đang gửi".')
-        if not _can_manage(user, is_staff, row[1], row[2]):
-            raise MessagingError('Chỉ người tạo / xác nhận lô hoặc quản trị viên được hủy.')
+        batch = _visible_batch(cursor, batch_id, actor)
         cursor.execute(
-            "UPDATE dbo.ZnsSendBatches SET Status = 'cancelled', CancelledBy = %s, CancelledAt = SYSUTCDATETIME() WHERE Id = %s AND Status IN ('pending', 'sending')",
-            [user, batch_id],
+            """
+            SELECT Status, Kind, Message, Total FROM (
+                SELECT Status, Kind, Message, COUNT(*) AS Total,
+                       ROW_NUMBER() OVER (PARTITION BY Status ORDER BY COUNT(*) DESC) AS Position
+                FROM (
+                    SELECT Status,
+                           CASE WHEN Status = 'skipped' THEN NULL ELSE ErrorKind END AS Kind,
+                           CASE WHEN Status = 'skipped' THEN SkipReason ELSE ErrorMessage END AS Message
+                    FROM dbo.ZnsSendRecipients
+                    WHERE BatchId = %s AND Status IN ('failed', 'unknown', 'invalid', 'skipped')
+                ) errors
+                GROUP BY Status, Kind, Message
+            ) grouped
+            WHERE Position <= 20
+            ORDER BY Total DESC
+            """,
+            [batch_id],
+        )
+        batch['error_summary'] = [{'status': s, 'kind_label': ERROR_KIND_LABELS.get(k), 'message': m, 'count': c} for s, k, m, c in cursor.fetchall()]
+        batch['retry_options'] = _retry_options(cursor, batch_id, batch['status'])
+        cursor.execute(f'SELECT COUNT(*) FROM dbo.ZnsSendRecipients WHERE BatchId = %s AND {_SKIP_CLAUSE}', [batch_id])
+        skip_count = cursor.fetchone()[0]
+        pending = batch['status'] == 'pending_approval'
+        batch['approval'] = limits.approval_summary(cursor, batch['owner'], batch['valid_rows']) if pending else None
+    people = (batch['owner'], batch['created_by'], batch['confirmed_by'])
+    batch['can_approve'] = pending and actor.can_approve(*people)
+    batch['can_retry'] = actor.can_retry(*people)
+    batch['can_skip'] = batch['status'] in SKIPPABLE and actor.can_skip(*people)
+    batch['skip_count'] = skip_count
+    batch['approve_blocked_self'] = pending and actor.approve and actor.owns(batch['created_by'], batch['confirmed_by']) and not actor.is_admin
+    return batch
+
+
+def recipient_attempts(batch_id: int, recipient_id: int, actor: Any) -> list[dict[str, Any]]:
+    with connection.cursor() as cursor:
+        _visible_batch(cursor, batch_id, actor)
+        cursor.execute(
+            """
+            SELECT AttemptNo AS attempt_no, TriggerType AS trigger_type, TriggeredBy AS triggered_by, Result AS result, HttpStatus AS http_status,
+                   DurationMs AS duration_ms, ErrorMessage AS error, ApiResponse AS response, CreatedAt AS created_at
+            FROM dbo.ZnsSendAttempts WHERE BatchId = %s AND RecipientId = %s ORDER BY AttemptNo
+            """,
+            [batch_id, recipient_id],
+        )
+        data = rows(cursor)
+    for r in data:
+        r['result_label'] = ATTEMPT_RESULT_LABELS.get(r['result'], r['result'])
+        r['created_at'] = iso_utc(r['created_at'])
+    return data
+
+
+def batch_export_rows(batch_id: int, status: str | None, actor: Any) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    with connection.cursor() as cursor:
+        return _visible_batch(cursor, batch_id, actor), _recipients(cursor, batch_id, status)
+
+
+def cancel_batch(batch_id: int, actor: Any) -> None:
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute('SELECT Status, CreatedBy, ConfirmedBy, Owner FROM dbo.ZnsSendBatches WITH (UPDLOCK, ROWLOCK) WHERE Id = %s', [batch_id])
+        row = cursor.fetchone()
+        if not row or row[0] not in CANCELLABLE:
+            raise MessagingError('Chỉ hủy được lô đang "Chờ duyệt", "Chờ gửi", "Đang gửi" hoặc "Tạm dừng".')
+        if not actor.can_cancel(row[3], row[1], row[2]):
+            raise MessagingError('Chỉ người tạo lô hoặc người có quyền hủy mới hủy được lô này.')
+        cursor.execute(
+            """
+            UPDATE dbo.ZnsSendBatches SET Status = 'cancelled', CancelledBy = %s, CancelledAt = SYSUTCDATETIME()
+            WHERE Id = %s AND Status IN ('pending', 'pending_approval', 'sending', 'paused')
+            """,
+            [actor.username, batch_id],
         )
         cursor.execute("UPDATE dbo.ZnsSendRecipients SET Status = 'cancelled' WHERE BatchId = %s AND Status = 'pending'", [batch_id])
+        audit.log('zns.cancel', actor.username, 'batch', batch_id)
 
 
-def _can_manage(user: str, is_staff: bool, created_by: str | None, confirmed_by: str | None) -> bool:
-    return is_staff or user in (created_by, confirmed_by)
+def _pending_approval(cursor: Any, batch_id: int, actor: Any) -> tuple:
+    cursor.execute(
+        "SELECT Status, Owner, CreatedBy, ConfirmedBy, ValidRows, ParentBatchId, TemplateId FROM dbo.ZnsSendBatches WITH (UPDLOCK, ROWLOCK) WHERE Id = %s",
+        [batch_id],
+    )
+    row = cursor.fetchone()
+    if not row or row[0] != 'pending_approval':
+        raise MessagingError('Lô này không còn ở trạng thái "Chờ duyệt".')
+    if actor.owns(row[2], row[3]) and not actor.is_admin:
+        raise MessagingError('Không thể tự duyệt lô do chính mình tạo, cần người khác duyệt.')
+    if not actor.can_approve(row[1], row[2], row[3]):
+        raise MessagingError(f'Bạn chưa được phân quyền duyệt lô của chủ hàng {row[1]}.')
+    return row
 
 
-def _start_thread(batch_id: int) -> None:
-    threading.Thread(target=_run_in_thread, args=(batch_id,), name=f'zns-send-{batch_id}', daemon=True).start()
+def approve_batch(batch_id: int, actor: Any) -> dict[str, Any]:
+    with transaction.atomic(), connection.cursor() as cursor:
+        _, owner, _, _, valid_rows, parent_id, template_id = _pending_approval(cursor, batch_id, actor)
+        if not load_template(cursor, template_id)['is_active']:
+            raise MessagingError('Mẫu tin đang ngừng hoạt động, không duyệt được lô này.')
+        provider.check_account(owner)
+        limits.check_batch(cursor, owner, valid_rows)
+        limits.check_month(cursor, owner, valid_rows)
+        mode = provider.send_mode()
+        cursor.execute(
+            """
+            UPDATE dbo.ZnsSendBatches SET Status = 'sending', SendMode = %s, SentBy = %s, ApprovedBy = %s, ApprovedAt = SYSUTCDATETIME(), SendStartedAt = SYSUTCDATETIME()
+            WHERE Id = %s AND Status = 'pending_approval'
+            """,
+            [mode, actor.username, actor.username, batch_id],
+        )
+        if parent_id:
+            _link_retry(cursor, parent_id, batch_id)
+        audit.log('zns.approve', actor.username, 'batch', batch_id, f'{owner} · {valid_rows} khách · {mode}')
+        transaction.on_commit(lambda: _start_thread(batch_id))
+    return {'batch_id': batch_id, 'send_mode': mode}
+
+
+def reject_batch(batch_id: int, reason: Any, actor: Any) -> None:
+    reason = str(reason or '').strip()[:500]
+    if not reason:
+        raise MessagingError('Vui lòng nhập lý do từ chối.')
+    with transaction.atomic(), connection.cursor() as cursor:
+        _pending_approval(cursor, batch_id, actor)
+        cursor.execute(
+            "UPDATE dbo.ZnsSendBatches SET Status = 'rejected', RejectedBy = %s, RejectedAt = SYSUTCDATETIME(), RejectReason = %s WHERE Id = %s",
+            [actor.username, reason, batch_id],
+        )
+        cursor.execute("UPDATE dbo.ZnsSendRecipients SET Status = 'cancelled' WHERE BatchId = %s AND Status = 'pending'", [batch_id])
+        audit.log('zns.reject', actor.username, 'batch', batch_id, reason)
+
+
+def _start_thread(batch_id: int, actor: str | None = None) -> None:
+    threading.Thread(target=_run_in_thread, args=(batch_id, actor), name=f'zns-send-{batch_id}', daemon=True).start()
 
 
 def _batch_status(batch_id: int) -> str | None:
@@ -493,16 +682,96 @@ def _batch_status(batch_id: int) -> str | None:
     return row[0] if row else None
 
 
-def _run_in_thread(batch_id: int) -> None:
+def _run_in_thread(batch_id: int, actor: str | None = None) -> None:
     try:
-        run_send(batch_id)
+        run_send(batch_id, actor)
     except Exception:
         logger.exception('ZNS: lô %s dừng giữa chừng, giữ trạng thái "Đang gửi" (chạy tiếp: manage.py zns_send_batch %s)', batch_id, batch_id)
     finally:
         connection.close()
 
 
-def run_send(batch_id: int) -> dict[str, int]:
+def _refresh_counts(cursor: Any, batch_id: int) -> None:
+    cursor.execute(
+        """
+        UPDATE b SET
+            SentRows = (SELECT COUNT(*) FROM dbo.ZnsSendRecipients r WHERE r.BatchId = b.Id AND r.Status IN ('sent', 'simulated')),
+            FailedRows = (SELECT COUNT(*) FROM dbo.ZnsSendRecipients r WHERE r.BatchId = b.Id AND r.Status = 'failed'),
+            UnknownRows = (SELECT COUNT(*) FROM dbo.ZnsSendRecipients r WHERE r.BatchId = b.Id AND r.Status = 'unknown'),
+            SkippedRows = (SELECT COUNT(*) FROM dbo.ZnsSendRecipients r WHERE r.BatchId = b.Id AND r.Status = 'skipped')
+        FROM dbo.ZnsSendBatches b WHERE b.Id = %s
+        """,
+        [batch_id],
+    )
+
+
+def _final_status(cursor: Any, batch_id: int) -> str:
+    """Trạng thái cuối theo kết quả: tất cả thành công / một phần / không khách nào thành công."""
+    _refresh_counts(cursor, batch_id)
+    cursor.execute('SELECT SentRows, FailedRows, UnknownRows FROM dbo.ZnsSendBatches WHERE Id = %s', [batch_id])
+    sent, failed, unknown = cursor.fetchone()
+    return 'failed' if not sent else ('partial' if failed or unknown else 'done')
+
+
+def _finish_batch(cursor: Any, batch_id: int, from_status: str = 'sending') -> str:
+    status = _final_status(cursor, batch_id)
+    cursor.execute(
+        'UPDATE dbo.ZnsSendBatches SET Status = %s, SendFinishedAt = SYSUTCDATETIME() WHERE Id = %s AND Status = %s', [status, batch_id, from_status]
+    )
+    return status
+
+
+def _recover_interrupted(batch_id: int) -> None:
+    """Khách đang được gửi lúc server dừng: không biết tin đã đi chưa, không tự gửi lại."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE dbo.ZnsSendRecipients SET Status = 'unknown', ErrorKind = 'unknown',
+                   ErrorMessage = N'Server dừng khi đang gửi khách này. Tin có thể đã được gửi.'
+            WHERE BatchId = %s AND Status = 'sending'
+            """,
+            [batch_id],
+        )
+
+
+def _log_attempt(cursor: Any, batch_id: int, recipient_id: int, attempt_no: int, trigger: str, actor: str | None, result: provider.SendResult) -> None:
+    outcome = 'simulated' if result.simulated else ('sent' if result.ok else result.kind)
+    cursor.execute(
+        """
+        INSERT INTO dbo.ZnsSendAttempts (BatchId, RecipientId, AttemptNo, TriggerType, TriggeredBy, Result, HttpStatus, DurationMs, ErrorMessage, ApiResponse)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        [batch_id, recipient_id, attempt_no, trigger, actor, outcome, result.http_status, result.duration_ms, result.error, result.response],
+    )
+
+
+def _send_one(batch_id: int, owner: str, template_code: str, row: tuple, actor: str | None) -> provider.SendResult:
+    """Gửi một khách: lỗi tạm thời tự thử lại theo ZNS_RETRY_DELAYS, mỗi lần gọi ghi vào ZnsSendAttempts."""
+    recipient_id, phone, params, attempt_count, retry_count = row
+    manual = retry_count > 0
+    attempt_no = attempt_count
+    for index in range(len(ZNS_RETRY_DELAYS) + 1):
+        attempt_no += 1
+        if params is None:
+            result = provider.SendResult(ok=False, kind=provider.KIND_BUSINESS, error='Thiếu tham số (lô xác nhận trước khi có chức năng gửi), hãy tạo lại lô.')
+        else:
+            result = provider.send(owner, phone, template_code, json.loads(params))
+        trigger = 'manual' if manual and index == 0 else 'auto'
+        with connection.cursor() as cursor:
+            _log_attempt(cursor, batch_id, recipient_id, attempt_no, trigger, actor if trigger == 'manual' else None, result)
+            cursor.execute('UPDATE dbo.ZnsSendRecipients SET AttemptCount = %s WHERE Id = %s', [attempt_no, recipient_id])
+        logger.info(
+            'ZNS lô=%s khách=%s sđt=%s lần=%s kết_quả=%s http=%s ms=%s',
+            batch_id, recipient_id, provider.mask_phone(phone), attempt_no,
+            'simulated' if result.simulated else ('sent' if result.ok else result.kind), result.http_status, result.duration_ms,
+        )
+        if result.ok or result.kind != provider.KIND_TEMPORARY or index == len(ZNS_RETRY_DELAYS) or _batch_status(batch_id) != 'sending':
+            return result
+        time.sleep(ZNS_RETRY_DELAYS[index])
+    return result
+
+
+def run_send(batch_id: int, actor: str | None = None) -> dict[str, int]:
     """Gửi lần lượt khách "Chờ gửi" của lô đang "Đang gửi". Chạy lại được nếu bị dừng giữa chừng."""
     with connection.cursor() as cursor:
         cursor.execute(
@@ -518,43 +787,206 @@ def run_send(batch_id: int) -> dict[str, int]:
     owner, mode, template_code = row[1], row[2], row[3]
     if mode != provider.send_mode():
         raise MessagingError(f'Lô bắt đầu ở chế độ {mode}, server đang ở chế độ {provider.send_mode()}: không tự đổi chế độ giữa chừng.')
-    counts = {'sent': 0, 'failed': 0, 'simulated': 0}
+    _recover_interrupted(batch_id)
+    counts = {'sent': 0, 'failed': 0, 'unknown': 0, 'simulated': 0}
+    last_config_error, config_streak = None, 0
     while True:
         with connection.cursor() as cursor:
             cursor.execute(
-                f"SELECT TOP {SEND_CHUNK} Id, Phone, Params FROM dbo.ZnsSendRecipients WHERE BatchId = %s AND Status = 'pending' ORDER BY RowNo",
+                f"""
+                SELECT TOP {SEND_CHUNK} Id, Phone, Params, AttemptCount, RetryCount
+                FROM dbo.ZnsSendRecipients WHERE BatchId = %s AND Status = 'pending' ORDER BY RowNo
+                """,
                 [batch_id],
             )
             chunk = cursor.fetchall()
         if not chunk:
             break
-        for recipient_id, phone, params in chunk:
+        for recipient in chunk:
             if _batch_status(batch_id) != 'sending':
                 logger.info('ZNS: lô %s đã bị hủy giữa chừng %s', batch_id, counts)
                 return counts
-            if params is None:
-                result = provider.SendResult(ok=False, error='Thiếu tham số (lô xác nhận trước khi có chức năng gửi), hãy tạo lại lô.')
-            else:
-                result = provider.send(owner, phone, template_code, json.loads(params))
-            status = 'simulated' if result.simulated else ('sent' if result.ok else 'failed')
+            recipient_id = recipient[0]
+            with connection.cursor() as cursor:
+                reason = limits.exhausted_reason(cursor, owner)
+                if reason:
+                    cursor.execute("UPDATE dbo.ZnsSendBatches SET Status = 'paused', PauseReason = %s WHERE Id = %s AND Status = 'sending'", [reason, batch_id])
+                    logger.warning('ZNS: lô %s: %s', batch_id, reason)
+                    return counts
+                cursor.execute("UPDATE dbo.ZnsSendRecipients SET Status = 'sending' WHERE Id = %s AND Status = 'pending'", [recipient_id])
+                if cursor.rowcount != 1:
+                    continue
+            result = _send_one(batch_id, owner, template_code, recipient, actor)
+            status = 'simulated' if result.simulated else ('sent' if result.ok else ('unknown' if result.kind == provider.KIND_UNKNOWN else 'failed'))
             counts[status] += 1
             with connection.cursor() as cursor:
                 cursor.execute(
                     """
-                    UPDATE dbo.ZnsSendRecipients SET Status = %s, ErrorMessage = %s, ApiResponse = %s, ZaloMsgId = %s,
+                    UPDATE dbo.ZnsSendRecipients SET Status = %s, ErrorKind = %s, ErrorMessage = %s, ApiResponse = %s, ZaloMsgId = %s,
                            SentAt = CASE WHEN %s = 'sent' THEN SYSUTCDATETIME() ELSE SentAt END
-                    WHERE Id = %s AND Status = 'pending'
+                    WHERE Id = %s AND Status = 'sending'
                     """,
-                    [status, result.error, result.response, result.msg_id, status, recipient_id],
+                    [status, result.kind, result.error, result.response, result.msg_id, status, recipient_id],
                 )
-                if cursor.rowcount == 1:
-                    column = 'FailedRows' if status == 'failed' else 'SentRows'
-                    cursor.execute(f'UPDATE dbo.ZnsSendBatches SET {column} = {column} + 1 WHERE Id = %s', [batch_id])
+                _refresh_counts(cursor, batch_id)
+            if result.kind == provider.KIND_CONFIG:
+                config_streak = config_streak + 1 if result.error == last_config_error else 1
+                last_config_error = result.error
+                if config_streak >= ZNS_PAUSE_AFTER:
+                    with connection.cursor() as cursor:
+                        cursor.execute("UPDATE dbo.ZnsSendBatches SET Status = 'paused' WHERE Id = %s AND Status = 'sending'", [batch_id])
+                    logger.warning('ZNS: tạm dừng lô %s sau %s lỗi cấu hình liên tiếp: %s', batch_id, config_streak, result.error)
+                    return counts
+            else:
+                last_config_error, config_streak = None, 0
             if not result.simulated and ZNS_SEND_DELAY_MS:
                 time.sleep(ZNS_SEND_DELAY_MS / 1000)
     with connection.cursor() as cursor:
-        cursor.execute(
-            "UPDATE dbo.ZnsSendBatches SET Status = 'done', SendFinishedAt = SYSUTCDATETIME() WHERE Id = %s AND Status = 'sending'", [batch_id]
-        )
-    logger.info('ZNS: xong lô %s (%s) %s', batch_id, mode, counts)
+        final = _finish_batch(cursor, batch_id)
+    logger.info('ZNS: xong lô %s (%s) trạng_thái=%s %s', batch_id, mode, final, counts)
     return counts
+
+
+def skip_recipients(batch_id: int, recipient_id: Any, reason: Any, actor: Any) -> dict[str, Any]:
+    """Bỏ qua khách lỗi: một khách theo recipient_id, hoặc mọi khách lỗi còn lại của lô khi không truyền. Không hoàn tác."""
+    reason = str(reason or '').strip()[:500]
+    if not reason:
+        raise MessagingError('Vui lòng nhập lý do bỏ qua.')
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute('SELECT Status, Owner, CreatedBy, ConfirmedBy FROM dbo.ZnsSendBatches WITH (UPDLOCK, ROWLOCK) WHERE Id = %s', [batch_id])
+        row = cursor.fetchone()
+        if not row or not actor.can_see(row[1], row[2], row[3]):
+            raise MessagingError('Không tìm thấy lô gửi.')
+        status = row[0]
+        if status not in SKIPPABLE:
+            raise MessagingError('Chỉ bỏ qua được khách của lô "Gửi một phần", "Thất bại" hoặc "Tạm dừng".')
+        if not actor.can_skip(row[1], row[2], row[3]):
+            raise MessagingError('Chỉ người tạo lô hoặc người có quyền gửi lại mới bỏ qua được khách lỗi.')
+        if _has_pending_retry(cursor, batch_id):
+            raise MessagingError('Lô này có lô gửi lại đang chờ duyệt, hãy xử lý lô đó trước.')
+        where, args = _SKIP_CLAUSE, [batch_id]
+        if recipient_id is not None:
+            try:
+                args.append(int(recipient_id))
+            except (TypeError, ValueError) as exc:
+                raise MessagingError('Khách không hợp lệ.') from exc
+            where += ' AND Id = %s'
+        cursor.execute(
+            f"""
+            UPDATE dbo.ZnsSendRecipients SET Status = 'skipped', SkipReason = %s, SkippedBy = %s, SkippedAt = SYSUTCDATETIME()
+            WHERE BatchId = %s AND {where}
+            """,
+            [reason, actor.username, *args],
+        )
+        skipped = cursor.rowcount
+        if not skipped:
+            raise MessagingError('Không còn khách lỗi nào để bỏ qua.')
+        if status == 'paused':
+            _refresh_counts(cursor, batch_id)
+        else:
+            new_status = _final_status(cursor, batch_id)
+            cursor.execute('UPDATE dbo.ZnsSendBatches SET Status = %s WHERE Id = %s', [new_status, batch_id])
+        audit.log('zns.skip', actor.username, 'batch', batch_id, f'{skipped} khách · {reason}')
+    return {'batch_id': batch_id, 'skipped': skipped}
+
+
+def retry_same_batch(batch_id: int, kinds: Any, actor: Any) -> dict[str, Any]:
+    """Gửi lại ngay trên lô cũ: lỗi tạm thời và / hoặc chưa rõ kết quả. Nội dung không đổi."""
+    clauses = {'temporary': "(Status = 'failed' AND ErrorKind = 'temporary')", 'unknown': "Status = 'unknown'"}
+    chosen = [clauses[k] for k in clauses if isinstance(kinds, list) and k in kinds]
+    if not chosen:
+        raise MessagingError('Chưa chọn loại lỗi cần gửi lại.')
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute('SELECT Status, CreatedBy, ConfirmedBy, SendMode, Owner FROM dbo.ZnsSendBatches WITH (UPDLOCK, ROWLOCK) WHERE Id = %s', [batch_id])
+        row = cursor.fetchone()
+        if not row or row[0] not in ('partial', 'failed'):
+            raise MessagingError('Chỉ gửi lại được lô "Gửi một phần" hoặc "Thất bại".')
+        if not actor.can_retry(row[4], row[1], row[2]):
+            raise MessagingError('Gửi lại phát sinh thêm phí nên cần người duyệt khác với người tạo lô.')
+        if row[3] != provider.send_mode():
+            raise MessagingError(f'Lô đã gửi ở chế độ {row[3]}, server đang ở chế độ {provider.send_mode()}.')
+        provider.check_account(row[4])
+        cursor.execute(
+            f"""
+            UPDATE dbo.ZnsSendRecipients SET Status = 'pending', ErrorKind = NULL, ErrorMessage = NULL, RetryCount = RetryCount + 1
+            WHERE BatchId = %s AND RetriedInBatchId IS NULL AND RetryCount < {ZNS_MAX_MANUAL_RETRIES} AND ({' OR '.join(chosen)})
+            """,
+            [batch_id],
+        )
+        retried = cursor.rowcount
+        if not retried:
+            raise MessagingError(f'Không còn khách nào gửi lại được (tối đa {ZNS_MAX_MANUAL_RETRIES} lần mỗi khách).')
+        limits.check_month(cursor, row[4], retried)
+        cursor.execute("UPDATE dbo.ZnsSendBatches SET Status = 'sending', SendFinishedAt = NULL WHERE Id = %s", [batch_id])
+        _refresh_counts(cursor, batch_id)
+        audit.log('zns.retry', actor.username, 'batch', batch_id, f'{retried} khách · {", ".join(k for k in clauses if k in kinds)}')
+        transaction.on_commit(lambda: _start_thread(batch_id, actor.username))
+    return {'batch_id': batch_id, 'retried': retried}
+
+
+def _link_retry(cursor: Any, parent_id: int, child_id: int) -> None:
+    """Lô gửi lại đã được duyệt: đánh dấu khách ở lô gốc đã chuyển sang lô mới."""
+    cursor.execute('SELECT Status FROM dbo.ZnsSendBatches WHERE Id = %s', [parent_id])
+    parent_status = cursor.fetchone()[0]
+    cursor.execute(
+        f"""
+        SELECT Id FROM dbo.ZnsSendRecipients
+        WHERE BatchId = %s AND RetriedInBatchId IS NULL AND ({_NEW_BATCH_CLAUSE})
+              AND RowNo IN (SELECT RowNo FROM dbo.ZnsSendRecipients WHERE BatchId = %s)
+        """,
+        [parent_id, child_id],
+    )
+    ids = [r[0] for r in cursor.fetchall()]
+    for start in range(0, len(ids), MAX_SQL_PARAMS - 1):
+        part = ids[start : start + MAX_SQL_PARAMS - 1]
+        cursor.execute(
+            f"""
+            UPDATE dbo.ZnsSendRecipients SET RetriedInBatchId = %s,
+                   Status = CASE WHEN Status = 'pending' THEN 'cancelled' ELSE Status END,
+                   ErrorMessage = CASE WHEN Status = 'pending' THEN %s ELSE ErrorMessage END
+            WHERE Id IN ({', '.join(['%s'] * len(part))})
+            """,
+            [child_id, f'Chuyển sang lô #{child_id}.', *part],
+        )
+    if parent_status == 'paused':
+        _finish_batch(cursor, parent_id, 'paused')
+    else:
+        _refresh_counts(cursor, parent_id)
+
+
+def retry_as_new_batch(batch_id: int, actor: Any) -> dict[str, Any]:
+    """Lỗi cấu hình đã sửa ở mẫu tin: tạo lô mới chờ duyệt, gồm khách lỗi cấu hình (và khách chưa gửi nếu lô đang tạm dừng), dùng nội dung mẫu hiện tại."""
+    with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute('SELECT Status, CreatedBy, ConfirmedBy, TemplateId, FileName, Owner FROM dbo.ZnsSendBatches WITH (UPDLOCK, ROWLOCK) WHERE Id = %s', [batch_id])
+        row = cursor.fetchone()
+        if not row or row[0] not in ('partial', 'failed', 'paused'):
+            raise MessagingError('Chỉ tạo lô gửi lại từ lô "Gửi một phần", "Thất bại" hoặc "Tạm dừng".')
+        _, created_by, confirmed_by, template_id, file_name, owner = row
+        if not actor.can_retry(owner, created_by, confirmed_by):
+            raise MessagingError('Gửi lại phát sinh thêm phí nên cần người duyệt khác với người tạo lô.')
+        if _has_pending_retry(cursor, batch_id):
+            raise MessagingError('Lô này đã có một lô gửi lại đang chờ duyệt.')
+        cursor.execute(
+            f"""
+            SELECT Id, RowNo, Phone, Params FROM dbo.ZnsSendRecipients
+            WHERE BatchId = %s AND RetriedInBatchId IS NULL AND ({_NEW_BATCH_CLAUSE}) ORDER BY RowNo
+            """,
+            [batch_id],
+        )
+        source = cursor.fetchall()
+        if not source:
+            raise MessagingError('Không có khách lỗi cấu hình nào cần gửi lại.')
+        names = [v['name'] for v in load_template(cursor, template_id)['variables'] if v['is_active'] and v['source'] == 'customer']
+        columns = ['Số điện thoại', *names]
+        parsed = {
+            'sheet': f'Gửi lại từ lô {batch_id}',
+            'columns': columns,
+            'rows': [{'row_no': r[1], 'values': [r[2], *[(json.loads(r[3] or '{}').get(n) or None) for n in names]]} for r in source],
+            'fixed': {},
+        }
+        new_id = create_draft(parsed, f'gui_lai_lo_{batch_id}_{file_name}', actor.username)
+        mapping = {'__phone__': 0, **{n: i + 1 for i, n in enumerate(names)}}
+        result = confirm(new_id, template_id, mapping, None, actor)
+        cursor.execute('UPDATE dbo.ZnsSendBatches SET ParentBatchId = %s WHERE Id = %s', [batch_id, new_id])
+        audit.log('zns.retry_new', actor.username, 'batch', new_id, f'Gửi lại từ lô #{batch_id}')
+    return {**result, 'parent_batch_id': batch_id}

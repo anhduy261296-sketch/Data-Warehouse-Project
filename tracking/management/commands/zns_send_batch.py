@@ -5,7 +5,7 @@ from tracking.messaging.values import MessagingError
 
 
 class Command(BaseCommand):
-    help = 'Chạy tiếp lô ZNS đang "Đang gửi" (vd. server restart giữa chừng). Mặc định dry_run, chỉ gửi thật khi ZNS_SEND_MODE=live.'
+    help = 'Chạy tiếp lô ZNS đang "Đang gửi" (vd. server restart giữa chừng); khách đang gửi dở chuyển "Chưa rõ kết quả". Mặc định dry_run, chỉ gửi thật khi ZNS_SEND_MODE=live.'
 
     def add_arguments(self, parser):
         parser.add_argument('batch_id', type=int)

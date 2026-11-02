@@ -1,0 +1,134 @@
+.cfg-tabs {
+  border-bottom: 0;
+}
+.cfg-tabs .nav-link {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+.cfg-tabs .nav-link.active {
+  color: var(--pgi-primary);
+}
+.cfg-tab-body {
+  border-top-left-radius: 0;
+}
+.cfg-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.75rem;
+}
+.cfg-label {
+  margin: 0.75rem 0 0.375rem;
+  font-size: 0.85rem;
+}
+.cfg-label .text-muted {
+  font-size: 0.78rem;
+}
+.cfg-actions .btn {
+  padding: 0.2rem 0.4rem;
+}
+.cfg-chip {
+  display: inline-block;
+  margin: 0 0.25rem 0.25rem 0;
+  padding: 1px 8px;
+  border-radius: 6px;
+  background: #eef0f3;
+  color: #4b5563;
+  font-size: 0.75rem;
+}
+.cfg-chip.is-super {
+  background: #fdecea;
+  color: #b42318;
+}
+.cfg-role-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+}
+.cfg-role-picks label {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 400;
+}
+.cfg-role-picks input {
+  margin-right: 0.3rem;
+  vertical-align: -1px;
+}
+.cfg-matrix-group {
+  margin-bottom: 0.5rem;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.cfg-matrix-title {
+  padding: 0.3rem 0.75rem;
+  background: #f8f9fb;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #374151;
+}
+.cfg-matrix-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.3rem 0.75rem;
+  border-top: 1px solid #f1f3f6;
+  font-size: 0.8rem;
+}
+.cfg-matrix-page {
+  flex: none;
+  width: 11rem;
+  color: #4b5563;
+}
+.cfg-matrix-perms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1rem;
+}
+.cfg-matrix-perms label {
+  margin: 0;
+  font-weight: 400;
+  color: #1f2430;
+}
+.cfg-matrix-perms label.is-inherited {
+  color: #9ca3af;
+}
+.cfg-matrix-perms input {
+  margin-right: 0.25rem;
+  vertical-align: -1px;
+}
+.cfg-limit-card {
+  height: 100%;
+  padding: 0.75rem;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+}
+.cfg-limit-usage {
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+.cfg-limit-card label {
+  font-size: 0.8rem;
+}
+#cfgUsersTable_wrapper .dataTables_info,
+#cfgRolesTable_wrapper .dataTables_info,
+#cfgAuditTable_wrapper .dataTables_info {
+  padding-top: 0;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+#cfgAuditTable td:last-child {
+  max-width: 28rem;
+  font-size: 0.78rem;
+  color: #6b7280;
+  word-break: break-word;
+}
+@media (max-width: 575.98px) {
+  .cfg-matrix-row {
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+  .cfg-matrix-page {
+    width: auto;
+  }
+}

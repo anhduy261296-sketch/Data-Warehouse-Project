@@ -26,3 +26,6 @@ div.dt-button-collection {
 .detail-date-input {
   width: 150px;
 }
+body[data-can-export="0"] [data-needs-export] {
+  display: none !important;
+}

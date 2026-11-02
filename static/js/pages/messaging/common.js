@@ -2,7 +2,8 @@ const ZnsUi = (function () {
   const PLACEHOLDER_RE = /<\s*([A-Za-z][A-Za-z0-9_]*)\s*>/g;
 
   function statusBadge(status, label) {
-    return `<span class="zns-state ${APP.ZNS.STATUS_BADGE[status] || ""}">${escapeHtml(label || status)}</span>`;
+    const spinner = status === "sending" ? '<i class="zns-state-spin" aria-hidden="true"></i>' : "";
+    return `<span class="zns-state ${APP.ZNS.STATUS_BADGE[status] || ""}">${spinner}${escapeHtml(label || status)}</span>`;
   }
 
   function activeBadge(active) {

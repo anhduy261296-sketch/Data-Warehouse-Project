@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}Không có quyền{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+  <i class="fas fa-lock fa-2x text-gray-400 mb-3"></i>
+  <h1 class="h5">Bạn không có quyền xem trang này</h1>
+  <p class="text-muted mb-3">Liên hệ quản trị viên để được cấp quyền.</p>
+  <a class="btn btn-sm btn-primary" href="{% url 'home' %}">Về trang chính</a>
+</div>
+{% endblock %}

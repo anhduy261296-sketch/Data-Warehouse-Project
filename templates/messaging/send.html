@@ -6,15 +6,16 @@
 {% block content %}
 {% csrf_token %}
 <div class="zns-page-head">
-  <nav aria-label="breadcrumb"><ol class="zns-breadcrumb"><li><a href="{% url 'zns-templates' %}" data-loading>Quản lý gửi tin</a></li><li class="is-current" aria-current="page">Danh sách gửi tin</li></ol></nav>
+  <nav aria-label="breadcrumb"><ol class="zns-breadcrumb"><li><a href="{% url 'zns-templates' %}" data-loading>Quản lý chiến dịch</a></li><li class="is-current" aria-current="page">Danh sách gửi tin</li></ol></nav>
   <div class="zns-head-row">
     <h1 class="rpt-title">Danh sách gửi tin</h1>
     <div class="rpt-header-tools">
-    <button type="button" class="btn btn-sm btn-outline-secondary" id="znsRestart"><i class="fas fa-redo mr-1"></i> Đặt lại</button>
+    {% if perms.tracking.zns_send_create %}<button type="button" class="btn btn-sm btn-outline-secondary" id="znsRestart"><i class="fas fa-redo mr-1"></i> Đặt lại</button>{% endif %}
   </div>
   </div>
 </div>
 
+{% if perms.tracking.zns_send_create %}
 <ol class="zns-steps" id="znsSteps">
   <li data-step="1" class="is-active"><span>1</span> Upload danh sách khách hàng</li>
   <li data-step="2"><span>2</span> Chọn mẫu tin, xem trước &amp; xác nhận</li>
@@ -86,35 +87,37 @@
   </div>
 </div>
 
-<div class="rpt-card mb-3" id="znsHistoryCard">
-  <div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+{% endif %}
+
+<div class="rpt-card mb-3" id="znsHistoryCard" data-can-export="{{ perms.tracking.zns_batch_export|yesno:'1,0' }}">
   <div class="rpt-card-title justify-content-between">
     <span><i class="fas fa-history mr-2"></i>Lịch sử lô gửi <span class="zns-mode d-none" id="znsSendMode"></span></span>
-    <button type="button" class="btn btn-sm btn-outline-primary" id="znsHistoryReload"><i class="fas fa-sync-alt mr-1"></i> Làm mới</button>
+    <span class="zns-history-tools">
+      {% if perms.tracking.zns_batch_export_history %}<button type="button" class="btn btn-sm zns-btn-export" id="znsHistoryExport" title="Xuất toàn bộ lịch sử lô gửi"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</button>{% endif %}
+      <button type="button" class="btn btn-sm btn-outline-primary" id="znsHistoryReload"><i class="fas fa-sync-alt mr-1"></i> Làm mới</button>
+    </span>
   </div>
-  <div class="table-responsive">
-    <table class="table table-hover rpt-table zns-history-table">
-      <thead>
-        <tr>
-          <th>Lô</th>
-          <th>Xác nhận lúc</th>
-          <th>Mẫu tin</th>
-          <th>Chủ hàng</th>
-          <th>File</th>
-          <th class="num">Tổng</th>
-          <th class="num">Hợp lệ</th>
-          <th class="num" title="Dòng lỗi dữ liệu trong file, không gửi">Lỗi</th>
-          <th>Trạng thái</th>
-          <th class="num">Đã gửi</th>
-          <th class="num" title="Đã gọi API nhưng Incom / Zalo báo lỗi">Gửi lỗi</th>
-          <th>Người tạo</th>
-          <th class="zns-actions-col">Thao tác</th>
-        </tr>
-      </thead>
-      <tbody id="znsHistoryRows"></tbody>
-    </table>
-  </div>
-  <div class="zns-pager" id="znsHistoryPager"></div>
+  <table class="table table-hover rpt-table zns-history-table" id="znsHistoryTable" width="100%">
+    <thead>
+      <tr>
+        <th class="zns-actions-col">Thao tác</th>
+        <th>Lô</th>
+        <th>Xác nhận lúc</th>
+        <th>Mẫu tin</th>
+        <th>Chủ hàng</th>
+        <th>File</th>
+        <th class="num">Tổng</th>
+        <th class="num">Hợp lệ</th>
+        <th class="num" title="Dòng lỗi dữ liệu trong file, không gửi">Lỗi</th>
+        <th>Trạng thái</th>
+        <th class="num">Đã gửi</th>
+        <th class="num" title="Đã gọi API nhưng Incom / Zalo báo lỗi">Gửi lỗi</th>
+        <th class="num" title="Không biết tin đã đi chưa, vd. hết thời gian chờ phản hồi">Chưa rõ</th>
+        <th>Người tạo</th>
+      </tr>
+    </thead>
+    <tbody id="znsHistoryRows"></tbody>
+  </table>
 </div>
 
 <div class="modal fade" id="znsInvalidModal" tabindex="-1" role="dialog" aria-hidden="true">
@@ -139,20 +142,31 @@
           <h5 class="modal-title" id="znsBatchTitle">Chi tiết lô gửi</h5>
           <div class="zns-batch-sub" id="znsBatchSub"></div>
         </div>
-        <div class="zns-batch-tools">
-          <a href="#" class="btn btn-sm zns-btn-export" id="znsBatchExport"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
-          <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
-        </div>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
       </div>
       <div class="modal-body">
-        <div class="zns-stats zns-batch-stats" id="znsBatchStats"></div>
-        <div class="table-responsive zns-scroll">
-          <table class="table table-sm rpt-table zns-batch-table">
-            <thead><tr><th>Dòng</th><th>Khách hàng</th><th>Số điện thoại</th><th>Trạng thái</th><th>Nội dung / lỗi</th></tr></thead>
-            <tbody id="znsBatchRows"></tbody>
-          </table>
+        <div class="zns-batch-stats-wrap">
+          <div class="zns-stats zns-batch-stats" id="znsBatchStats"></div>
+          <div class="zns-batch-reasons d-none" id="znsBatchReasons" role="dialog" aria-label="Lý do lỗi"></div>
         </div>
-        <div class="zns-pager" id="znsBatchPager"></div>
+        <div class="zns-batch-notice zns-text-warn d-none" id="znsBatchNotice"></div>
+        <div class="zns-batch-toolbar">
+          <select class="form-control form-control-sm" id="znsBatchFilter" aria-label="Lọc theo trạng thái">
+            <option value="">Tất cả</option>
+            <option value="sent">Thành công</option>
+            <option value="failed">Thất bại</option>
+            <option value="unknown">Chưa rõ</option>
+            <option value="skipped">Bỏ qua</option>
+            <option value="invalid">Lỗi dữ liệu</option>
+            <option value="waiting">Chờ / đang gửi</option>
+            <option value="cancelled">Đã hủy</option>
+          </select>
+          <div class="zns-batch-actions" id="znsBatchActions"></div>
+        </div>
+        <table class="table table-sm rpt-table zns-batch-table" id="znsBatchTable" width="100%">
+          <thead><tr><th>Thao tác</th><th class="zns-row-no">Dòng</th><th>Khách hàng</th><th>Số điện thoại</th><th>Trạng thái</th><th title="Bấm số lần để xem chi tiết từng lần gọi API">Lần thử</th><th>Nội dung / lỗi</th></tr></thead>
+          <tbody id="znsBatchRows"></tbody>
+        </table>
       </div>
     </div>
   </div>

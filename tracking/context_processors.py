@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from . import access
 from .menu import HOME_URL_NAME, MENU
 
 
@@ -13,7 +14,7 @@ def sidebar_menu(request) -> dict[str, Any]:
         items = [
             {'label': i.label, 'url_name': i.url_name, 'active': current == i.url_name or current in i.active_for}
             for i in group.items
-            if not i.hidden
+            if not i.hidden and access.can_open(request.user, i.url_name)
         ]
         if items:
             groups.append(
@@ -26,4 +27,4 @@ def sidebar_menu(request) -> dict[str, Any]:
                     'active': any(i['active'] for i in items),
                 }
             )
-    return {'sidebar_menu': groups, 'home_url_name': HOME_URL_NAME}
+    return {'sidebar_menu': groups, 'home_url_name': HOME_URL_NAME, 'page_can_export': access.can_export_page(request.user, current)}

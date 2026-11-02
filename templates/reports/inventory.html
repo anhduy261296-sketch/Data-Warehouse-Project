@@ -56,7 +56,7 @@
     </div>
     <div class="col-xl-auto col-12 mb-2 d-flex rpt-actions">
       <button type="submit" class="btn btn-sm btn-primary flex-fill" id="rptSearch"><i class="fas fa-search mr-1"></i> Tìm kiếm</button>
-      <a href="#" class="btn btn-sm btn-outline-secondary flex-fill" id="rptExport" title="Xuất Excel tồn kho theo SKU (theo bộ lọc)"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
+      <a href="#" class="btn btn-sm btn-outline-secondary flex-fill" id="rptExport" data-needs-export title="Xuất Excel tồn kho theo SKU (theo bộ lọc)"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
     </div>
   </form>
 </div>
@@ -106,7 +106,7 @@
 <div class="rpt-card mb-3" id="rptLocCard">
   <div class="rpt-card-title justify-content-between flex-wrap">
     <span><i class="fas fa-list-ul mr-2"></i>Chi tiết tồn kho theo trạng thái</span>
-    <a href="#" class="btn btn-sm btn-outline-secondary d-none rpt-busy-btn" id="rptLocExport" title="Xuất Excel bảng chi tiết (theo bộ lọc và thứ tự sắp xếp hiện tại)"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
+    <a href="#" class="btn btn-sm btn-outline-secondary d-none rpt-busy-btn" id="rptLocExport" data-needs-export title="Xuất Excel bảng chi tiết (theo bộ lọc và thứ tự sắp xếp hiện tại)"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
   </div>
   <div class="text-center text-muted py-4" id="rptLocHint"><i class="fas fa-filter mr-1"></i> Chọn nhóm hàng / kho / trạng thái ở trên, hoặc nhập từ khoá rồi bấm <b>Tìm kiếm</b> để xem chi tiết tồn theo trạng thái.</div>
   <div class="d-none" id="rptLocWrap"><table class="table table-bordered table-hover rpt-table" id="rptLocTable" width="100%"><thead><tr></tr></thead><tbody></tbody></table></div>

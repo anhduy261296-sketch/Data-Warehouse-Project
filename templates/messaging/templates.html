@@ -5,18 +5,20 @@
 {% block page_css %}<link href="{% static 'css/pages/messaging/messaging.css' %}" rel="stylesheet" />{% endblock %}
 {% block content %}
 {% csrf_token %}
-<div id="znsTemplatesPage" data-staff="{{ request.user.is_staff|yesno:'1,0' }}" data-edit-url="{% url 'zns-template-edit' 0 %}">
+<div id="znsTemplatesPage" data-can-manage="{{ perms.tracking.zns_templates_manage|yesno:'1,0' }}" data-edit-url="{% url 'zns-template-edit' 0 %}">
   <div class="zns-page-head">
-    <nav aria-label="breadcrumb"><ol class="zns-breadcrumb"><li><a href="{% url 'zns-templates' %}" data-loading>Quản lý gửi tin</a></li><li class="is-current" aria-current="page">Mẫu tin nhắn</li></ol></nav>
+    <nav aria-label="breadcrumb"><ol class="zns-breadcrumb"><li><a href="{% url 'zns-templates' %}" data-loading>Quản lý chiến dịch</a></li><li class="is-current" aria-current="page">Mẫu tin nhắn</li></ol></nav>
     <div class="zns-head-row">
       <h1 class="rpt-title">Mẫu tin nhắn</h1>
       <div class="rpt-header-tools">
       <button type="button" class="btn btn-sm btn-outline-secondary" id="znsReset" title="Bỏ bộ lọc, trở về mặc định"><i class="fas fa-undo mr-1"></i> Reset</button>
+      {% if perms.tracking.zns_templates_export %}
       <button type="button" class="btn btn-sm zns-btn-export" id="znsExport" title="Xuất danh sách mẫu tin theo bộ lọc hiện tại"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</button>
-      {% if request.user.is_staff %}
+      {% endif %}
+      {% if perms.tracking.zns_templates_manage %}
       <a class="btn btn-sm btn-primary" href="{% url 'zns-template-new' %}" data-loading><i class="fas fa-plus mr-1"></i> Thêm mẫu</a>
       {% else %}
-      <span class="d-inline-block" tabindex="0" data-toggle="tooltip" title="Chỉ quản trị viên (staff) được tạo / sửa mẫu tin">
+      <span class="d-inline-block" tabindex="0" data-toggle="tooltip" title="Bạn chưa có quyền tạo / sửa mẫu tin">
         <button type="button" class="btn btn-sm btn-primary" disabled><i class="fas fa-plus mr-1"></i> Thêm mẫu</button>
       </span>
       {% endif %}

@@ -60,7 +60,7 @@ MENU: tuple[MenuGroup, ...] = (
     ),
     MenuGroup(
         'messaging',
-        'Quản lý gửi tin',
+        'Quản lý chiến dịch',
         'fa-paper-plane',
         'collapseMessaging',
         (
@@ -68,6 +68,7 @@ MENU: tuple[MenuGroup, ...] = (
             MenuItem('Danh sách gửi tin', 'zns-send'),
         ),
     ),
+    MenuGroup('config', 'Cấu hình', 'fa-cog', 'collapseConfig', (MenuItem('Phân quyền & cấu hình', 'config-page'),)),
 )
 
-HOME_URL_NAME = 'recon-ecom'
+HOME_URL_NAME = 'home'

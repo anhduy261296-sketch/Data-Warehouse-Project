@@ -11,7 +11,7 @@
   </div>
   <div class="rpt-header-tools">
     <span class="rpt-snapshot"><i class="far fa-clock mr-1"></i> Cập nhật: <b id="ecUpdated">—</b></span>
-    {% if request.user.is_staff %}
+    {% if perms.tracking.report_ecom_refresh %}
     {% csrf_token %}
     <button type="button" class="btn btn-sm btn-outline-secondary" id="ecChannelsRefresh" title="Kéo lại danh mục kênh bán từ OMS (tên sàn hiển thị)">
       <i class="fas fa-cloud-download-alt mr-1"></i> Cập nhật kênh bán
@@ -179,7 +179,7 @@
         <option value="cancel">Hủy</option>
         <option value="return">Trả hàng</option>
       </select>
-      <a href="#" class="btn btn-sm btn-outline-secondary rpt-busy-btn" id="ecOrdersExport" title="Xuất Excel bảng chi tiết (theo bộ lọc và từ khoá hiện tại)"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
+      <a href="#" class="btn btn-sm btn-outline-secondary rpt-busy-btn" id="ecOrdersExport" data-needs-export title="Xuất Excel bảng chi tiết (theo bộ lọc và từ khoá hiện tại)"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
     </div>
   </div>
   <table class="table table-bordered table-hover rpt-table" id="ecOrdersTable" width="100%"><thead><tr></tr></thead><tbody></tbody></table>

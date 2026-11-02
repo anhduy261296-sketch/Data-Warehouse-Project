@@ -190,7 +190,9 @@ const DataTablePage = (function () {
           : dtToolbarDom("<'detail-date-filter mr-2'>"),
         buttons: [
           ...(isRecon ? [] : [columnPickerButton(columns)]),
-          ...(options.exportEndpoint ? [exportButton(tableId, options.exportEndpoint, !isRecon)] : []),
+          ...(options.exportEndpoint && document.body.dataset.canExport !== "0"
+            ? [exportButton(tableId, options.exportEndpoint, !isRecon)]
+            : []),
         ],
         language: { lengthMenu: "_MENU_" },
         initComplete: function () {

@@ -65,17 +65,8 @@ ecom_by_sale = _json(ecom.get_by_sale)
 ecom_top_products = _json(ecom.get_top_products)
 
 
-def _staff_only(request):
-    if not request.user.is_staff:
-        return JsonResponse({'error': 'Chỉ quản trị viên được cập nhật danh mục.'}, status=403)
-    return None
-
-
 @require_POST
 def ecom_channels_refresh(request):
-    denied = _staff_only(request)
-    if denied:
-        return denied
     try:
         if airflow.has_active_run(OMS_ORDERS_DAG_ID):
             return JsonResponse({'error': 'DAG đơn hàng OMS đang chạy, thử lại sau ít phút.'}, status=409)
@@ -89,9 +80,6 @@ def ecom_channels_refresh(request):
 
 @require_GET
 def ecom_channels_refresh_status(request):
-    denied = _staff_only(request)
-    if denied:
-        return denied
     run_id = (request.GET.get('run_id') or '').strip()
     if not run_id:
         return JsonResponse({'error': 'Thiếu run_id'}, status=400)

@@ -1,11 +1,21 @@
 from __future__ import annotations
 
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+
+from .. import access
 
 from ..core.cache import cache_key, cached_call, get_or_set
 from ..core.datatables import DetailReportConfig, export_detail_report_rows, run_detail_report
 from ..core.excel import ExcelColumn, ExcelSheet, excel_response
+
+
+def home(request):
+    return redirect(access.first_allowed_route(request.user) or 'no-access')
+
+
+def no_access(request):
+    return render(request, 'no_access.html')
 
 
 def page_view(template_name: str):

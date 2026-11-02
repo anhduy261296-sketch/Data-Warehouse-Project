@@ -32,6 +32,7 @@ PAGES = [
     'report-ecom',
     'zns-templates',
     'zns-send',
+    'config-page',
     'zns-template-new',
 ]
 SKIPPED = {
@@ -54,8 +55,24 @@ SKIPPED = {
     'zns-send-evaluate',
     'zns-send-confirm',
     'zns-batch-list',
+    'zns-batch-list-export',
+    'zns-batch-recipients',
     'zns-batch-detail',
+    'zns-batch-approve',
+    'zns-batch-reject',
     'zns-batch-cancel',
+    'config-users',
+    'config-user-save',
+    'config-roles',
+    'config-role-save',
+    'config-role-delete',
+    'config-limits',
+    'config-limits-save',
+    'config-audit',
+    'zns-batch-skip',
+    'zns-batch-retry',
+    'zns-batch-retry-new',
+    'zns-recipient-attempts',
     'zns-batch-export',
 }
 UNSTABLE_ORDER = ('recon-', 'detail-')

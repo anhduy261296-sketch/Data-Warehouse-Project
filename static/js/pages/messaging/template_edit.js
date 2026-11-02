@@ -2,7 +2,7 @@
   const EP = ENDPOINTS.messaging;
   const $root = $("#znsEditor");
   const templateId = Number($root.data("id")) || null;
-  const readOnly = $root.data("staff") !== 1;
+  const readOnly = $root.data("canManage") !== 1;
   const editUrl = (id) => String($root.data("editUrl")).replace(/0\/$/, `${id}/`);
   const $vars = $("#znsVariables");
   const tpl = document.getElementById("znsVarTpl");
@@ -101,7 +101,7 @@
     $("#znsPreviewOwner").text(owner ? `${owner} · Zalo Official Account` : "Zalo Official Account");
     $("#znsEditorTools").html(
       readOnly
-        ? '<span class="badge badge-light zns-readonly-badge"><i class="fas fa-lock mr-1"></i> Chỉ xem (cần quyền staff để sửa)</span>'
+        ? '<span class="badge badge-light zns-readonly-badge"><i class="fas fa-lock mr-1"></i> Chỉ xem (cần quyền sửa mẫu tin)</span>'
         : "",
     );
     document.documentElement.style.setProperty("--zns-head-h", `${$(".zns-editor-head").outerHeight()}px`);

@@ -5,9 +5,12 @@ import json
 from functools import wraps
 
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
 
+from ..access import zns_actor
+from ..constants import EXPORT_MAX_ROWS, MAX_PAGE_LENGTH
+from ..core import audit
 from ..core.excel import XLSX_CONTENT_TYPE, ExcelColumn, ExcelSheet, excel_response
 from ..messaging import importer, provider, sample_file, sending, templates
 from ..messaging.values import OWNERS, MessagingError, normalize_key
@@ -41,20 +44,17 @@ def _int(value, field: str) -> int:
         raise MessagingError(f'Thiếu {field}.') from exc
 
 
-def _staff_only(fn):
-    @wraps(fn)
-    def view(request, *args, **kwargs):
-        if not request.user.is_staff:
-            return JsonResponse({'error': 'Chỉ quản trị viên được tạo / sửa mẫu tin.'}, status=403)
-        return fn(request, *args, **kwargs)
+def _actor(request):
+    return zns_actor(request.user)
 
-    return view
+
+def _check_owner(request, owner: str | None) -> None:
+    if owner not in _actor(request).owners:
+        raise MessagingError(f'Bạn chưa được phân quyền chủ hàng {owner or ""}.'.strip())
 
 
 @require_GET
 def template_editor(request, template_id: int | None = None):
-    if template_id is None and not request.user.is_staff:
-        return redirect('zns-templates')
     return render(request, 'messaging/template_edit.html', {'template_id': template_id or ''})
 
 
@@ -65,8 +65,9 @@ def template_list(request):
     if owner and owner not in OWNERS:
         owner = None
     active_only = request.GET.get('active') == '1'
+    owners = _actor(request).owners
     return JsonResponse(
-        {'data': templates.list_templates(owner, active_only), 'defaults': templates.DEFAULT_VARIABLES, 'default_content': templates.DEFAULT_CONTENT}
+        {'data': [t for t in templates.list_templates(owner, active_only) if t['owner'] in owners], 'defaults': templates.DEFAULT_VARIABLES, 'default_content': templates.DEFAULT_CONTENT}
     )
 
 
@@ -86,7 +87,10 @@ def template_export(request):
     status = request.GET.get('status', '')
     query = normalize_key(request.GET.get('q', ''))
     rows = []
+    owners = _actor(request).owners
     for t in templates.list_templates(owner if owner in OWNERS else None):
+        if t['owner'] not in owners:
+            continue
         if status in ('0', '1') and t['is_active'] != (status == '1'):
             continue
         if query and query not in normalize_key(f"{t['name']} {t['zns_code']}"):
@@ -116,7 +120,6 @@ def template_export(request):
 
 
 @require_POST
-@_staff_only
 @_api
 def template_import(request):
     upload = request.FILES.get('file')
@@ -128,21 +131,26 @@ def template_import(request):
 @require_GET
 @_api
 def template_detail(request, template_id: int):
-    return JsonResponse(templates.get_template(template_id))
+    template = templates.get_template(template_id)
+    _check_owner(request, template['owner'])
+    return JsonResponse(template)
 
 
 @require_POST
-@_staff_only
 @_api
 def template_save(request):
-    template_id = templates.save_template(_body(request), request.user.get_username())
+    payload = _body(request)
+    _check_owner(request, payload.get('owner'))
+    if payload.get('id'):
+        _check_owner(request, templates.get_template(int(payload['id']))['owner'])
+    template_id = templates.save_template(payload, request.user.get_username())
     return JsonResponse(templates.get_template(template_id))
 
 
 @require_POST
-@_staff_only
 @_api
 def template_active(request, template_id: int):
+    _check_owner(request, templates.get_template(template_id)['owner'])
     templates.set_active(template_id, bool(_body(request).get('active')), request.user.get_username())
     return JsonResponse({'ok': True})
 
@@ -196,54 +204,137 @@ def _send_args(request) -> tuple[int, int, dict, dict]:
 @require_POST
 @_api
 def send_evaluate(request):
-    return JsonResponse(sending.evaluate(*_send_args(request)))
+    return JsonResponse(sending.evaluate(*_send_args(request), _actor(request)))
 
 
 @require_POST
 @_api
 def send_confirm(request):
-    return JsonResponse(sending.confirm(*_send_args(request), request.user.get_username()))
+    return JsonResponse(sending.confirm(*_send_args(request), _actor(request)))
 
 
-@require_GET
-@_api
-def _page(request) -> int:
-    try:
-        return int(request.GET.get('page') or 1)
-    except ValueError:
-        return 1
+def _table_params(request) -> dict[str, int]:
+    def number(name: str, default: int) -> int:
+        try:
+            return int(request.GET.get(name) or default)
+        except ValueError:
+            return default
+
+    length = number('length', 10)
+    return {
+        'draw': number('draw', 1),
+        'start': max(number('start', 0), 0),
+        'length': min(length, MAX_PAGE_LENGTH) if length > 0 else MAX_PAGE_LENGTH,
+    }
 
 
 @require_GET
 @_api
 def batch_list(request):
     mode = provider.send_mode()
-    return JsonResponse({**sending.list_batches(_page(request)), 'send_mode': mode, 'send_mode_label': sending.SEND_MODE_LABELS[mode]})
+    return JsonResponse({**sending.list_batches(**_table_params(request), actor=_actor(request)), 'send_mode': mode, 'send_mode_label': sending.SEND_MODE_LABELS[mode]})
+
+
+@require_GET
+@_api
+def batch_list_export(request):
+    rows = sending.list_batches(0, 0, EXPORT_MAX_ROWS, _actor(request))['data']
+    audit.log('zns.export_history', request.user.get_username(), 'batch', None, f'{len(rows)} lô')
+    for r in rows:
+        r['confirmed_vn'] = _vn_time(r['confirmed_at'])
+    columns = [
+        ExcelColumn('id', 'Lô', 8),
+        ExcelColumn('parent_batch_id', 'Gửi lại từ lô', 12),
+        ExcelColumn('confirmed_vn', 'Xác nhận lúc', 18),
+        ExcelColumn('template_name', 'Mẫu tin', 28),
+        ExcelColumn('zns_code', 'Mã mẫu', 14),
+        ExcelColumn('owner', 'Chủ hàng', 10),
+        ExcelColumn('file_name', 'File', 32),
+        ExcelColumn('total_rows', 'Tổng', 9),
+        ExcelColumn('valid_rows', 'Hợp lệ', 9),
+        ExcelColumn('invalid_rows', 'Lỗi', 9),
+        ExcelColumn('status_label', 'Trạng thái', 16),
+        ExcelColumn('sent_rows', 'Đã gửi', 9),
+        ExcelColumn('failed_rows', 'Gửi lỗi', 9),
+        ExcelColumn('unknown_rows', 'Chưa rõ', 9),
+        ExcelColumn('skipped_rows', 'Bỏ qua', 9),
+        ExcelColumn('created_by', 'Người tạo', 14),
+    ]
+    return excel_response([ExcelSheet('Lịch sử lô gửi', columns, rows)], 'lich_su_lo_gui.xlsx')
 
 
 @require_GET
 @_api
 def batch_detail(request, batch_id: int):
-    return JsonResponse(sending.batch_detail(batch_id, _page(request)))
+    return JsonResponse(sending.batch_detail(batch_id, _actor(request)))
+
+
+@require_GET
+@_api
+def batch_recipients(request, batch_id: int):
+    return JsonResponse(sending.list_recipients(batch_id, _actor(request), status=request.GET.get('status'), **_table_params(request)))
+
+
+@require_GET
+@_api
+def recipient_attempts(request, batch_id: int, recipient_id: int):
+    return JsonResponse({'data': sending.recipient_attempts(batch_id, recipient_id, _actor(request))})
+
+
+@require_POST
+@_api
+def batch_skip(request, batch_id: int):
+    data = _body(request)
+    return JsonResponse(sending.skip_recipients(batch_id, data.get('recipient_id'), data.get('reason'), _actor(request)))
+
+
+@require_POST
+@_api
+def batch_retry(request, batch_id: int):
+    return JsonResponse(sending.retry_same_batch(batch_id, _body(request).get('kinds'), _actor(request)))
+
+
+@require_POST
+@_api
+def batch_retry_new(request, batch_id: int):
+    return JsonResponse(sending.retry_as_new_batch(batch_id, _actor(request)))
+
+
+@require_POST
+@_api
+def batch_approve(request, batch_id: int):
+    return JsonResponse(sending.approve_batch(batch_id, _actor(request)))
+
+
+@require_POST
+@_api
+def batch_reject(request, batch_id: int):
+    sending.reject_batch(batch_id, _body(request).get('reason'), _actor(request))
+    return JsonResponse({'ok': True})
 
 
 @require_POST
 @_api
 def batch_cancel(request, batch_id: int):
-    sending.cancel_batch(batch_id, request.user.get_username(), request.user.is_staff)
+    sending.cancel_batch(batch_id, _actor(request))
     return JsonResponse({'ok': True})
 
 
 @require_GET
 @_api
 def batch_export(request, batch_id: int):
-    batch, recipients = sending.batch_export_rows(batch_id)
+    status = request.GET.get('status')
+    batch, recipients = sending.batch_export_rows(batch_id, status, _actor(request))
+    audit.log('zns.export', request.user.get_username(), 'batch', batch_id, f'{len(recipients)} khách{f", lọc {status}" if status else ""}')
     columns = [
         ExcelColumn('row_no', 'Dòng Excel', 10),
         ExcelColumn('customer', 'Tên khách hàng', 28),
         ExcelColumn('phone', 'Số điện thoại', 16),
         ExcelColumn('status_label', 'Trạng thái gửi', 20),
+        ExcelColumn('error_kind_label', 'Loại lỗi', 18),
+        ExcelColumn('attempt_count', 'Số lần thử', 10),
         ExcelColumn('error', 'Lỗi', 36),
+        ExcelColumn('skip_reason', 'Lý do bỏ qua', 30),
         ExcelColumn('content', 'Nội dung', 80),
     ]
-    return excel_response([ExcelSheet('Danh sách gửi', columns, recipients)], f'lo_gui_{batch["id"]}_{batch["zns_code"] or ""}.xlsx')
+    return excel_response([ExcelSheet('Danh sách gửi', columns, recipients)], f'lo_gui_{batch["id"]}_{status + "_" if status else ""}{batch["zns_code"] or ""}.xlsx')

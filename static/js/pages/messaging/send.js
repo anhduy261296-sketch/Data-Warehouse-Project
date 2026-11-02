@@ -246,19 +246,15 @@
     const t = r.template;
     const live = state.sendMode === "live";
     Dialog.confirm({
-      title: live ? "Xác nhận gửi tin thật?" : "Xác nhận gửi tin (chạy thử)?",
+      title: "Gửi lô này để duyệt?",
       html: true,
       message: `<div class="mb-1">Mẫu: <b>${escapeHtml(t.name)}</b> · ${ZnsUi.codeChip(t.zns_code)} ${ZnsUi.ownerBadge(t.owner)}</div>
         <div class="mb-1">File: ${escapeHtml(state.upload.file_name)}</div>
         <div>Sẽ gửi: <b>${formatAmount(r.summary.valid)}</b> khách hàng${r.summary.invalid ? ` · <span class="text-danger">bỏ qua <b>${formatAmount(r.summary.invalid)}</b> dòng lỗi</span>` : ""}</div>
-        ${
-          live
-            ? '<div class="small text-danger mt-2">Hệ thống sẽ <b>gửi tin thật</b> tới từng khách ngay sau khi xác nhận. Không hoàn tác được (chỉ dừng được các khách chưa gửi).</div>'
-            : '<div class="small text-muted mt-2">Server đang ở chế độ <b>chạy thử</b>: không gọi API, không có tin nào được gửi. Khách hợp lệ được đánh dấu "Chạy thử".</div>'
-        }`,
-      confirmText: live ? "Gửi thật" : "Xác nhận",
+        <div class="small text-muted mt-2">Lô chuyển sang <b>Chờ duyệt</b>. Tin chỉ được gửi sau khi người khác duyệt.${live ? "" : " Server đang ở chế độ <b>chạy thử</b>: không có tin nào được gửi."}</div>`,
+      confirmText: "Gửi duyệt",
       cancelText: "Quay lại",
-      variant: live ? "danger" : "primary",
+      variant: "primary",
       icon: "fa-paper-plane",
     }).then((ok) => ok && submitConfirm());
   }
@@ -275,10 +271,10 @@
       "Đang tạo lô gửi...",
     )
       .then((res) => {
-        const msg = `Lô #${res.batch_id} đang gửi ${formatAmount(res.valid)} khách hàng${res.invalid ? `, bỏ qua ${formatAmount(res.invalid)} dòng lỗi` : ""}. Theo dõi ở Lịch sử lô gửi.`;
+        const msg = `Lô #${res.batch_id} gồm ${formatAmount(res.valid)} khách hàng đang chờ duyệt${res.invalid ? `, bỏ qua ${formatAmount(res.invalid)} dòng lỗi` : ""}.`;
         reset();
-        Toast.success(msg, { title: res.send_mode === "live" ? "Đang gửi tin" : "Đang chạy thử" });
-        loadHistory(1);
+        Toast.success(msg, { title: "Đã gửi duyệt" });
+        reloadHistory(true);
       })
       .catch((x) => Toast.error(Api.errorMessage(x, "Không xác nhận được lô gửi.")));
   }
@@ -297,66 +293,179 @@
     setStep(1);
   }
 
-  // Lô đang gửi chạy ở server: tự làm mới lịch sử tới khi xong.
-  let historyTimer = null;
-  let historyPage = 1;
-  function loadHistory(page = historyPage) {
-    clearTimeout(historyTimer);
-    const $card = $("#znsHistoryCard").addClass("is-loading");
-    Api.get(EP.batches, { page })
-      .done((res) => {
-        historyPage = res.page;
-        $("#znsHistoryPager").html(pagerHtml(res.page, res.pages, res.total, res.page_size, "Lô"));
-        const list = res.data || [];
-        state.sendMode = res.send_mode;
-        $("#znsSendMode")
-          .removeClass("d-none")
-          .toggleClass("is-live", res.send_mode === "live")
-          .text(res.send_mode === "live" ? "Gửi thật" : "Chạy thử · không gửi tin thật");
-        if (list.some((b) => b.status === "sending")) historyTimer = setTimeout(() => loadHistory(), 3000);
-        $("#znsHistoryRows").html(
-          list.length
-            ? list
-                .map(
-                  (b) => `<tr data-id="${b.id}">
-          <td>#${b.id}</td>
-          <td class="text-nowrap">${formatUtcDateTime(b.confirmed_at)}</td>
-          <td>${escapeHtml(b.template_name || "—")}<div class="mt-1">${ZnsUi.codeChip(b.zns_code)}</div></td>
-          <td>${ZnsUi.ownerBadge(b.owner)}</td>
-          <td class="zns-file-cell">${escapeHtml(b.file_name)}</td>
-          <td class="num">${formatAmount(b.total_rows)}</td>
-          <td class="num">${formatAmount(b.valid_rows)}</td>
-          <td class="num">${formatAmount(b.invalid_rows)}</td>
-          <td>${ZnsUi.statusBadge(b.status, b.status_label)}</td>
-          <td class="num">${formatAmount(b.sent_rows)}</td>
-          <td class="num">${b.failed_rows ? `<span class="text-danger">${formatAmount(b.failed_rows)}</span>` : "0"}</td>
-          <td>${ZnsUi.userChip(b.created_by)}</td>
-          <td class="zns-actions">
+  // Bảng phân trang phía server, cùng cấu hình bảng chi tiết ở báo cáo.
+  const pagedTable = (scrollClass) => ({
+    serverSide: true,
+    processing: true,
+    ordering: false,
+    autoWidth: false,
+    pageLength: APP.DATATABLE.PAGE_LENGTH,
+    lengthMenu: APP.DATATABLE.LENGTH_MENU,
+    dom: `<'table-responsive ${scrollClass}'tr><'d-flex justify-content-between align-items-center flex-wrap mt-2'i<'d-flex align-items-center rpt-pager'lp>>`,
+    language: { ...APP.DATATABLE.LANGUAGE_VI, info: "Hiển thị _START_ - _END_ của _TOTAL_ dòng" },
+    createdRow: (row, data) => {
+      row.dataset.id = data.id;
+    },
+  });
+
+  const canExportBatch = $("#znsHistoryCard").data("canExport") === 1;
+  const HISTORY_COLUMNS = [
+    {
+      data: "id",
+      className: "zns-actions",
+      render: (id, type, b) => `
             <button type="button" class="btn btn-sm btn-light zns-batch-view" title="Xem chi tiết"><i class="far fa-eye"></i></button>
-            <a class="btn btn-sm btn-light" href="${Api.url(EP.batchExport(b.id))}" title="Xuất Excel"><i class="fas fa-file-excel text-success"></i></a>
+            ${canExportBatch ? `<a class="btn btn-sm btn-light" href="${Api.url(EP.batchExport(id))}" title="Xuất Excel"><i class="fas fa-file-excel text-success"></i></a>` : ""}
             ${
-              b.status === "pending" || b.status === "sending"
+              b.can_cancel
                 ? '<button type="button" class="btn btn-sm btn-light zns-batch-cancel" title="Dừng / hủy các khách chưa gửi"><i class="fas fa-ban text-danger"></i></button>'
                 : ""
-            }
-          </td></tr>`,
-                )
-                .join("")
-            : '<tr><td colspan="13" class="text-center text-muted py-4">Chưa có lô gửi nào</td></tr>',
-        );
-      })
-      .fail((x) =>
-        $("#znsHistoryRows").html(
-          `<tr><td colspan="13" class="rpt-error">${escapeHtml(Api.errorMessage(x, APP.MESSAGES.LOAD_FAILED_RETRY))}</td></tr>`,
-        ),
-      )
-      .always(() => $card.removeClass("is-loading"));
+            }`,
+    },
+    {
+      data: "id",
+      render: (id, type, b) => `#${id}${b.parent_batch_id ? `<div class="small text-muted">Ref #${b.parent_batch_id}</div>` : ""}`,
+    },
+    { data: "confirmed_at", className: "zns-date-cell", render: (v) => formatUtcDateTime(v) },
+    { data: "template_name", render: (v, type, b) => `${escapeHtml(v || "—")}<div class="mt-1">${ZnsUi.codeChip(b.zns_code)}</div>` },
+    { data: "owner", render: (v) => ZnsUi.ownerBadge(v) },
+    { data: "file_name", className: "zns-file-cell", render: (v) => escapeHtml(v) },
+    { data: "total_rows", className: "num", render: (v) => formatAmount(v) },
+    { data: "valid_rows", className: "num", render: (v) => formatAmount(v) },
+    { data: "invalid_rows", className: "num", render: (v) => formatAmount(v) },
+    { data: "status", render: (v, type, b) => ZnsUi.statusBadge(v, b.status_label) },
+    { data: "sent_rows", className: "num", render: (v) => formatAmount(v) },
+    { data: "failed_rows", className: "num", render: (v) => (v ? `<span class="text-danger">${formatAmount(v)}</span>` : "0") },
+    { data: "unknown_rows", className: "num", render: (v) => (v ? `<span class="zns-text-warn">${formatAmount(v)}</span>` : "0") },
+    { data: "created_by", render: (v) => ZnsUi.userChip(v) },
+  ];
+
+  // Cùng các lô như đang hiển thị thì chỉ cập nhật ô có thay đổi, để bảng không bị vẽ lại.
+  function patchHistoryRows(list) {
+    const shownRows = $("#znsHistoryRows")[0].rows;
+    if (list.length !== shownRows.length || !list.every((b, i) => shownRows[i].dataset.id === String(b.id))) return false;
+    const scratch = document.createElement("td");
+    list.forEach((b, i) => {
+      HISTORY_COLUMNS.forEach((column, j) => {
+        scratch.innerHTML = column.render(b[column.data], "display", b);
+        const shown = shownRows[i].cells[j];
+        if (shown.innerHTML !== scratch.innerHTML) shown.innerHTML = scratch.innerHTML;
+      });
+    });
+    return true;
   }
 
-  // Danh sách khách của lô phân trang phía server (page_size khách / trang).
-  function openBatch(id, page = 1) {
-    Loading.wrap(Api.get(EP.batch(id), { page }), APP.MESSAGES.LOADING_SHORT)
+  // Lô đang gửi chạy ở server: tự làm mới ngầm (không qua lớp "Đang tải" của bảng) tới khi xong.
+  const HISTORY_POLL_MS = 3000;
+  let historyTimer = null;
+  const nextPoll = () => {
+    clearTimeout(historyTimer);
+    historyTimer = setTimeout(pollHistory, HISTORY_POLL_MS);
+  };
+  function pollIfSending(list) {
+    clearTimeout(historyTimer);
+    if (list.some((b) => b.status === "sending")) nextPoll();
+  }
+  function pollHistory() {
+    const params = historyTable.ajax.params();
+    Api.get(EP.batches, params)
+      .done((res) => {
+        if (params !== historyTable.ajax.params()) return; // người dùng vừa đổi trang
+        if (patchHistoryRows(res.data)) pollIfSending(res.data);
+        else historyTable.ajax.reload(null, false);
+      })
+      .fail(nextPoll); // lỗi mạng thoáng qua: giữ nguyên bảng và thử lại ở nhịp sau
+  }
+
+  const historyTable = $("#znsHistoryTable")
+    .on("xhr.dt", (e, settings, res) => {
+      if (!res || !res.send_mode) return;
+      state.sendMode = res.send_mode;
+      // TODO: nhãn kiểm tra khi dev, xóa trước khi lên prod (cùng #znsSendMode và .zns-mode).
+      $("#znsSendMode")
+        .removeClass("d-none")
+        .toggleClass("is-live", res.send_mode === "live")
+        .text(res.send_mode === "live" ? "Gửi thật" : "Chạy thử · không gửi tin thật");
+      pollIfSending(res.data);
+    })
+    .DataTable({ ...pagedTable(""), ajax: Api.dataTableSource(EP.batches), columns: HISTORY_COLUMNS });
+
+  function reloadHistory(resetPaging = false) {
+    historyTable.ajax.reload(null, resetPaging);
+  }
+
+  let currentBatchId = null;
+  const batchTable = $("#znsBatchTable").DataTable({
+    ...pagedTable("zns-scroll"),
+    deferLoading: 0,
+    ajax: (d, callback) =>
+      Api.dataTableSource(EP.batchRecipients(currentBatchId), () => ({ status: $("#znsBatchFilter").val() }))(d, callback),
+    columns: [
+      {
+        data: "id",
+        orderable: false,
+        render: (id, type, r) =>
+          ["failed", "unknown"].includes(r.status) && !r.retried_in
+            ? '<button type="button" class="btn btn-sm btn-light zns-skip-btn" title="Bỏ qua khách này, không gửi lại"><i class="fas fa-user-slash"></i></button>'
+            : "",
+      },
+      { data: "row_no", className: "zns-row-no" },
+      { data: "customer", render: (v) => cellText(v) },
+      { data: "phone", render: (v) => cellText(v) },
+      { data: "status", render: (v, type, r) => ZnsUi.statusBadge(v, r.status_label) },
+      {
+        data: "attempt_count",
+        render: (v) =>
+          v ? `<button type="button" class="btn btn-sm btn-light zns-attempts-btn" title="Xem từng lần gọi API">${v}</button>` : "—",
+      },
+      {
+        data: "error",
+        className: "zns-msg-cell",
+        render: (error, type, r) =>
+          `${
+            r.status === "skipped"
+              ? `<span class="text-muted">${r.error_kind_label ? `${escapeHtml(r.error_kind_label)}: ` : ""}${escapeHtml(error || "")}</span><div class="zns-skip-note"><i class="fas fa-user-slash mr-1"></i>Bỏ qua: ${escapeHtml(r.skip_reason || "")}${r.skipped_by ? ` · ${escapeHtml(r.skipped_by)}` : ""}</div>`
+              : error
+                ? `<span class="${r.status === "unknown" ? "zns-text-warn" : "text-danger"}">${r.error_kind_label ? `${escapeHtml(r.error_kind_label)}: ` : ""}${escapeHtml(error)}</span>`
+                : escapeHtml(r.content || "")
+          }${r.retried_in ? `<div class="small text-muted">Đã gửi lại ở lô #${r.retried_in}</div>` : ""}`,
+      },
+    ],
+  });
+
+  let batchErrors = [];
+  function hideReasons() {
+    $("#znsBatchReasons").addClass("d-none");
+    $("#znsBatchStats .zns-stat-btn").attr("aria-expanded", "false");
+  }
+
+  // Lý do lỗi hiện dạng popup ngay dưới ô số liệu được bấm, để không chiếm chỗ của bảng khách.
+  function toggleReasons(tile) {
+    const wasOpen = tile.getAttribute("aria-expanded") === "true";
+    hideReasons();
+    if (wasOpen) return;
+    const errors = batchErrors.filter((e) => e.status === tile.dataset.reason);
+    const $box = $("#znsBatchReasons");
+    $box
+      .html(
+        `<div class="zns-batch-reasons-title">Lý do: ${escapeHtml($(tile).find("span").text().trim())}</div>` +
+          errors
+            .map(
+              (e) =>
+                `<div class="zns-batch-reason"><span class="zns-reason-count">${formatAmount(e.count)}</span><span>${e.status === "failed" && e.kind_label ? `<b>${escapeHtml(e.kind_label)}:</b> ` : ""}${escapeHtml(e.message || "Không có chi tiết")}</span></div>`,
+            )
+            .join(""),
+      )
+      .removeClass("d-none");
+    $box.css("left", Math.max(0, Math.min(tile.offsetLeft, $box.parent().innerWidth() - $box.outerWidth())));
+    tile.setAttribute("aria-expanded", "true");
+  }
+
+  let currentBatch = null;
+  function openBatch(id, keepView = false) {
+    Loading.wrap(Api.get(EP.batch(id)), APP.MESSAGES.LOADING_SHORT)
       .then((b) => {
+        currentBatch = b;
         $("#znsBatchTitle").text(`Lô #${b.id} · ${b.template_name || ""}`);
         $("#znsBatchSub").html(
           [
@@ -365,47 +474,208 @@
             ZnsUi.codeChip(b.zns_code),
             `<span>${escapeHtml(b.file_name)}</span>`,
             `<span>Xác nhận ${formatUtcDateTime(b.confirmed_at)}${b.created_by ? ` · ${escapeHtml(b.created_by)}` : ""}</span>`,
+            b.parent_batch_id ? `<span>Gửi lại từ lô #${b.parent_batch_id}</span>` : "",
+            b.approved_by ? `<span>Duyệt bởi ${escapeHtml(b.approved_by)} · ${formatUtcDateTime(b.approved_at)}</span>` : "",
           ].join(""),
         );
-        const stat = (cls, text, value) => `<div class="zns-stat ${cls}"><span>${text}</span><b>${formatAmount(value)}</b></div>`;
+        const stat = (cls, text, value, reason) =>
+          reason && value
+            ? `<button type="button" class="zns-stat zns-stat-btn ${cls}" data-reason="${reason}" aria-expanded="false" title="Xem lý do"><span>${text} <i class="fas fa-info-circle" aria-hidden="true"></i></span><b>${formatAmount(value)}</b></button>`
+            : `<div class="zns-stat ${cls}"><span>${text}</span><b>${formatAmount(value)}</b></div>`;
+        batchErrors = b.error_summary;
+        hideReasons();
         $("#znsBatchStats").html(
           stat("", "Tổng", b.total_rows) +
-            stat("", "Lỗi dữ liệu", b.invalid_rows) +
+            stat("", "Lỗi dữ liệu", b.invalid_rows, "invalid") +
             stat("is-ok", b.send_mode === "dry_run" ? "Chạy thử" : "Đã gửi", b.sent_rows) +
-            stat(b.failed_rows ? "is-bad" : "", "Gửi lỗi", b.failed_rows),
+            stat(b.failed_rows ? "is-bad" : "", "Gửi lỗi", b.failed_rows, "failed") +
+            stat(b.unknown_rows ? "is-warn" : "", "Chưa rõ", b.unknown_rows, "unknown") +
+            stat("", "Bỏ qua", b.skipped_rows, "skipped"),
         );
-        $("#znsBatchRows").html(
-          b.recipients
-            .map(
-              (r) => `<tr><td class="num">${r.row_no}</td><td>${cellText(r.customer)}</td><td>${cellText(r.phone)}</td>
-              <td>${ZnsUi.statusBadge(r.status, r.status_label)}</td>
-              <td class="zns-msg-cell">${r.error ? `<span class="text-danger">${escapeHtml(r.error)}</span>` : escapeHtml(r.content || "")}</td></tr>`,
-            )
-            .join(""),
-        );
-        $("#znsBatchPager")
-          .data("id", b.id)
-          .html(pagerHtml(b.page, b.pages, b.total_rows, b.page_size, "Khách"));
-        $("#znsBatchExport").attr("href", Api.url(EP.batchExport(b.id)));
-        $("#znsBatchModal").modal("show");
+        currentBatchId = b.id;
+        if (!keepView) $("#znsBatchFilter").val("");
+        batchTable.column(0).visible(b.can_skip);
+        $("#znsBatchActions").html(batchActions(b));
+        const notice = batchNotice(b);
+        $("#znsBatchNotice").toggleClass("d-none", !notice).html(notice);
+        batchTable.one("draw.dt", () => $("#znsBatchModal").modal("show"));
+        batchTable.ajax.reload(null, !keepView);
       })
       .catch((x) => Dialog.error(Api.errorMessage(x, "Không tải được lô gửi.")));
   }
 
-  function pagerHtml(page, pages, total, size, unit) {
-    if (pages <= 1) return "";
-    const from = (page - 1) * size + 1;
-    const to = Math.min(page * size, total);
-    const btn = (target, icon, title, disabled) =>
-      `<button type="button" class="btn btn-sm btn-light zns-page-btn" data-page="${target}" title="${title}" ${disabled ? "disabled" : ""}><i class="fas ${icon}"></i></button>`;
-    return `<span>${unit} ${formatAmount(from)}–${formatAmount(to)} / ${formatAmount(total)}</span>
-      <div class="zns-pager-nav">
-        ${btn(1, "fa-angle-double-left", "Trang đầu", page === 1)}
-        ${btn(page - 1, "fa-angle-left", "Trang trước", page === 1)}
-        <span>Trang ${page} / ${pages}</span>
-        ${btn(page + 1, "fa-angle-right", "Trang sau", page === pages)}
-        ${btn(pages, "fa-angle-double-right", "Trang cuối", page === pages)}
-      </div>`;
+  function batchNotice(b) {
+    if (b.status === "paused") {
+      return `<i class="fas fa-pause-circle mr-1"></i>${escapeHtml(b.pause_reason || "Lô tạm dừng do lỗi cấu hình liên tiếp. Sửa mẫu tin rồi tạo lô mới, hoặc hủy lô.")}`;
+    }
+    if (b.status === "rejected")
+      return `<i class="fas fa-times-circle mr-1"></i>${escapeHtml(b.rejected_by || "")} đã từ chối: ${escapeHtml(b.reject_reason || "")}`;
+    if (b.status !== "pending_approval") return "";
+    const a = b.approval;
+    const usage =
+      a.cap === null
+        ? `Đã dùng tháng này: ${formatAmount(a.used)} tin`
+        : `Đã dùng tháng này: ${formatAmount(a.used)} / ${formatAmount(a.cap)} tin`;
+    const cost = a.est_cost === null ? "" : ` · Ước tính ${formatAmount(a.est_cost)} đ`;
+    const self = b.approve_blocked_self ? " · Bạn là người tạo lô nên cần người khác duyệt." : "";
+    return `<i class="fas fa-hourglass-half mr-1"></i>Chờ duyệt ${formatAmount(a.count)} tin${cost} · ${usage}${self}`;
+  }
+
+  function approveBatch(b) {
+    const live = state.sendMode === "live";
+    const cost = b.approval.est_cost === null ? "" : `, ước tính ${formatAmount(b.approval.est_cost)} đ`;
+    Dialog.confirm({
+      title: `Duyệt lô #${b.id}?`,
+      message: live
+        ? `Hệ thống sẽ gửi tin thật tới ${formatAmount(b.approval.count)} khách ngay sau khi duyệt${cost}. Không hoàn tác được.`
+        : `Server đang ở chế độ chạy thử: ${formatAmount(b.approval.count)} khách được đánh dấu "Chạy thử", không có tin nào được gửi.`,
+      confirmText: live ? "Duyệt và gửi thật" : "Duyệt",
+      cancelText: "Không",
+      variant: live ? "danger" : "primary",
+    }).then((ok) => {
+      if (!ok) return;
+      Loading.wrap(Api.postJson(EP.batchApprove(b.id), {}), APP.MESSAGES.LOADING_SHORT)
+        .then(() => {
+          $("#znsBatchModal").modal("hide");
+          Toast.success(`Đã duyệt lô #${b.id}.`);
+          reloadHistory();
+        })
+        .catch((x) => Dialog.error(Api.errorMessage(x)));
+    });
+  }
+
+  function rejectBatch(b) {
+    Dialog.confirm({
+      title: `Từ chối lô #${b.id}?`,
+      html: true,
+      message:
+        '<textarea class="form-control form-control-sm" id="znsRejectReason" rows="3" maxlength="500" placeholder="Lý do từ chối (bắt buộc)"></textarea>',
+      confirmText: "Từ chối",
+      cancelText: "Không",
+      variant: "danger",
+    }).then((ok) => {
+      if (!ok) return;
+      Loading.wrap(Api.postJson(EP.batchReject(b.id), { reason: $("#znsRejectReason").val() }), APP.MESSAGES.LOADING_SHORT)
+        .then(() => {
+          $("#znsBatchModal").modal("hide");
+          Toast.success(`Đã từ chối lô #${b.id}.`);
+          reloadHistory();
+        })
+        .catch((x) => Dialog.error(Api.errorMessage(x)));
+    });
+  }
+
+  function skipCustomers(recipientId, title) {
+    Dialog.confirm({
+      title,
+      html: true,
+      message:
+        '<div class="small text-muted mb-2">Khách sẽ không còn tính là lỗi và không gửi lại được nữa. Không hoàn tác được.</div><textarea class="form-control form-control-sm" id="znsSkipReason" rows="3" maxlength="500" placeholder="Lý do bỏ qua (bắt buộc)"></textarea>',
+      confirmText: "Bỏ qua",
+      cancelText: "Không",
+      variant: "warning",
+    }).then((ok) => {
+      if (!ok) return;
+      const reason = $("#znsSkipReason").val();
+      Loading.wrap(Api.postJson(EP.batchSkip(currentBatchId), { recipient_id: recipientId, reason }), APP.MESSAGES.LOADING_SHORT)
+        .then((res) => {
+          Toast.success(`Đã bỏ qua ${formatAmount(res.skipped)} khách.`);
+          openBatch(currentBatchId, true);
+          reloadHistory();
+        })
+        .catch((x) => Dialog.error(Api.errorMessage(x)));
+    });
+  }
+
+  function batchActions(b) {
+    const options = b.retry_options;
+    const approval = b.can_approve
+      ? '<button type="button" class="btn btn-sm btn-success" data-approve><i class="fas fa-check mr-1"></i>Duyệt</button><button type="button" class="btn btn-sm btn-outline-danger" data-reject><i class="fas fa-times mr-1"></i>Từ chối</button>'
+      : "";
+    const button = (retry, count, cls, icon, text) =>
+      count
+        ? `<button type="button" class="btn btn-sm ${cls}" data-retry="${retry}" data-count="${count}"><i class="fas ${icon} mr-1"></i>${text} (${formatAmount(count)})</button>`
+        : "";
+    const retries = b.can_retry
+      ? button("temporary", options.temporary, "btn-outline-primary", "fa-redo", "Gửi lại lỗi tạm thời") +
+        button("unknown", options.unknown, "btn-outline-warning", "fa-question-circle", "Gửi lại chưa rõ") +
+        button("new", options.new_batch, "zns-btn-new-batch", "fa-clone", "Tạo lô mới gửi lại")
+      : "";
+    const errors = b.failed_rows + b.unknown_rows + b.invalid_rows;
+    const exportErrors =
+      errors && canExportBatch
+        ? `<a class="btn btn-sm btn-outline-secondary" href="${Api.url(EP.batchExport(b.id))}?status=errors"><i class="fas fa-file-excel mr-1"></i>Xuất khách lỗi</a>`
+        : "";
+    const skipAll =
+      b.can_skip && b.skip_count
+        ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-skip-all data-count="${b.skip_count}"><i class="fas fa-user-slash mr-1"></i>Bỏ qua khách lỗi (${formatAmount(b.skip_count)})</button>`
+        : "";
+    return approval + retries + skipAll + exportErrors;
+  }
+
+  function retryBatch(id, kind, count) {
+    const live = state.sendMode === "live";
+    const dialogs = {
+      temporary: {
+        title: `Gửi lại ${formatAmount(count)} khách lỗi tạm thời?`,
+        message: "Gửi lại ngay trên lô này, nội dung giữ nguyên. Các khách này chưa nhận được tin do lỗi kết nối hoặc Incom tạm thời lỗi.",
+        variant: "primary",
+      },
+      unknown: {
+        title: `Gửi lại ${formatAmount(count)} khách chưa rõ kết quả?`,
+        message: "Không biết tin lần trước đã tới các khách này hay chưa. Gửi lại có thể làm khách nhận 2 tin và tốn thêm phí.",
+        variant: "warning",
+      },
+      new: {
+        title: `Tạo lô mới cho ${formatAmount(count)} khách?`,
+        message:
+          "Lô mới dùng nội dung và biến hiện tại của mẫu tin, nên hãy sửa mẫu tin trước. Lô mới sẽ chờ người khác duyệt rồi mới gửi.",
+        variant: "primary",
+      },
+    };
+    const dialog = dialogs[kind];
+    Dialog.confirm({
+      title: dialog.title,
+      message: `${dialog.message}${live ? "" : " Server đang ở chế độ chạy thử: không có tin nào được gửi."}`,
+      confirmText: "Gửi lại",
+      cancelText: "Không",
+      variant: dialog.variant,
+    }).then((ok) => {
+      if (!ok) return;
+      const request = kind === "new" ? Api.postJson(EP.batchRetryNew(id), {}) : Api.postJson(EP.batchRetry(id), { kinds: [kind] });
+      Loading.wrap(request, APP.MESSAGES.LOADING_SHORT)
+        .then((res) => {
+          $("#znsBatchModal").modal("hide");
+          reloadHistory(res.batch_id !== id);
+        })
+        .catch((x) => Dialog.error(Api.errorMessage(x)));
+    });
+  }
+
+  function toggleAttempts() {
+    const $row = $(this).closest("tr");
+    if ($row.next().hasClass("zns-attempts-row")) return $row.next().remove();
+    Api.get(EP.recipientAttempts(currentBatchId, $row.data("id")))
+      .done((res) => {
+        const lines = (res.data || []).map(
+          (a) => `<tr>
+            <td>${a.attempt_no}</td>
+            <td class="text-nowrap">${formatUtcDateTime(a.created_at)}</td>
+            <td>${a.trigger_type === "manual" ? `Gửi lại${a.triggered_by ? ` · ${escapeHtml(a.triggered_by)}` : ""}` : "Tự động"}</td>
+            <td>${escapeHtml(a.result_label)}</td>
+            <td>${a.http_status === null ? "—" : a.http_status}</td>
+            <td>${a.duration_ms === null ? "—" : `${formatAmount(a.duration_ms)} ms`}</td>
+            <td class="zns-msg-cell">${escapeHtml(a.error || a.response || "")}</td>
+          </tr>`,
+        );
+        $row.after(
+          `<tr class="zns-attempts-row"><td colspan="${$row.children().length}"><table class="table table-sm mb-0">
+            <thead><tr><th>Lần</th><th>Lúc</th><th>Kiểu</th><th>Kết quả</th><th>HTTP</th><th>Thời gian</th><th>Chi tiết</th></tr></thead>
+            <tbody>${lines.join("") || '<tr><td colspan="7" class="text-muted">Chưa có lần gọi API nào được ghi lại.</td></tr>'}</tbody>
+          </table></td></tr>`,
+        );
+      })
+      .fail((x) => Dialog.error(Api.errorMessage(x)));
   }
 
   function cancelBatch(id) {
@@ -420,7 +690,7 @@
       Loading.wrap(Api.postJson(EP.batchCancel(id), {}), APP.MESSAGES.LOADING_SHORT)
         .then(() => {
           Toast.success(`Đã hủy lô #${id}.`);
-          loadHistory();
+          reloadHistory();
         })
         .catch((x) => Dialog.error(Api.errorMessage(x)));
     });
@@ -482,12 +752,31 @@
       reset();
     });
   });
-  $("#znsHistoryReload").on("click", () => loadHistory());
-  $("#znsHistoryPager").on("click", ".zns-page-btn", function () {
-    loadHistory(Number($(this).data("page")));
+  $("#znsHistoryReload").on("click", () => reloadHistory());
+  $("#znsHistoryExport").on("click", () => Api.download(EP.batchesExport));
+  $("#znsBatchFilter").on("change", () => {
+    hideReasons();
+    batchTable.ajax.reload(null, true);
   });
-  $("#znsBatchPager").on("click", ".zns-page-btn", function () {
-    openBatch($("#znsBatchPager").data("id"), Number($(this).data("page")));
+  $("#znsBatchRows").on("click", ".zns-attempts-btn", toggleAttempts);
+  $("#znsBatchRows").on("click", ".zns-skip-btn", function () {
+    const customer = batchTable.row($(this).closest("tr")).data();
+    skipCustomers(customer.id, `Bỏ qua khách ${customer.phone || ""}?`);
+  });
+  $("#znsBatchStats").on("click", ".zns-stat-btn", function () {
+    toggleReasons(this);
+  });
+  $("#znsBatchModal").on("click", (e) => {
+    if (!$(e.target).closest(".zns-stat-btn, #znsBatchReasons").length) hideReasons();
+  });
+  $("#znsBatchActions")
+    .on("click", "[data-skip-all]", function () {
+      skipCustomers(null, `Bỏ qua ${formatAmount(Number(this.dataset.count))} khách lỗi của lô?`);
+    })
+    .on("click", "[data-approve]", () => approveBatch(currentBatch))
+    .on("click", "[data-reject]", () => rejectBatch(currentBatch));
+  $("#znsBatchActions").on("click", "[data-retry]", function () {
+    retryBatch(currentBatchId, this.dataset.retry, Number(this.dataset.count));
   });
   $("#znsHistoryRows").on("click", ".zns-batch-view", function () {
     openBatch($(this).closest("tr").data("id"));
@@ -497,6 +786,5 @@
   });
 
   loadTemplates().fail(() => $("#znsTemplateSelect").html('<option value="">Không tải được mẫu tin</option>'));
-  loadHistory();
   setStep(1);
 })();
