@@ -1,40 +1,18 @@
 from __future__ import annotations
 
 import datetime as dt
-import json
-from functools import wraps
 
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
 
 from ..access import zns_actor
-from ..constants import EXPORT_MAX_ROWS, MAX_PAGE_LENGTH
+from ..constants import EXPORT_MAX_ROWS
 from ..core import audit
-from ..core.excel import XLSX_CONTENT_TYPE, ExcelColumn, ExcelSheet, excel_response
+from ..core.excel import ExcelColumn, ExcelSheet, excel_response, workbook_response
 from ..messaging import importer, provider, sample_file, sending, templates
 from ..messaging.values import OWNERS, MessagingError, normalize_key
-
-
-def _api(fn):
-    @wraps(fn)
-    def view(request, *args, **kwargs):
-        try:
-            return fn(request, *args, **kwargs)
-        except MessagingError as exc:
-            return JsonResponse({'error': str(exc)}, status=400)
-
-    return view
-
-
-def _body(request) -> dict:
-    try:
-        data = json.loads(request.body or b'{}')
-    except ValueError as exc:
-        raise MessagingError('Dữ liệu gửi lên không hợp lệ.') from exc
-    if not isinstance(data, dict):
-        raise MessagingError('Dữ liệu gửi lên không hợp lệ.')
-    return data
+from .common import api_view, json_body, table_params
 
 
 def _int(value, field: str) -> int:
@@ -44,8 +22,17 @@ def _int(value, field: str) -> int:
         raise MessagingError(f'Thiếu {field}.') from exc
 
 
+APPROVAL_LABELS = {'pending': 'Chờ duyệt', 'approved': 'Đã duyệt', 'rejected': 'Từ chối'}
+
+
 def _actor(request):
     return zns_actor(request.user)
+
+
+def _with_review(template: dict, actor) -> dict:
+    template['approval_label'] = APPROVAL_LABELS.get(template['approval_status'], template['approval_status'])
+    template['can_approve'] = template['approval_status'] == 'pending' and actor.can_approve_template(template['owner'])
+    return template
 
 
 def _check_owner(request, owner: str | None) -> None:
@@ -59,15 +46,15 @@ def template_editor(request, template_id: int | None = None):
 
 
 @require_GET
-@_api
+@api_view
 def template_list(request):
     owner = request.GET.get('owner') or None
     if owner and owner not in OWNERS:
         owner = None
-    active_only = request.GET.get('active') == '1'
-    owners = _actor(request).owners
+    sendable_only = request.GET.get('active') == '1'
+    actor = _actor(request)
     return JsonResponse(
-        {'data': [t for t in templates.list_templates(owner, active_only) if t['owner'] in owners], 'defaults': templates.DEFAULT_VARIABLES, 'default_content': templates.DEFAULT_CONTENT}
+        {'data': [_with_review(t, actor) for t in templates.list_templates(owner, sendable_only) if t['owner'] in actor.owners], 'defaults': templates.DEFAULT_VARIABLES, 'default_content': templates.DEFAULT_CONTENT}
     )
 
 
@@ -81,10 +68,11 @@ def _vn_time(value: str | None) -> str | None:
 
 
 @require_GET
-@_api
+@api_view
 def template_export(request):
     owner = request.GET.get('owner') or None
     status = request.GET.get('status', '')
+    approval = request.GET.get('approval', '')
     query = normalize_key(request.GET.get('q', ''))
     rows = []
     owners = _actor(request).owners
@@ -93,12 +81,15 @@ def template_export(request):
             continue
         if status in ('0', '1') and t['is_active'] != (status == '1'):
             continue
+        if approval in APPROVAL_LABELS and t['approval_status'] != approval:
+            continue
         if query and query not in normalize_key(f"{t['name']} {t['zns_code']}"):
             continue
         rows.append(
             {
                 **t,
                 'status_label': 'Hoạt động' if t['is_active'] else 'Ngừng hoạt động',
+                'approval_label': APPROVAL_LABELS.get(t['approval_status'], t['approval_status']),
                 'created_vn': _vn_time(t['created_at']),
                 'updated_vn': _vn_time(t['updated_at']),
             }
@@ -110,6 +101,7 @@ def template_export(request):
         ExcelColumn('variable_count', 'Số biến', 9),
         ExcelColumn('message_count', 'Số lượng', 10),
         ExcelColumn('batch_count', 'Số lô gửi', 10),
+        ExcelColumn('approval_label', 'Duyệt', 12),
         ExcelColumn('status_label', 'Trạng thái', 16),
         ExcelColumn('created_vn', 'Ngày tạo', 18),
         ExcelColumn('created_by', 'Người tạo', 14),
@@ -120,7 +112,7 @@ def template_export(request):
 
 
 @require_POST
-@_api
+@api_view
 def template_import(request):
     upload = request.FILES.get('file')
     if not upload:
@@ -128,54 +120,65 @@ def template_import(request):
     return JsonResponse(importer.parse_template_workbook(upload))
 
 
-@require_GET
-@_api
-def template_detail(request, template_id: int):
+def _template_payload(request, template_id: int) -> dict:
     template = templates.get_template(template_id)
     _check_owner(request, template['owner'])
-    return JsonResponse(template)
+    return _with_review(template, _actor(request))
+
+
+@require_GET
+@api_view
+def template_detail(request, template_id: int):
+    return JsonResponse(_template_payload(request, template_id))
 
 
 @require_POST
-@_api
+@api_view
 def template_save(request):
-    payload = _body(request)
+    payload = json_body(request)
     _check_owner(request, payload.get('owner'))
     if payload.get('id'):
         _check_owner(request, templates.get_template(int(payload['id']))['owner'])
     template_id = templates.save_template(payload, request.user.get_username())
-    return JsonResponse(templates.get_template(template_id))
+    return JsonResponse(_template_payload(request, template_id))
 
 
 @require_POST
-@_api
+@api_view
+def template_approve(request, template_id: int):
+    templates.approve_template(template_id, _actor(request))
+    return JsonResponse(_template_payload(request, template_id))
+
+
+@require_POST
+@api_view
+def template_reject(request, template_id: int):
+    templates.reject_template(template_id, json_body(request).get('reason'), _actor(request))
+    return JsonResponse(_template_payload(request, template_id))
+
+
+@require_POST
+@api_view
 def template_active(request, template_id: int):
     _check_owner(request, templates.get_template(template_id)['owner'])
-    templates.set_active(template_id, bool(_body(request).get('active')), request.user.get_username())
+    templates.set_active(template_id, bool(json_body(request).get('active')), request.user.get_username())
     return JsonResponse({'ok': True})
 
 
-def _workbook_response(wb, filename: str) -> HttpResponse:
-    response = HttpResponse(content_type=XLSX_CONTENT_TYPE)
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    wb.save(response)
-    return response
-
-
 @require_GET
-@_api
+@api_view
 def template_sample(request):
-    return _workbook_response(*sample_file.template_sample_workbook())
+    return workbook_response(*sample_file.template_sample_workbook())
 
 
 @require_GET
-@_api
+@api_view
 def send_sample(request):
-    return _workbook_response(*sample_file.sample_workbook())
+    return workbook_response(*sample_file.sample_workbook())
 
 
 @require_POST
-@_api
+@api_view
 def send_upload(request):
     upload = request.FILES.get('file')
     if not upload:
@@ -197,46 +200,30 @@ def send_upload(request):
 
 
 def _send_args(request) -> tuple[int, int, dict, dict]:
-    data = _body(request)
+    data = json_body(request)
     return _int(data.get('batch_id'), 'file upload'), _int(data.get('template_id'), 'mẫu tin'), data.get('mapping'), data.get('fixed')
 
 
 @require_POST
-@_api
+@api_view
 def send_evaluate(request):
     return JsonResponse(sending.evaluate(*_send_args(request), _actor(request)))
 
 
 @require_POST
-@_api
+@api_view
 def send_confirm(request):
     return JsonResponse(sending.confirm(*_send_args(request), _actor(request)))
 
 
-def _table_params(request) -> dict[str, int]:
-    def number(name: str, default: int) -> int:
-        try:
-            return int(request.GET.get(name) or default)
-        except ValueError:
-            return default
-
-    length = number('length', 10)
-    return {
-        'draw': number('draw', 1),
-        'start': max(number('start', 0), 0),
-        'length': min(length, MAX_PAGE_LENGTH) if length > 0 else MAX_PAGE_LENGTH,
-    }
-
-
 @require_GET
-@_api
+@api_view
 def batch_list(request):
-    mode = provider.send_mode()
-    return JsonResponse({**sending.list_batches(**_table_params(request), actor=_actor(request)), 'send_mode': mode, 'send_mode_label': sending.SEND_MODE_LABELS[mode]})
+    return JsonResponse({**sending.list_batches(**table_params(request), actor=_actor(request)), 'send_mode': provider.send_mode()})
 
 
 @require_GET
-@_api
+@api_view
 def batch_list_export(request):
     rows = sending.list_batches(0, 0, EXPORT_MAX_ROWS, _actor(request))['data']
     audit.log('zns.export_history', request.user.get_username(), 'batch', None, f'{len(rows)} lô')
@@ -258,70 +245,58 @@ def batch_list_export(request):
         ExcelColumn('failed_rows', 'Gửi lỗi', 9),
         ExcelColumn('unknown_rows', 'Chưa rõ', 9),
         ExcelColumn('skipped_rows', 'Bỏ qua', 9),
+        ExcelColumn('duration_label', 'Duration', 10),
         ExcelColumn('created_by', 'Người tạo', 14),
     ]
     return excel_response([ExcelSheet('Lịch sử lô gửi', columns, rows)], 'lich_su_lo_gui.xlsx')
 
 
 @require_GET
-@_api
+@api_view
 def batch_detail(request, batch_id: int):
     return JsonResponse(sending.batch_detail(batch_id, _actor(request)))
 
 
 @require_GET
-@_api
+@api_view
 def batch_recipients(request, batch_id: int):
-    return JsonResponse(sending.list_recipients(batch_id, _actor(request), status=request.GET.get('status'), **_table_params(request)))
+    return JsonResponse(sending.list_recipients(batch_id, _actor(request), status=request.GET.get('status'), **table_params(request)))
 
 
 @require_GET
-@_api
+@api_view
 def recipient_attempts(request, batch_id: int, recipient_id: int):
     return JsonResponse({'data': sending.recipient_attempts(batch_id, recipient_id, _actor(request))})
 
 
 @require_POST
-@_api
+@api_view
 def batch_skip(request, batch_id: int):
-    data = _body(request)
+    data = json_body(request)
     return JsonResponse(sending.skip_recipients(batch_id, data.get('recipient_id'), data.get('reason'), _actor(request)))
 
 
 @require_POST
-@_api
+@api_view
 def batch_retry(request, batch_id: int):
-    return JsonResponse(sending.retry_same_batch(batch_id, _body(request).get('kinds'), _actor(request)))
+    return JsonResponse(sending.retry_same_batch(batch_id, json_body(request).get('kinds'), _actor(request)))
 
 
 @require_POST
-@_api
+@api_view
 def batch_retry_new(request, batch_id: int):
     return JsonResponse(sending.retry_as_new_batch(batch_id, _actor(request)))
 
 
 @require_POST
-@_api
-def batch_approve(request, batch_id: int):
-    return JsonResponse(sending.approve_batch(batch_id, _actor(request)))
-
-
-@require_POST
-@_api
-def batch_reject(request, batch_id: int):
-    sending.reject_batch(batch_id, _body(request).get('reason'), _actor(request))
-    return JsonResponse({'ok': True})
-
-
-@require_POST
-@_api
+@api_view
 def batch_cancel(request, batch_id: int):
     sending.cancel_batch(batch_id, _actor(request))
     return JsonResponse({'ok': True})
 
 
 @require_GET
-@_api
+@api_view
 def batch_export(request, batch_id: int):
     status = request.GET.get('status')
     batch, recipients = sending.batch_export_rows(batch_id, status, _actor(request))

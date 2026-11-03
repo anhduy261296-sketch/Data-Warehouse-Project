@@ -10,6 +10,7 @@ OWNERS = ('PGI', 'AWG')
 DATA_TYPES = ('text', 'number', 'date', 'datetime')
 SOURCES = ('customer', 'fixed')
 TEXT_MAX_LEN = 500
+_ISO_DATE_CELL_RE = re.compile(r'^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}(:\d{2})?)?$')
 NUMBER_MAX = Decimal('9999999999999999.99')
 PLACEHOLDER_RE = re.compile(r'<\s*([A-Za-z][A-Za-z0-9_]*)\s*>')
 PHONE_KEYS = frozenset({'sodienthoai', 'sdt', 'dienthoai', 'phone', 'mobile', 'sodt', 'phonenumber', 'didong', 'sdtkhachhang'})
@@ -109,6 +110,30 @@ def _parse_datetime(value: Any) -> dt.datetime:
     return dt.datetime.combine(_parse_date(text), dt.time())
 
 
+def _readable_date_text(text: str) -> str:
+    """Ô ngày trong Excel được đọc thành 2026-11-03: biến Văn bản cũng phải gửi theo dạng quen thuộc."""
+    match = _ISO_DATE_CELL_RE.match(text)
+    if not match:
+        return text
+    try:
+        parsed = dt.datetime.fromisoformat(text)
+    except ValueError:
+        return text
+    return parsed.strftime('%H:%M %d/%m/%Y' if match.group(1) else '%d/%m/%Y')
+
+
+def text_column_hint(cells: Any) -> str | None:
+    """Cột gán cho biến Văn bản mà toàn số hoặc toàn ngày thì có thể đã chọn nhầm định dạng."""
+    values = [c for c in cells if c is not None and c != '']
+    if not values:
+        return None
+    if all(isinstance(c, (int, float)) and not isinstance(c, bool) for c in values):
+        return 'number'
+    if all(isinstance(c, str) and _ISO_DATE_CELL_RE.match(c) for c in values):
+        return 'date'
+    return None
+
+
 def coerce(data_type: str, value: Any) -> tuple[Any, str | None]:
     if value is None or (isinstance(value, str) and not value.strip()):
         return None, None
@@ -125,7 +150,7 @@ def coerce(data_type: str, value: Any) -> tuple[Any, str | None]:
     except ValueError:
         messages = {'number': 'Không phải số', 'date': 'Ngày không hợp lệ (dd/mm/yyyy)', 'datetime': 'Ngày giờ không hợp lệ (hh:mm dd/mm/yyyy)'}
         return None, messages[data_type]
-    text = str(cell_value(value) if not isinstance(value, str) else value).strip()
+    text = _readable_date_text(str(cell_value(value) if not isinstance(value, str) else value).strip())
     if len(text) > TEXT_MAX_LEN:
         return None, f'Dài quá {TEXT_MAX_LEN} ký tự'
     return text, None

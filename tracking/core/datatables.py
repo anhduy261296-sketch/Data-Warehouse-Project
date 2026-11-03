@@ -93,13 +93,24 @@ def _build_where_extra(config: DetailReportConfig, params: dict[str, Any]) -> tu
     return (where_extra, query_params)
 
 
+def paging_params(params: Any) -> dict[str, int]:
+    def number(name: str, default: int) -> int:
+        try:
+            return int(params.get(name) or default)
+        except ValueError:
+            return default
+
+    length = number('length', 10)
+    return {
+        'draw': number('draw', 1),
+        'start': max(number('start', 0), 0),
+        'length': min(length, MAX_PAGE_LENGTH) if length > 0 else MAX_PAGE_LENGTH,
+    }
+
+
 def run_detail_report(config: DetailReportConfig, params: dict[str, Any], counts: Callable | None = None) -> dict[str, Any]:
-    draw = int(params.get('draw') or 1)
-    start = max(int(params.get('start') or 0), 0)
-    length = int(params.get('length') or 10)
-    if length <= 0:
-        length = MAX_PAGE_LENGTH
-    length = min(length, MAX_PAGE_LENGTH)
+    paging = paging_params(params)
+    draw, start, length = paging['draw'], paging['start'], paging['length']
     default_order_expr = (
         config.default_order_sql
         or f"CASE WHEN {config.status_sync_expr} = 'Not Sync' THEN 0 WHEN {config.status_sync_expr} IS NULL THEN 1 ELSE 2 END"

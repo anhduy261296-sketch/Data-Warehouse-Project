@@ -44,6 +44,15 @@
           <option value="0">Ngừng hoạt động</option>
         </select>
       </div>
+      <div class="col-lg-2 col-md-3 col-sm-6 mb-2">
+        <label for="znsFilterApproval">Duyệt</label>
+        <select class="form-control form-control-sm" id="znsFilterApproval">
+          <option value="">Tất cả</option>
+          <option value="approved">Đã duyệt</option>
+          <option value="pending">Chờ duyệt</option>
+          <option value="rejected">Từ chối</option>
+        </select>
+      </div>
       <div class="col-lg-4 col-md-6 mb-2">
         <label for="znsFilterSearch">Tìm kiếm</label>
         <input type="search" class="form-control form-control-sm" id="znsFilterSearch" placeholder="Tên mẫu hoặc mã template" autocomplete="off" />
@@ -53,16 +62,22 @@
 
   <div class="rpt-card mb-3" id="znsTemplatesCard">
     <div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
-    <div class="rpt-card-title"><i class="fas fa-envelope-open-text"></i> Danh sách mẫu tin</div>
-    <div class="table-responsive">
-      <table class="table table-hover rpt-table zns-table">
+    <div class="rpt-card-title justify-content-between">
+      <span><i class="fas fa-envelope-open-text mr-2"></i>Danh sách mẫu tin</span>
+      <span class="zns-row-legend">
+        <span><i class="zns-row-swatch zns-row--approved"></i>Đã duyệt</span>
+        <span><i class="zns-row-swatch zns-row--pending"></i>Chờ duyệt</span>
+        <span><i class="zns-row-swatch zns-row--rejected"></i>Từ chối</span>
+      </span>
+    </div>
+    <table class="table table-hover rpt-table zns-list-table" id="znsTemplateTable" width="100%">
         <thead>
           <tr>
             <th class="zns-actions-col">Thao tác</th>
-            <th class="zns-code-col">Mã</th>
+            <th>Mã</th>
             <th>Tên</th>
             <th>Chủ hàng</th>
-            <th class="zns-center" title="Số tin đã đưa vào gửi (khách hợp lệ của các lô đã xác nhận, không tính lô hủy)">Số lượng</th>
+            <th title="Số tin đã đưa vào gửi (khách hợp lệ của các lô đã xác nhận, không tính lô hủy)">Số lượng</th>
             <th>Trạng thái</th>
             <th>Ngày tạo</th>
             <th>Người tạo</th>
@@ -71,8 +86,7 @@
           </tr>
         </thead>
         <tbody id="znsTemplateRows"></tbody>
-      </table>
-    </div>
+    </table>
   </div>
 </div>
 {% endblock %}

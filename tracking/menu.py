@@ -68,7 +68,7 @@ MENU: tuple[MenuGroup, ...] = (
             MenuItem('Danh sách gửi tin', 'zns-send'),
         ),
     ),
-    MenuGroup('config', 'Cấu hình', 'fa-cog', 'collapseConfig', (MenuItem('Phân quyền & cấu hình', 'config-page'),)),
+    MenuGroup('config', 'Cấu hình', 'fa-cog', 'collapseConfig', (MenuItem('Phân quyền', 'config-page'),)),
 )
 
 HOME_URL_NAME = 'home'

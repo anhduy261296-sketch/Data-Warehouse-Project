@@ -22,6 +22,8 @@
     </div>
   </div>
 
+  <div class="zns-approval-bar d-none" id="znsApprovalBar"></div>
+
   <div class="row">
     <div class="col-xl-8 mb-3">
       <div class="rpt-card zns-form-card mb-3">
@@ -74,7 +76,7 @@
         </div>
         <div class="zns-var-row zns-var-header">
           <span>Tên biến</span>
-          <span>Kiểu dữ liệu</span>
+          <span title="Dùng để kiểm tra dữ liệu và trình bày trong tin: số 5000000 thành 5.000.000, ngày thành 03/11/2026">Định dạng</span>
           <span title="Dữ liệu của biến cố định, dùng cho mọi lần gửi">Dữ liệu</span>
           <span class="text-center" title="Bắt buộc phải có giá trị khi gửi">Bắt buộc</span>
           <span class="text-center" title="Theo khách hàng: mỗi khách một giá trị, lấy từ cột Excel cùng tên. Không chọn: nhập một lần cho cả lô.">Theo KH</span>
@@ -85,7 +87,7 @@
         <div class="zns-help mt-3">
           <div><b>Theo khách hàng</b>: mỗi khách một giá trị, lấy từ cột Excel cùng tên biến (vd: <code>&lt;name&gt;</code> ↔ cột "Tên khách hàng").</div>
           <div><b>Không chọn</b>: biến cố định cho cả lô, nhập một lần khi gửi hoặc tự điền từ bảng "Biến cố định | Dữ liệu" trong file Excel.</div>
-          <div>Biến đã lưu không đổi tên được. Chưa có dữ liệu gửi thì <b>xóa</b> được (<i class="far fa-trash-alt"></i>); đã có dữ liệu thì chỉ <b>khóa</b> (<i class="fas fa-lock"></i>) để giữ cột và dữ liệu đã gửi.</div>
+          <div>Biến đã lưu không đổi tên được. Sửa hoặc xóa biến không ảnh hưởng các tin đã gửi, và mẫu sẽ phải duyệt lại.</div>
         </div>
       </div>
       <div class="rpt-card zns-form-card d-none mt-3" id="znsChangesBox">
@@ -128,7 +130,7 @@
       <span class="zns-var-badges"></span>
       <div class="invalid-feedback"></div>
     </div>
-    <select class="form-control zns-input" data-field="data_type" aria-label="Kiểu dữ liệu"></select>
+    <select class="form-control zns-input" data-field="data_type" aria-label="Định dạng"></select>
     <div class="zns-var-value">
       <input type="text" class="form-control zns-input" data-field="default_value" maxlength="500" aria-label="Dữ liệu" />
       <span class="zns-var-excel"><i class="fas fa-file-excel mr-1"></i>Cột Excel</span>

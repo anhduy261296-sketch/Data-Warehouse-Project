@@ -204,8 +204,8 @@
             .join(""),
         )
         .val(v.data_type)
-        .prop("disabled", readOnly || v.has_data || !v.is_active)
-        .attr("title", !v.is_active ? "Biến đang ngừng dùng" : v.has_data ? "Biến đã có dữ liệu gửi, không đổi kiểu được" : "");
+        .prop("disabled", readOnly || !v.is_active)
+        .attr("title", !v.is_active ? "Biến đang ngừng dùng" : "");
       $card
         .find("[data-field=is_required]")
         .prop("checked", v.is_required)
@@ -219,17 +219,14 @@
         .html(
           readOnly
             ? ""
-            : saved && v.has_data
-              ? `<button type="button" class="btn zns-icon-btn zns-var-toggle" title="${v.is_active ? "Khóa biến - ngừng dùng (giữ cột và dữ liệu)" : "Mở khóa - dùng lại biến"}"><i class="fas ${v.is_active ? "fa-lock" : "fa-lock-open"}"></i></button>`
-              : `<button type="button" class="btn zns-icon-btn zns-var-remove" title="${saved ? "Xóa biến (chưa có dữ liệu gửi) - xóa hẳn khi bấm Lưu" : "Bỏ biến chưa lưu"}"><i class="far fa-trash-alt"></i></button>`,
+            : `<button type="button" class="btn zns-icon-btn zns-var-remove" title="${saved ? "Xóa biến - xóa hẳn khi bấm Lưu" : "Bỏ biến chưa lưu"}"><i class="far fa-trash-alt"></i></button>`,
         );
       $card
         .find(".zns-var-badges")
         .html(
           [
             '<i class="fas fa-circle zns-flag zns-flag--used zns-used d-none" title="Đang dùng trong nội dung"></i>',
-            v.has_data ? '<i class="fas fa-lock zns-flag" title="Đã có dữ liệu gửi: không đổi kiểu được"></i>' : "",
-            !v.is_active ? '<span class="zns-flag zns-flag--off" title="Ngừng dùng: giữ cột và dữ liệu">Ngừng</span>' : "",
+            !v.is_active ? '<span class="zns-flag zns-flag--off" title="Ngừng dùng: giữ dữ liệu đã gửi">Ngừng</span>' : "",
           ].join(""),
         );
       $vars.append(node);
@@ -237,8 +234,29 @@
     renderPreview();
   }
 
+  function renderApproval() {
+    const $bar = $("#znsApprovalBar").toggleClass("d-none", !template);
+    if (!template) return;
+    const texts = {
+      pending: `Mẫu đang chờ duyệt, chưa dùng để gửi được${template.submitted_by ? ` · Người gửi duyệt: ${escapeHtml(template.submitted_by)}` : ""}`,
+      approved: `Đã duyệt${template.approved_by ? ` bởi ${escapeHtml(template.approved_by)}` : ""}. Nếu lưu thay đổi, mẫu sẽ phải duyệt lại.`,
+      rejected: `${escapeHtml(template.rejected_by || "")} đã từ chối: ${escapeHtml(template.reject_reason || "")}. Sửa rồi lưu để gửi duyệt lại.`,
+    };
+    $bar.attr("data-status", template.approval_status).html(
+      `<span>${ZnsUi.approvalBadge(template.approval_status, template.approval_label)} ${texts[template.approval_status] || ""}</span>
+        ${
+          template.can_approve
+            ? '<span class="zns-approval-actions"><button type="button" class="btn btn-sm btn-success zns-review" data-approve="1"><i class="fas fa-check mr-1"></i> Duyệt</button><button type="button" class="btn btn-sm btn-outline-danger zns-review" data-approve="0"><i class="fas fa-times mr-1"></i> Từ chối</button></span>'
+            : ""
+        }`,
+    );
+  }
+
+  const codeIsLocked = () => Boolean(template && template.code_locked);
+
   function fill(t, defaults, defaultContent) {
     template = t;
+    renderApproval();
     samples = {};
     defaultSamples = {};
     (defaults || []).forEach((v) => (defaultSamples[v.name] = v.sample));
@@ -248,7 +266,11 @@
     $("#znsCode").val(t ? t.zns_code : "");
     $("#znsContent").val(t ? t.content : defaultContent || "");
     setSegment($("#znsOwner"), owner);
-    $("#znsName, #znsCode, #znsContent").prop("readonly", readOnly);
+    $("#znsName, #znsContent").prop("readonly", readOnly);
+    const codeLocked = Boolean(t && t.code_locked);
+    $("#znsCode")
+      .prop("readonly", readOnly || codeLocked)
+      .attr("title", codeLocked ? "Mẫu đã có lô gửi nên không đổi được mã. Hãy tạo mẫu mới nếu cần dùng mã khác." : "");
     $("#znsOwner button").prop("disabled", readOnly);
     $root.find(".zns-edit-only").toggleClass("d-none", readOnly);
     const changes = (t && t.changes) || [];
@@ -256,7 +278,7 @@
     $("#znsChanges").html(
       changes
         .map(
-          (c) => `<li><span class="zns-change-time">${formatUtcDateTime(c.changed_at)}</span> · <b>${escapeHtml(c.changed_by || "")}</b>
+          (c) => `<li><span class="zns-change-time">${formatUtcTimeFirst(c.changed_at)}</span> · <b>${escapeHtml(c.changed_by || "")}</b>
           ${c.variable ? `<code>&lt;${escapeHtml(c.variable)}&gt;</code>` : ""} ${escapeHtml(c.detail || c.action)}</li>`,
         )
         .join(""),
@@ -269,12 +291,12 @@
     const byName = new Map(vars.map((v) => [v.name, v]));
     const added = data.variables.filter((v) => !byName.has(v.name));
     const updated = data.variables.filter((v) => byName.has(v.name));
-    // File là cấu hình đầy đủ: biến không có trong file bị xóa (hoặc ngừng dùng nếu đã có dữ liệu gửi).
+    // File là cấu hình đầy đủ: biến không có trong file bị xóa.
     const fileNames = new Set(data.variables.map((v) => v.name));
     const removed = data.variables.length ? vars.filter((v) => v.name && !fileNames.has(v.name) && v.is_active !== false) : [];
     const varList = (list) => list.map((v) => `<code>&lt;${escapeHtml(v.name)}&gt;</code>`).join(" ");
     const lines = [
-      data.zns_code ? `Mã: <b>${escapeHtml(data.zns_code)}</b>` : "",
+      data.zns_code && !codeIsLocked() ? `Mã: <b>${escapeHtml(data.zns_code)}</b>` : "",
       data.name && !$("#znsName").val().trim() ? `Tên: <b>${escapeHtml(data.name)}</b>` : "",
       data.owner ? `Chủ hàng: <b>${escapeHtml(data.owner)}</b>` : "",
       data.content ? "Nội dung tin nhắn: <b>thay bằng nội dung trong file</b> (biến có trong nội dung sẽ là bắt buộc)" : "",
@@ -297,7 +319,7 @@
   }
 
   function applyImport(data, byName, added, updated, removed) {
-    if (data.zns_code) $("#znsCode").val(data.zns_code);
+    if (data.zns_code && !codeIsLocked()) $("#znsCode").val(data.zns_code);
     if (data.name && !$("#znsName").val().trim()) $("#znsName").val(data.name);
     if (data.content) $("#znsContent").val(data.content);
     if (data.owner) {
@@ -306,17 +328,14 @@
     }
     updated.forEach((iv) => {
       const v = byName.get(iv.name);
-      if (!v.has_data) v.data_type = iv.data_type;
+      v.data_type = iv.data_type;
       v.source = iv.source;
       if (iv.source === "fixed") v.default_value = iv.default_value || "";
       if (iv.is_required !== null) v.is_required = iv.is_required;
       v.is_active = true;
       delete samples[v.name];
     });
-    removed.forEach((v) => {
-      if (v.has_data) v.is_active = false;
-    });
-    vars = vars.filter((v) => v.has_data || !removed.includes(v));
+    vars = vars.filter((v) => !removed.includes(v));
     added.forEach((iv) =>
       vars.push({
         name: iv.name,
@@ -436,7 +455,7 @@
         );
         samples = keep;
         renderPreview();
-        Toast.success("Đã lưu mẫu tin.");
+        Toast.success(t.approval_status === "pending" ? "Đã lưu, mẫu tin đang chờ duyệt." : "Đã lưu mẫu tin.");
       })
       .catch((x) => {
         const text = Api.errorMessage(x, "Không lưu được mẫu tin.");
@@ -447,6 +466,20 @@
         else window.scrollTo({ top: 0, behavior: "smooth" });
       });
   }
+
+  $("#znsApprovalBar").on("click", ".zns-review", function () {
+    if (dirty) {
+      Toast.error("Hãy lưu thay đổi trước khi duyệt.");
+      return;
+    }
+    ZnsUi.reviewTemplate(template, this.dataset.approve === "1").then((saved) => {
+      if (!saved) return;
+      template = saved;
+      renderApproval();
+      renderHeader();
+      Toast.success(saved.approval_status === "approved" ? "Đã duyệt mẫu tin." : "Đã từ chối mẫu tin.");
+    });
+  });
 
   function toggleActive() {
     const active = template.is_active;
@@ -505,38 +538,12 @@
     }
     Dialog.confirm({
       title: `Xóa biến <${v.name}>?`,
-      message: "Biến và cột dữ liệu tương ứng sẽ bị xóa hẳn khi bấm Lưu.",
+      message: "Biến sẽ bị xóa khỏi mẫu khi bấm Lưu. Các tin đã gửi không bị ảnh hưởng. Mẫu sẽ phải duyệt lại.",
       confirmText: "Xóa biến",
       variant: "danger",
     }).then((ok) => ok && remove());
   });
 
-  $vars.on("click", ".zns-var-toggle", function () {
-    const v = vars[$(this).closest(".zns-var-card").data("index")];
-    Dialog.confirm(
-      v.is_active
-        ? {
-            title: `Khóa biến <${v.name}>?`,
-            message:
-              "Biến sẽ ngừng dùng khi gửi tin. Cột và dữ liệu đã gửi vẫn được giữ, có thể mở khóa lại. Thay đổi áp dụng khi bấm Lưu.",
-            confirmText: "Khóa biến",
-            variant: "warning",
-            icon: "fa-lock",
-          }
-        : {
-            title: `Mở khóa biến <${v.name}>?`,
-            message: "Biến sẽ được dùng lại khi gửi tin. Thay đổi áp dụng khi bấm Lưu.",
-            confirmText: "Mở khóa",
-            variant: "success",
-            icon: "fa-lock-open",
-          },
-    ).then((ok) => {
-      if (!ok) return;
-      v.is_active = !v.is_active;
-      markDirty();
-      renderVariables();
-    });
-  });
   document.addEventListener(
     "click",
     (e) => {

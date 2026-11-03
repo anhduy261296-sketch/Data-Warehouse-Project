@@ -23,16 +23,16 @@ INFO_ROWS = (
     ('Chủ hàng', 'PGI'),
     ('Nội dung', 'Chào <name>, PGI gửi tặng bạn voucher giảm <giam> mã <voucher_code>, áp dụng từ <start_date> đến <expired_date>.'),
 )
-VAR_HEADERS = ('Tên biến', 'Kiểu dữ liệu', 'Dữ liệu', 'Bắt buộc', 'Theo KH')
+VAR_HEADERS = ('Tên biến', 'Định dạng', 'Dữ liệu', 'Bắt buộc', 'Theo KH')
 VAR_ROWS = (
-    ('name', 'Text', None, 'Có', 'Có'),
-    ('giam', 'Text', '10%', 'Có', 'Không'),
-    ('voucher_code', 'Text', 'PGI10', 'Có', 'Không'),
-    ('start_date', 'Date', '01/11/2026', 'Có', 'Không'),
-    ('expired_date', 'Datetime', '22:00 30/11/2026', 'Có', 'Không'),
+    ('name', 'Văn bản', None, 'Có', 'Có'),
+    ('giam', 'Văn bản', '10%', 'Có', 'Không'),
+    ('voucher_code', 'Văn bản', 'PGI10', 'Có', 'Không'),
+    ('start_date', 'Ngày', '01/11/2026', 'Có', 'Không'),
+    ('expired_date', 'Ngày giờ', '22:00 30/11/2026', 'Có', 'Không'),
 )
 VAR_INPUT_ROWS = 50
-TYPE_CHOICES = '"Text,Number,Date,Datetime"'
+TYPE_CHOICES = '"Văn bản,Số,Ngày,Ngày giờ"'
 YES_NO_CHOICES = '"Có,Không"'
 NOTE = 'Ghi chú: Theo KH = Có thì Dữ liệu để trống, mỗi khách lấy giá trị từ cột cùng tên trong file danh sách khách hàng.'
 

@@ -20,6 +20,19 @@ const DT_DOM_FOOTER =
 const dtToolbarDom = (slots) =>
   "<'row align-items-center'<'col-sm-12 d-flex justify-content-end align-items-center'" + slots + "fB>>" + DT_DOM_FOOTER;
 
+// Bảng danh sách dùng chung: mặc định dữ liệu đã có sẵn ở trình duyệt; bảng phân trang phía server thì thêm serverSide, processing.
+const pagedTableOptions = (scrollClass = "") => ({
+  ordering: false,
+  autoWidth: false,
+  pageLength: APP.DATATABLE.PAGE_LENGTH,
+  lengthMenu: APP.DATATABLE.LENGTH_MENU,
+  dom: `<'table-responsive ${scrollClass}'tr><'d-flex justify-content-between align-items-center flex-wrap mt-2'i<'d-flex align-items-center rpt-pager'lp>>`,
+  language: { ...APP.DATATABLE.LANGUAGE_VI, info: "Hiển thị _START_ - _END_ của _TOTAL_ dòng" },
+  createdRow: (row, data) => {
+    row.dataset.id = data.id;
+  },
+});
+
 const COLUMNS = Object.freeze({
   statusSync: {
     data: "status_sync",

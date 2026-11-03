@@ -13,41 +13,37 @@
 </div>
 
 <ul class="nav nav-tabs cfg-tabs" role="tablist">
-  {% if can_users %}<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#cfgUsers" role="tab"><i class="fas fa-users mr-1"></i> Người dùng</a></li>{% endif %}
-  {% if can_roles %}<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#cfgRoles" role="tab"><i class="fas fa-user-tag mr-1"></i> Vai trò &amp; quyền</a></li>{% endif %}
-  {% if can_limits %}<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#cfgLimits" role="tab"><i class="fas fa-tachometer-alt mr-1"></i> Hạn mức gửi tin</a></li>{% endif %}
+  {% if can_users %}<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#cfgUsers" role="tab"><i class="fas fa-user mr-1"></i> Theo người dùng</a></li>{% endif %}
+  {% if can_roles %}<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#cfgRoles" role="tab"><i class="fas fa-users mr-1"></i> Theo nhóm người dùng</a></li>{% endif %}
   {% if can_audit %}<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#cfgAudit" role="tab"><i class="fas fa-clipboard-list mr-1"></i> Nhật ký</a></li>{% endif %}
 </ul>
 
 <div class="tab-content rpt-card cfg-tab-body">
   {% if can_users %}
   <div class="tab-pane" id="cfgUsers" role="tabpanel">
-    <div class="cfg-toolbar"><button type="button" class="btn btn-sm btn-primary" id="cfgUserAdd"><i class="fas fa-plus mr-1"></i> Thêm người dùng</button></div>
+    <div class="cfg-toolbar justify-content-between">
+      <select class="form-control form-control-sm cfg-group-filter" id="cfgUserGroupFilter" aria-label="Lọc theo nhóm"></select>
+      <button type="button" class="btn btn-sm btn-primary" id="cfgUserAdd"><i class="fas fa-plus mr-1"></i> Thêm người dùng</button>
+    </div>
     <table class="table table-hover rpt-table" id="cfgUsersTable" width="100%">
-      <thead><tr><th>Thao tác</th><th>Tên đăng nhập</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái</th><th>Đăng nhập gần nhất</th></tr></thead>
+      <thead><tr><th>Thao tác</th><th>Tên đăng nhập</th><th>Họ tên</th><th>Nhóm người dùng</th><th>Trạng thái</th><th>Đăng nhập gần nhất</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
   {% endif %}
   {% if can_roles %}
   <div class="tab-pane" id="cfgRoles" role="tabpanel">
-    <div class="cfg-toolbar"><button type="button" class="btn btn-sm btn-primary" id="cfgRoleAdd"><i class="fas fa-plus mr-1"></i> Thêm vai trò</button></div>
+    <div class="cfg-toolbar"><button type="button" class="btn btn-sm btn-primary" id="cfgRoleAdd"><i class="fas fa-plus mr-1"></i> Thêm nhóm</button></div>
     <table class="table table-hover rpt-table" id="cfgRolesTable" width="100%">
-      <thead><tr><th>Thao tác</th><th>Vai trò</th><th>Số người dùng</th><th>Số quyền</th></tr></thead>
+      <thead><tr><th>Thao tác</th><th>Nhóm người dùng</th><th>Số người dùng</th><th>Số quyền</th></tr></thead>
       <tbody></tbody>
     </table>
-  </div>
-  {% endif %}
-  {% if can_limits %}
-  <div class="tab-pane" id="cfgLimits" role="tabpanel">
-    <p class="text-muted small">Hạn mức tháng chỉ áp dụng khi server gửi thật. Tính theo ngân sách thì số tin tối đa = ngân sách / giá mỗi tin. Để trống là không giới hạn.</p>
-    <div class="row" id="cfgLimitCards"></div>
   </div>
   {% endif %}
   {% if can_audit %}
   <div class="tab-pane" id="cfgAudit" role="tabpanel">
     <table class="table table-hover rpt-table" id="cfgAuditTable" width="100%">
-      <thead><tr><th>Lúc</th><th>Người thực hiện</th><th>Thao tác</th><th>Đối tượng</th><th>Chi tiết</th></tr></thead>
+      <thead><tr><th>Thời gian</th><th>Người thực hiện</th><th>Thao tác</th><th>Đối tượng</th><th>Chi tiết</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -55,7 +51,7 @@
 </div>
 
 <div class="modal fade" id="cfgUserModal" tabindex="-1" role="dialog" aria-hidden="true">
-  <div class="modal-dialog modal-xl" role="document">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
     <form class="modal-content" id="cfgUserForm" autocomplete="off">
       <div class="modal-header">
         <h5 class="modal-title" id="cfgUserTitle">Người dùng</h5>
@@ -64,19 +60,26 @@
       <div class="modal-body">
         <div class="form-row">
           <div class="form-group col-md-3"><label for="cfgUsername">Tên đăng nhập</label><input class="form-control form-control-sm" id="cfgUsername" maxlength="150" autocomplete="off" /></div>
+          <div class="form-group col-md-3"><label for="cfgPassword" id="cfgPasswordLabel">Mật khẩu</label><input type="password" class="form-control form-control-sm" id="cfgPassword" autocomplete="new-password" /></div>
           <div class="form-group col-md-3"><label for="cfgFullName">Họ tên</label><input class="form-control form-control-sm" id="cfgFullName" maxlength="150" /></div>
           <div class="form-group col-md-3"><label for="cfgEmail">Email</label><input type="email" class="form-control form-control-sm" id="cfgEmail" maxlength="254" /></div>
-          <div class="form-group col-md-3"><label for="cfgPassword" id="cfgPasswordLabel">Mật khẩu</label><input type="password" class="form-control form-control-sm" id="cfgPassword" autocomplete="new-password" /></div>
         </div>
         <div class="custom-control custom-switch mb-3">
           <input type="checkbox" class="custom-control-input" id="cfgActive" />
           <label class="custom-control-label" for="cfgActive">Đang hoạt động (tắt để khóa tài khoản)</label>
         </div>
-        <div class="alert alert-light border small d-none" id="cfgSuperNote">Đây là tài khoản toàn quyền: luôn có mọi quyền, vai trò bên dưới không làm giảm quyền.</div>
-        <div class="cfg-label">Vai trò</div>
-        <div class="cfg-role-picks" id="cfgRolePicks"></div>
-        <div class="cfg-label">Quyền theo trang <span class="text-muted">(ô mờ là quyền có sẵn từ vai trò, tích thêm để cấp riêng cho người này)</span></div>
-        <div id="cfgUserMatrix"></div>
+        <div class="alert alert-light border small d-none" id="cfgSuperNote">Đây là tài khoản toàn quyền: luôn có mọi quyền, nhóm bên dưới không làm giảm quyền.</div>
+        <div class="row">
+          <div class="col-lg-4 mb-3">
+            <div class="cfg-label">Nhóm người dùng <span class="text-muted">(quyền được cộng lại)</span></div>
+            <input type="search" class="form-control form-control-sm cfg-pick-search" data-target="#cfgRolePicks" placeholder="Tìm nhóm..." aria-label="Tìm nhóm" />
+            <div class="cfg-picks" id="cfgRolePicks"></div>
+          </div>
+          <div class="col-lg-8">
+            <div class="cfg-label">Quyền riêng của người này <span class="text-muted">(ô mờ là quyền có sẵn từ nhóm)</span></div>
+            <div id="cfgUserMatrix"></div>
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-sm btn-light" data-dismiss="modal">Đóng</button>
@@ -87,16 +90,25 @@
 </div>
 
 <div class="modal fade" id="cfgRoleModal" tabindex="-1" role="dialog" aria-hidden="true">
-  <div class="modal-dialog modal-xl" role="document">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable" role="document">
     <form class="modal-content" id="cfgRoleForm" autocomplete="off">
       <div class="modal-header">
-        <h5 class="modal-title" id="cfgRoleTitle">Vai trò</h5>
+        <h5 class="modal-title" id="cfgRoleTitle">Nhóm người dùng</h5>
         <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
       </div>
       <div class="modal-body">
-        <div class="form-group"><label for="cfgRoleName">Tên vai trò</label><input class="form-control form-control-sm" id="cfgRoleName" maxlength="150" /></div>
-        <div class="cfg-label">Quyền theo trang <span class="text-muted">(bỏ quyền "Xem" là ẩn trang đó khỏi menu)</span></div>
-        <div id="cfgRoleMatrix"></div>
+        <div class="row">
+          <div class="col-lg-4 mb-3">
+            <div class="form-group mb-2"><label for="cfgRoleName">Tên nhóm (ví dụ IT, MKT, Kế toán)</label><input class="form-control form-control-sm" id="cfgRoleName" maxlength="150" /></div>
+            <div class="cfg-label">Thành viên <span class="text-muted" id="cfgMemberCount"></span></div>
+            <input type="search" class="form-control form-control-sm cfg-pick-search" data-target="#cfgMemberPicks" placeholder="Tìm người dùng..." aria-label="Tìm người dùng" />
+            <div class="cfg-picks" id="cfgMemberPicks"></div>
+          </div>
+          <div class="col-lg-8">
+            <div class="cfg-label">Quyền của nhóm <span class="text-muted">(bỏ quyền "Xem" là ẩn trang đó khỏi menu)</span></div>
+            <div id="cfgRoleMatrix"></div>
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-sm btn-light" data-dismiss="modal">Đóng</button>

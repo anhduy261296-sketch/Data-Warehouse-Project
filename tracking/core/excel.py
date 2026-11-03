@@ -44,6 +44,10 @@ def _write_sheet(ws, sheet: ExcelSheet) -> None:
     rows = list(sheet.rows)
     for row in rows:
         ws.append([_cell(c, row.get(c.key)) for c in sheet.columns])
+        # openpyxl coi chuỗi bắt đầu bằng = là công thức: dữ liệu người dùng nhập không được chạy khi mở file.
+        for cell in ws[ws.max_row]:
+            if cell.data_type == 'f':
+                cell.data_type = 's'
     if sheet.total_label:
         last = sheet.columns[-1].key
         ws.append([sheet.total_label, *([None] * (len(sheet.columns) - 2)), sum(r.get(last) or 0 for r in rows)])
@@ -59,12 +63,16 @@ def _write_sheet(ws, sheet: ExcelSheet) -> None:
         ws.freeze_panes = sheet.freeze
 
 
+def workbook_response(wb: openpyxl.Workbook, filename: str) -> HttpResponse:
+    response = HttpResponse(content_type=XLSX_CONTENT_TYPE)
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
+
+
 def excel_response(sheets: list[ExcelSheet], filename: str) -> HttpResponse:
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
     for sheet in sheets:
         _write_sheet(wb.create_sheet(sheet.title), sheet)
-    response = HttpResponse(content_type=XLSX_CONTENT_TYPE)
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    wb.save(response)
-    return response
+    return workbook_response(wb, filename)

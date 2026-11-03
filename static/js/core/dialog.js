@@ -1,3 +1,8 @@
+// Bootstrap bỏ modal-open khi một modal đóng, kể cả lúc modal bên dưới vẫn mở: khi đó trang nền cuộn được còn modal thì không.
+$(document).on("hidden.bs.modal", ".modal", () => {
+  if ($(".modal.show").length) $(document.body).addClass("modal-open");
+});
+
 const Dialog = (function () {
   const VARIANTS = Object.freeze({
     primary: { icon: "fa-question", button: "btn-primary" },

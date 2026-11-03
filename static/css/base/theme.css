@@ -41,10 +41,10 @@ a.page-link {
   color: var(--text-table);
 }
 table.dataTable thead th {
-  background-color: var(--pgi-primary-soft);
-  color: var(--pgi-primary-muted);
-  font-weight: 600;
-  border-bottom: 2px solid var(--pgi-primary-border);
+  background-color: var(--table-head-bg);
+  color: var(--table-head-text);
+  font-weight: 500;
+  border-bottom: 1px solid var(--table-head-border);
 }
 span.badge {
   font-size: 14px;

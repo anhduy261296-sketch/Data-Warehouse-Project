@@ -1,7 +1,7 @@
 """Danh mục quyền theo từng trang và ánh xạ route -> quyền.
 
 Mỗi route phải thuộc ít nhất một quyền: route chưa khai báo thì mặc định bị chặn (xem middleware).
-Vai trò (auth_group) và việc gán quyền được quản lý ở trang Cấu hình; lệnh sync_access tạo sẵn danh mục này.
+Nhóm quyền (auth_group) và việc gán quyền được quản lý ở trang Cấu hình; lệnh sync_access tạo sẵn danh mục này.
 """
 
 from __future__ import annotations
@@ -130,6 +130,7 @@ CATALOG: tuple[AccessGroup, ...] = (
                     Perm('zns_templates_view', 'Xem', ('zns-templates', 'zns-template-list', 'zns-template-detail', 'zns-template-edit', 'zns-template-sample')),
                     Perm('zns_templates_export', 'Xuất Excel', ('zns-template-export',)),
                     Perm('zns_templates_manage', 'Tạo / sửa / bật tắt', ('zns-template-new', 'zns-template-save', 'zns-template-import', 'zns-template-active')),
+                    Perm('zns_templates_approve', 'Duyệt / từ chối mẫu', ('zns-template-approve', 'zns-template-reject')),
                 ),
             ),
             AccessPage(
@@ -139,12 +140,11 @@ CATALOG: tuple[AccessGroup, ...] = (
                     Perm(
                         'zns_send_view',
                         'Xem lô của mình',
-                        ('zns-send', 'zns-template-list', 'zns-template-detail', 'zns-batch-list', 'zns-batch-detail', 'zns-batch-recipients', 'zns-recipient-attempts', 'zns-batch-cancel', 'zns-batch-skip'),
+                        ('zns-send', 'zns-template-list', 'zns-template-detail', 'zns-batch-list', 'zns-batch-detail', 'zns-batch-recipients', 'zns-recipient-attempts', 'zns-batch-cancel', 'zns-batch-skip', 'zns-batch-retry', 'zns-batch-retry-new'),
                     ),
-                    Perm('zns_send_create', 'Tạo lô (upload, xác nhận chờ duyệt)', ('zns-send-sample', 'zns-send-upload', 'zns-send-evaluate', 'zns-send-confirm')),
+                    Perm('zns_send_create', 'Tạo và gửi lô', ('zns-send-sample', 'zns-send-upload', 'zns-send-evaluate', 'zns-send-confirm')),
                     Perm('zns_batch_view_all', 'Xem lô của mọi người'),
-                    Perm('zns_batch_approve', 'Duyệt / từ chối lô', ('zns-batch-approve', 'zns-batch-reject')),
-                    Perm('zns_batch_retry', 'Gửi lại / bỏ qua khách lỗi', ('zns-batch-retry', 'zns-batch-retry-new')),
+                    Perm('zns_batch_retry', 'Gửi lại / bỏ qua lô của người khác'),
                     Perm('zns_batch_cancel', 'Hủy lô của người khác'),
                     Perm('zns_batch_export', 'Xuất khách của lô', ('zns-batch-export',)),
                     Perm('zns_batch_export_history', 'Xuất toàn bộ lịch sử', ('zns-batch-list-export',)),
@@ -158,11 +158,10 @@ CATALOG: tuple[AccessGroup, ...] = (
         (
             AccessPage(
                 'config',
-                'Phân quyền & cấu hình',
+                'Phân quyền',
                 (
-                    Perm('config_users', 'Quản lý người dùng', ('config-page', 'config-users', 'config-user-save', 'config-roles')),
-                    Perm('config_roles', 'Quản lý vai trò', ('config-page', 'config-roles', 'config-role-save', 'config-role-delete')),
-                    Perm('config_limits', 'Hạn mức gửi tin', ('config-page', 'config-limits', 'config-limits-save')),
+                    Perm('config_users', 'Phân quyền theo người dùng', ('config-page', 'config-users', 'config-user-save', 'config-roles')),
+                    Perm('config_roles', 'Phân quyền theo nhóm người dùng', ('config-page', 'config-roles', 'config-role-save', 'config-role-delete')),
                     Perm('config_audit', 'Xem nhật ký', ('config-page', 'config-audit')),
                 ),
             ),
@@ -194,17 +193,33 @@ ROLE_VIEWER = 'Xem dữ liệu & báo cáo'
 ROLE_TEMPLATE_ADMIN = 'ZNS - Quản trị mẫu'
 ROLE_OWNER = {o: f'Chủ hàng {o}' for o in OWNERS}
 _DATA_GROUPS = ('Data Tracking', 'Chi tiết đơn hàng', 'Báo cáo')
+_VIEWER_PERMS = tuple(
+    p.codename for g in CATALOG if g.label in _DATA_GROUPS for page in g.pages for p in page.perms if p.codename != 'report_ecom_refresh'
+)
+_OWNER_PERMS = tuple(f'zns_owner_{o.lower()}' for o in OWNERS)
 ROLE_SEEDS: dict[str, tuple[str, ...]] = {
     ROLE_ADMIN: tuple(sorted(ALL_CODENAMES)),
-    ROLE_VIEWER: tuple(
-        p.codename for g in CATALOG if g.label in _DATA_GROUPS for page in g.pages for p in page.perms if p.codename != 'report_ecom_refresh'
+    ROLE_VIEWER: _VIEWER_PERMS,
+    'IT': (*_VIEWER_PERMS, 'report_ecom_refresh', 'config_users', 'config_roles', 'config_audit'),
+    'MKT': (
+        'view_report_ecom',
+        'export_report_ecom',
+        'view_report_inventory',
+        'zns_templates_view',
+        'zns_templates_export',
+        'zns_templates_manage',
+        'zns_send_view',
+        'zns_send_create',
+        'zns_batch_export',
+        *_OWNER_PERMS,
     ),
+    'Kế toán': _VIEWER_PERMS,
     'ZNS - Người soạn': ('zns_templates_view', 'zns_send_view', 'zns_send_create', 'zns_batch_export'),
     'ZNS - Người duyệt': (
         'zns_templates_view',
         'zns_send_view',
         'zns_batch_view_all',
-        'zns_batch_approve',
+        'zns_templates_approve',
         'zns_batch_retry',
         'zns_batch_cancel',
         'zns_batch_export',
@@ -264,7 +279,6 @@ class ZnsActor:
     approve: bool = False
     retry: bool = False
     cancel: bool = False
-    is_admin: bool = False  # tài khoản toàn quyền (superuser) được tự duyệt, tự gửi lại lô của mình
 
     def owns(self, created_by: str | None, confirmed_by: str | None) -> bool:
         return self.username in (created_by, confirmed_by)
@@ -275,14 +289,11 @@ class ZnsActor:
     def can_cancel(self, owner: str | None, created_by: str | None, confirmed_by: str | None) -> bool:
         return owner in self.owners and (self.cancel or self.owns(created_by, confirmed_by))
 
-    def can_approve(self, owner: str | None, created_by: str | None, confirmed_by: str | None) -> bool:
-        return self.approve and owner in self.owners and (self.is_admin or not self.owns(created_by, confirmed_by))
-
-    def can_skip(self, owner: str | None, created_by: str | None, confirmed_by: str | None) -> bool:
-        return owner in self.owners and (self.retry or self.owns(created_by, confirmed_by))
+    def can_approve_template(self, owner: str | None) -> bool:
+        return self.approve and owner in self.owners
 
     def can_retry(self, owner: str | None, created_by: str | None, confirmed_by: str | None) -> bool:
-        return self.retry and owner in self.owners and (self.is_admin or not self.owns(created_by, confirmed_by))
+        return owner in self.owners and (self.retry or self.owns(created_by, confirmed_by))
 
 
 def zns_actor(user: Any) -> ZnsActor:
@@ -290,8 +301,7 @@ def zns_actor(user: Any) -> ZnsActor:
         username=user.get_username(),
         owners=tuple(o for o in OWNERS if has(user, f'zns_owner_{o.lower()}')),
         view_all=has(user, 'zns_batch_view_all'),
-        approve=has(user, 'zns_batch_approve'),
+        approve=has(user, 'zns_templates_approve'),
         retry=has(user, 'zns_batch_retry'),
         cancel=has(user, 'zns_batch_cancel'),
-        is_admin=user.is_superuser,
     )

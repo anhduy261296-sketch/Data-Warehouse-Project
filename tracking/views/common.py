@@ -1,13 +1,46 @@
 from __future__ import annotations
 
+import json
+from functools import wraps
+
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 
 from .. import access
 
 from ..core.cache import cache_key, cached_call, get_or_set
-from ..core.datatables import DetailReportConfig, export_detail_report_rows, run_detail_report
+from ..core.datatables import DetailReportConfig, export_detail_report_rows, paging_params, run_detail_report
 from ..core.excel import ExcelColumn, ExcelSheet, excel_response
+from ..core.sql import retry_on_deadlock
+from ..messaging.values import MessagingError
+
+
+def api_view(fn):
+    """API trả lỗi nghiệp vụ thành JSON 400. GET chỉ đọc nên chạy lại được khi gặp deadlock."""
+    read = retry_on_deadlock(fn)
+
+    @wraps(fn)
+    def view(request, *args, **kwargs):
+        try:
+            return (read if request.method == 'GET' else fn)(request, *args, **kwargs)
+        except MessagingError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
+
+    return view
+
+
+def json_body(request) -> dict:
+    try:
+        data = json.loads(request.body or b'{}')
+    except ValueError as exc:
+        raise MessagingError('Dữ liệu gửi lên không hợp lệ.') from exc
+    if not isinstance(data, dict):
+        raise MessagingError('Dữ liệu gửi lên không hợp lệ.')
+    return data
+
+
+def table_params(request) -> dict[str, int]:
+    return paging_params(request.GET)
 
 
 def home(request):

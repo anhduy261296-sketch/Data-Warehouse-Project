@@ -5,7 +5,7 @@ import unicodedata
 from typing import Any
 
 from . import schema
-from .sending import _FIXED_KEY_HEADERS, _FIXED_VALUE_HEADERS, TEMPLATE_CODE_KEY, open_workbook, sheet_rows
+from .sending import _FIXED_KEY_HEADERS, _FIXED_VALUE_HEADERS, TEMPLATE_CODE_KEY, open_workbook, read_sheet_rows
 from .values import OWNERS, PHONE_KEYS, PLACEHOLDER_RE, MessagingError, coerce, display, normalize_key
 
 CONTENT_KEYS = frozenset({'noidung', 'noidungtinnhan', 'content', 'message'})
@@ -20,7 +20,7 @@ INFO_KEYS = {
 }
 VAR_NAME_HEADERS = frozenset({'tenbien', 'bien', 'variable'})
 VAR_HEADERS = {
-    'data_type': frozenset({'kieudulieu', 'kieu', 'datatype', 'type'}),
+    'data_type': frozenset({'dinhdang', 'kieudulieu', 'kieu', 'datatype', 'type'}),
     'default_value': frozenset({'dulieu', 'giatri', 'value'}),
     'is_required': frozenset({'batbuoc', 'required'}),
     'per_customer': frozenset({'theokh', 'theokhachhang', 'percustomer'}),
@@ -88,7 +88,7 @@ def _info_block(rows: list[tuple[int, list[Any]]], result: dict[str, Any]) -> No
 
 
 def _variable_table(rows: list[tuple[int, list[Any]]]) -> list[dict[str, Any]] | None:
-    """Bảng theo form "Danh sách biến": Tên biến | Kiểu dữ liệu | Dữ liệu | Bắt buộc | Theo KH."""
+    """Bảng theo form "Danh sách biến": Tên biến | Định dạng | Dữ liệu | Bắt buộc | Theo KH."""
     for pos, (_, cells) in enumerate(rows):
         keys = [normalize_key(c) for c in cells]
         name_col = next((i for i, k in enumerate(keys) if k in VAR_NAME_HEADERS), None)
@@ -161,7 +161,7 @@ def parse_template_workbook(upload: Any) -> dict[str, Any]:
 
     try:
         for ws in wb.worksheets:
-            rows = sheet_rows(ws)
+            rows = read_sheet_rows(ws)
             _info_block(rows, result)
             for _, cells in rows[:5]:
                 for cell in cells:
@@ -195,5 +195,5 @@ def parse_template_workbook(upload: Any) -> dict[str, Any]:
     finally:
         wb.close()
     if not result['variables'] and not result['zns_code'] and not result['content']:
-        raise MessagingError('Không tìm thấy bảng "Tên biến | Kiểu dữ liệu | Dữ liệu" trong file. Hãy dùng File mẫu.')
+        raise MessagingError('Không tìm thấy bảng "Tên biến | Định dạng | Dữ liệu" trong file. Hãy dùng File mẫu.')
     return result

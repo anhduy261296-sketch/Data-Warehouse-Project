@@ -3,3 +3,7 @@ from django.core.wsgi import get_wsgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 application = get_wsgi_application()
+
+from tracking.messaging.sending import start_watcher  # noqa: E402
+
+start_watcher()

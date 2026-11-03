@@ -112,9 +112,9 @@
 }
 .rpt-table thead th {
   white-space: nowrap;
-  background: #f8f9fb;
-  color: #374151;
-  font-weight: 600;
+  background: var(--table-head-bg);
+  color: var(--table-head-text);
+  font-weight: 500;
 }
 .rpt-table td {
   vertical-align: middle;

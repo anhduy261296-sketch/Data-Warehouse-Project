@@ -46,6 +46,15 @@ ZNS_API_TIMEOUT = int(os.getenv('ZNS_API_TIMEOUT', '20'))
 ZNS_RETRY_DELAYS = tuple(float(x) for x in os.getenv('ZNS_RETRY_DELAYS', '2,5').split(',') if x.strip())
 ZNS_PAUSE_AFTER = int(os.getenv('ZNS_PAUSE_AFTER', '5'))
 ZNS_MAX_MANUAL_RETRIES = int(os.getenv('ZNS_MAX_MANUAL_RETRIES', '3'))
+# Lô "Đang gửi" im quá số giây này thì tiến trình gửi đã dừng: phải lớn hơn thời gian gửi một khách lâu nhất (timeout x số lần gọi + giãn cách).
+ZNS_RESUME_AFTER_SECONDS = int(os.getenv('ZNS_RESUME_AFTER_SECONDS', '180'))
+ZNS_WATCH_INTERVAL_SECONDS = int(os.getenv('ZNS_WATCH_INTERVAL_SECONDS', '60'))
+# Dừng lâu hơn số giây này thì không tự gửi tiếp (tin có thể đã hết hạn): lô chuyển "Tạm dừng" để người dùng quyết định.
+ZNS_RESUME_MAX_SECONDS = int(os.getenv('ZNS_RESUME_MAX_SECONDS', '7200'))
+# Tự chạy tiếp tối đa chừng này lần mỗi lô: quá thì tạm dừng, tránh lặp vô hạn mà mỗi vòng vẫn gửi thêm tin.
+ZNS_MAX_AUTO_RESUMES = int(os.getenv('ZNS_MAX_AUTO_RESUMES', '3'))
+# Chừng này khách liên tiếp đều lỗi (bất kỳ loại lỗi nào, không khách nào thành công xen giữa) thì tạm dừng lô.
+ZNS_PAUSE_AFTER_ERRORS = int(os.getenv('ZNS_PAUSE_AFTER_ERRORS', '20'))
 
 REPORT_CACHE_TTL = 24 * 3600
 REPORT_CACHE_MAX_ITEM_BYTES = int(os.getenv('REPORT_CACHE_MAX_ITEM_KB', os.getenv('STOCK_REPORT_CACHE_MAX_ITEM_KB', '64'))) * 1024

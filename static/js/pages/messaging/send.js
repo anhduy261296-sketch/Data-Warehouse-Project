@@ -59,12 +59,15 @@
       });
   }
 
+  const templatePicker = ZnsUi.searchableSelect($("#znsTemplateSelect"), "Tìm theo tên hoặc mã mẫu...");
+
   function autoSelectTemplate(code) {
     const match = code && state.templates.find((t) => String(t.zns_code) === String(code));
     if (!match || state.template === match.id) return false;
-    $("#znsOwnerSelect").val("");
+    $("#znsOwnerSelect").val(match.owner);
     renderTemplateOptions();
     $("#znsTemplateSelect").val(String(match.id));
+    templatePicker.refresh();
     Toast.info(`Đã tự chọn mẫu <b>${escapeHtml(match.name)}</b> theo templatecode <code>${escapeHtml(code)}</code> trong file.`, {
       html: true,
     });
@@ -82,16 +85,20 @@
   function renderTemplateOptions() {
     const owner = $("#znsOwnerSelect").val();
     const current = $("#znsTemplateSelect").val();
-    const list = state.templates.filter((t) => !owner || t.owner === owner);
-    $("#znsTemplateSelect").html(
-      `<option value="">${list.length ? "Chọn mẫu tin..." : "Không có mẫu tin đang hoạt động"}</option>` +
-        list
-          .map(
-            (t) =>
-              `<option value="${t.id}"${String(t.id) === current ? " selected" : ""}>[${escapeHtml(t.owner)}] ${escapeHtml(t.name)} · ${escapeHtml(t.zns_code)}</option>`,
-          )
-          .join(""),
-    );
+    const list = owner ? state.templates.filter((t) => t.owner === owner) : [];
+    const placeholder = !owner ? "Chọn chủ hàng trước" : list.length ? "Chọn mẫu tin..." : "Không có mẫu đã duyệt đang hoạt động";
+    $("#znsTemplateSelect")
+      .prop("disabled", !owner)
+      .html(
+        `<option value="">${placeholder}</option>` +
+          list
+            .map(
+              (t) =>
+                `<option value="${t.id}"${String(t.id) === current ? " selected" : ""}>${escapeHtml(t.name)} · ${escapeHtml(t.zns_code)}</option>`,
+            )
+            .join(""),
+      );
+    templatePicker.refresh();
   }
 
   function selectTemplate() {
@@ -184,7 +191,7 @@
         .slice(0, 500)
         .map(
           (r) =>
-            `<tr><td class="num">${r.row_no}</td><td>${cellText(r.phone || r.raw_phone)}</td><td>${cellText(r.customer)}</td><td>${escapeHtml(r.errors.join("; "))}</td></tr>`,
+            `<tr><td class="zns-row-no">${r.row_no}</td><td>${cellText(r.phone || r.raw_phone)}</td><td>${cellText(r.customer)}</td><td>${escapeHtml(r.errors.join("; "))}</td></tr>`,
         )
         .join(""),
     );
@@ -246,15 +253,19 @@
     const t = r.template;
     const live = state.sendMode === "live";
     Dialog.confirm({
-      title: "Gửi lô này để duyệt?",
+      title: live ? "Xác nhận gửi tin thật?" : "Xác nhận gửi tin (chạy thử)?",
       html: true,
       message: `<div class="mb-1">Mẫu: <b>${escapeHtml(t.name)}</b> · ${ZnsUi.codeChip(t.zns_code)} ${ZnsUi.ownerBadge(t.owner)}</div>
         <div class="mb-1">File: ${escapeHtml(state.upload.file_name)}</div>
         <div>Sẽ gửi: <b>${formatAmount(r.summary.valid)}</b> khách hàng${r.summary.invalid ? ` · <span class="text-danger">bỏ qua <b>${formatAmount(r.summary.invalid)}</b> dòng lỗi</span>` : ""}</div>
-        <div class="small text-muted mt-2">Lô chuyển sang <b>Chờ duyệt</b>. Tin chỉ được gửi sau khi người khác duyệt.${live ? "" : " Server đang ở chế độ <b>chạy thử</b>: không có tin nào được gửi."}</div>`,
-      confirmText: "Gửi duyệt",
+        ${
+          live
+            ? '<div class="small text-danger mt-2">Hệ thống sẽ <b>gửi tin thật</b> tới từng khách ngay sau khi xác nhận. Không hoàn tác được (chỉ dừng được các khách chưa gửi).</div>'
+            : '<div class="small text-muted mt-2">Server đang ở chế độ <b>chạy thử</b>: không gọi API, không có tin nào được gửi. Khách hợp lệ được đánh dấu "Chạy thử".</div>'
+        }`,
+      confirmText: live ? "Gửi thật" : "Xác nhận",
       cancelText: "Quay lại",
-      variant: "primary",
+      variant: live ? "danger" : "primary",
       icon: "fa-paper-plane",
     }).then((ok) => ok && submitConfirm());
   }
@@ -271,9 +282,9 @@
       "Đang tạo lô gửi...",
     )
       .then((res) => {
-        const msg = `Lô #${res.batch_id} gồm ${formatAmount(res.valid)} khách hàng đang chờ duyệt${res.invalid ? `, bỏ qua ${formatAmount(res.invalid)} dòng lỗi` : ""}.`;
+        const msg = `Lô #${res.batch_id} đang gửi ${formatAmount(res.valid)} khách hàng${res.invalid ? `, bỏ qua ${formatAmount(res.invalid)} dòng lỗi` : ""}. Theo dõi ở Lịch sử lô gửi.`;
         reset();
-        Toast.success(msg, { title: "Đã gửi duyệt" });
+        Toast.success(msg, { title: res.send_mode === "live" ? "Đang gửi tin" : "Đang chạy thử" });
         reloadHistory(true);
       })
       .catch((x) => Toast.error(Api.errorMessage(x, "Không xác nhận được lô gửi.")));
@@ -286,27 +297,13 @@
     $("#znsFileName").text(FILE_PLACEHOLDER).removeClass("has-file");
     $("#znsUploadResult, #znsConfig").addClass("d-none");
     $("#znsEvalSummary").empty();
-    $("#znsTemplateSelect").val("");
+    $("#znsOwnerSelect").val("");
+    renderTemplateOptions();
     $("#znsMapping").empty();
     $("#znsCustomerSearch").val("");
     renderPreview();
     setStep(1);
   }
-
-  // Bảng phân trang phía server, cùng cấu hình bảng chi tiết ở báo cáo.
-  const pagedTable = (scrollClass) => ({
-    serverSide: true,
-    processing: true,
-    ordering: false,
-    autoWidth: false,
-    pageLength: APP.DATATABLE.PAGE_LENGTH,
-    lengthMenu: APP.DATATABLE.LENGTH_MENU,
-    dom: `<'table-responsive ${scrollClass}'tr><'d-flex justify-content-between align-items-center flex-wrap mt-2'i<'d-flex align-items-center rpt-pager'lp>>`,
-    language: { ...APP.DATATABLE.LANGUAGE_VI, info: "Hiển thị _START_ - _END_ của _TOTAL_ dòng" },
-    createdRow: (row, data) => {
-      row.dataset.id = data.id;
-    },
-  });
 
   const canExportBatch = $("#znsHistoryCard").data("canExport") === 1;
   const HISTORY_COLUMNS = [
@@ -326,7 +323,7 @@
       data: "id",
       render: (id, type, b) => `#${id}${b.parent_batch_id ? `<div class="small text-muted">Ref #${b.parent_batch_id}</div>` : ""}`,
     },
-    { data: "confirmed_at", className: "zns-date-cell", render: (v) => formatUtcDateTime(v) },
+    { data: "confirmed_at", className: "zns-date-cell", render: (v) => formatUtcTimeFirst(v) },
     { data: "template_name", render: (v, type, b) => `${escapeHtml(v || "—")}<div class="mt-1">${ZnsUi.codeChip(b.zns_code)}</div>` },
     { data: "owner", render: (v) => ZnsUi.ownerBadge(v) },
     { data: "file_name", className: "zns-file-cell", render: (v) => escapeHtml(v) },
@@ -337,6 +334,7 @@
     { data: "sent_rows", className: "num", render: (v) => formatAmount(v) },
     { data: "failed_rows", className: "num", render: (v) => (v ? `<span class="text-danger">${formatAmount(v)}</span>` : "0") },
     { data: "unknown_rows", className: "num", render: (v) => (v ? `<span class="zns-text-warn">${formatAmount(v)}</span>` : "0") },
+    { data: "duration_label", className: "zns-duration-col", render: (v) => v || "—" },
     { data: "created_by", render: (v) => ZnsUi.userChip(v) },
   ];
 
@@ -364,7 +362,10 @@
   };
   function pollIfSending(list) {
     clearTimeout(historyTimer);
-    if (list.some((b) => b.status === "sending")) nextPoll();
+    if (list.some((b) => b.status === "sending")) {
+      historyCache.clear();
+      nextPoll();
+    }
   }
   function pollHistory() {
     const params = historyTable.ajax.params();
@@ -372,34 +373,42 @@
       .done((res) => {
         if (params !== historyTable.ajax.params()) return; // người dùng vừa đổi trang
         if (patchHistoryRows(res.data)) pollIfSending(res.data);
-        else historyTable.ajax.reload(null, false);
+        else reloadHistory();
       })
       .fail(nextPoll); // lỗi mạng thoáng qua: giữ nguyên bảng và thử lại ở nhịp sau
   }
 
+  const historyCache = Api.createPageCache();
   const historyTable = $("#znsHistoryTable")
     .on("xhr.dt", (e, settings, res) => {
       if (!res || !res.send_mode) return;
       state.sendMode = res.send_mode;
-      // TODO: nhãn kiểm tra khi dev, xóa trước khi lên prod (cùng #znsSendMode và .zns-mode).
-      $("#znsSendMode")
-        .removeClass("d-none")
-        .toggleClass("is-live", res.send_mode === "live")
-        .text(res.send_mode === "live" ? "Gửi thật" : "Chạy thử · không gửi tin thật");
       pollIfSending(res.data);
     })
-    .DataTable({ ...pagedTable(""), ajax: Api.dataTableSource(EP.batches), columns: HISTORY_COLUMNS });
+    .DataTable({ ...pagedTableOptions(), serverSide: true, processing: true, ajax: Api.dataTableSource(EP.batches, null, historyCache), columns: HISTORY_COLUMNS });
 
   function reloadHistory(resetPaging = false) {
+    historyCache.clear();
     historyTable.ajax.reload(null, resetPaging);
   }
 
   let currentBatchId = null;
+  let currentBatchSending = false;
+  const recipientCache = Api.createPageCache();
+  const batchVersions = new Map();
+  function syncRecipientCache(b) {
+    const version = [b.status, b.sent_rows, b.failed_rows, b.unknown_rows, b.skipped_rows, b.waiting_rows, b.cancelled_rows].join();
+    if (batchVersions.get(b.id) !== version) recipientCache.clear();
+    batchVersions.set(b.id, version);
+    currentBatchSending = b.status === "sending";
+  }
   const batchTable = $("#znsBatchTable").DataTable({
-    ...pagedTable("zns-scroll"),
+    ...pagedTableOptions("zns-scroll"),
+    serverSide: true,
+    processing: true,
     deferLoading: 0,
     ajax: (d, callback) =>
-      Api.dataTableSource(EP.batchRecipients(currentBatchId), () => ({ status: $("#znsBatchFilter").val() }))(d, callback),
+      Api.dataTableSource(EP.batchRecipients(currentBatchId), () => ({ status: batchFilter }), currentBatchSending ? null : recipientCache)(d, callback),
     columns: [
       {
         data: "id",
@@ -434,12 +443,19 @@
   });
 
   let batchErrors = [];
+  let batchFilter = "";
   function hideReasons() {
     $("#znsBatchReasons").addClass("d-none");
-    $("#znsBatchStats .zns-stat-btn").attr("aria-expanded", "false");
+    $("#znsBatchStats .zns-metric-info").attr("aria-expanded", "false");
   }
 
   // Lý do lỗi hiện dạng popup ngay dưới ô số liệu được bấm, để không chiếm chỗ của bảng khách.
+  function markActiveMetric() {
+    $("#znsBatchStats .zns-metric-filter").each(function () {
+      $(this).toggleClass("is-active", this.dataset.filter === batchFilter);
+    });
+  }
+
   function toggleReasons(tile) {
     const wasOpen = tile.getAttribute("aria-expanded") === "true";
     hideReasons();
@@ -448,7 +464,7 @@
     const $box = $("#znsBatchReasons");
     $box
       .html(
-        `<div class="zns-batch-reasons-title">Lý do: ${escapeHtml($(tile).find("span").text().trim())}</div>` +
+        `<div class="zns-batch-reasons-title">Lý do: ${escapeHtml(tile.dataset.label)}</div>` +
           errors
             .map(
               (e) =>
@@ -461,11 +477,9 @@
     tile.setAttribute("aria-expanded", "true");
   }
 
-  let currentBatch = null;
   function openBatch(id, keepView = false) {
     Loading.wrap(Api.get(EP.batch(id)), APP.MESSAGES.LOADING_SHORT)
       .then((b) => {
-        currentBatch = b;
         $("#znsBatchTitle").text(`Lô #${b.id} · ${b.template_name || ""}`);
         $("#znsBatchSub").html(
           [
@@ -473,96 +487,44 @@
             ZnsUi.ownerBadge(b.owner),
             ZnsUi.codeChip(b.zns_code),
             `<span>${escapeHtml(b.file_name)}</span>`,
-            `<span>Xác nhận ${formatUtcDateTime(b.confirmed_at)}${b.created_by ? ` · ${escapeHtml(b.created_by)}` : ""}</span>`,
+            `<span>Xác nhận ${formatUtcTimeFirst(b.confirmed_at)}${b.created_by ? ` · ${escapeHtml(b.created_by)}` : ""}</span>`,
             b.parent_batch_id ? `<span>Gửi lại từ lô #${b.parent_batch_id}</span>` : "",
-            b.approved_by ? `<span>Duyệt bởi ${escapeHtml(b.approved_by)} · ${formatUtcDateTime(b.approved_at)}</span>` : "",
           ].join(""),
         );
-        const stat = (cls, text, value, reason) =>
-          reason && value
-            ? `<button type="button" class="zns-stat zns-stat-btn ${cls}" data-reason="${reason}" aria-expanded="false" title="Xem lý do"><span>${text} <i class="fas fa-info-circle" aria-hidden="true"></i></span><b>${formatAmount(value)}</b></button>`
-            : `<div class="zns-stat ${cls}"><span>${text}</span><b>${formatAmount(value)}</b></div>`;
+        // Số liệu là bộ lọc nhanh của bảng khách; chỉ số cần chú ý mới có màu.
+        const metric = (filter, text, value, tone = "", reason = false) =>
+          `<span class="zns-metric${value ? ` ${tone}` : " is-zero"}"><button type="button" class="zns-metric-filter" data-filter="${filter}" ${value || !filter ? "" : "disabled"} title="Lọc khách: ${text}">${text} <b>${formatAmount(value)}</b></button>${
+            reason && value
+              ? `<button type="button" class="zns-metric-info" data-reason="${filter}" data-label="${text}" aria-expanded="false" title="Xem lý do" aria-label="Xem lý do: ${text}"><i class="fas fa-info-circle" aria-hidden="true"></i></button>`
+              : ""
+          }</span>`;
         batchErrors = b.error_summary;
         hideReasons();
         $("#znsBatchStats").html(
-          stat("", "Tổng", b.total_rows) +
-            stat("", "Lỗi dữ liệu", b.invalid_rows, "invalid") +
-            stat("is-ok", b.send_mode === "dry_run" ? "Chạy thử" : "Đã gửi", b.sent_rows) +
-            stat(b.failed_rows ? "is-bad" : "", "Gửi lỗi", b.failed_rows, "failed") +
-            stat(b.unknown_rows ? "is-warn" : "", "Chưa rõ", b.unknown_rows, "unknown") +
-            stat("", "Bỏ qua", b.skipped_rows, "skipped"),
+          metric("", "Tổng", b.total_rows) +
+            metric("invalid", "Lỗi dữ liệu", b.invalid_rows, "is-bad", true) +
+            metric("sent", b.send_mode === "dry_run" ? "Chạy thử" : "Đã gửi", b.sent_rows) +
+            metric("failed", "Gửi lỗi", b.failed_rows, "is-bad", true) +
+            metric("unknown", "Chưa rõ", b.unknown_rows, "is-warn", true) +
+            metric("skipped", "Bỏ qua", b.skipped_rows, "", true) +
+            (b.waiting_rows ? metric("waiting", "Chờ gửi", b.waiting_rows) : "") +
+            (b.cancelled_rows ? metric("cancelled", "Đã hủy", b.cancelled_rows) : ""),
         );
         currentBatchId = b.id;
-        if (!keepView) $("#znsBatchFilter").val("");
+        syncRecipientCache(b);
+        if (!keepView) batchFilter = "";
+        markActiveMetric();
         batchTable.column(0).visible(b.can_skip);
         $("#znsBatchActions").html(batchActions(b));
-        const notice = batchNotice(b);
-        $("#znsBatchNotice").toggleClass("d-none", !notice).html(notice);
+        $("#znsBatchNotice")
+          .toggleClass("d-none", b.status !== "paused")
+          .html(
+            `<i class="fas fa-pause-circle mr-1"></i>${escapeHtml(b.pause_note || "Lô tạm dừng do lỗi cấu hình liên tiếp. Sửa mẫu tin, chờ duyệt rồi tạo lô mới, hoặc hủy lô.")}`,
+          );
         batchTable.one("draw.dt", () => $("#znsBatchModal").modal("show"));
         batchTable.ajax.reload(null, !keepView);
       })
       .catch((x) => Dialog.error(Api.errorMessage(x, "Không tải được lô gửi.")));
-  }
-
-  function batchNotice(b) {
-    if (b.status === "paused") {
-      return `<i class="fas fa-pause-circle mr-1"></i>${escapeHtml(b.pause_reason || "Lô tạm dừng do lỗi cấu hình liên tiếp. Sửa mẫu tin rồi tạo lô mới, hoặc hủy lô.")}`;
-    }
-    if (b.status === "rejected")
-      return `<i class="fas fa-times-circle mr-1"></i>${escapeHtml(b.rejected_by || "")} đã từ chối: ${escapeHtml(b.reject_reason || "")}`;
-    if (b.status !== "pending_approval") return "";
-    const a = b.approval;
-    const usage =
-      a.cap === null
-        ? `Đã dùng tháng này: ${formatAmount(a.used)} tin`
-        : `Đã dùng tháng này: ${formatAmount(a.used)} / ${formatAmount(a.cap)} tin`;
-    const cost = a.est_cost === null ? "" : ` · Ước tính ${formatAmount(a.est_cost)} đ`;
-    const self = b.approve_blocked_self ? " · Bạn là người tạo lô nên cần người khác duyệt." : "";
-    return `<i class="fas fa-hourglass-half mr-1"></i>Chờ duyệt ${formatAmount(a.count)} tin${cost} · ${usage}${self}`;
-  }
-
-  function approveBatch(b) {
-    const live = state.sendMode === "live";
-    const cost = b.approval.est_cost === null ? "" : `, ước tính ${formatAmount(b.approval.est_cost)} đ`;
-    Dialog.confirm({
-      title: `Duyệt lô #${b.id}?`,
-      message: live
-        ? `Hệ thống sẽ gửi tin thật tới ${formatAmount(b.approval.count)} khách ngay sau khi duyệt${cost}. Không hoàn tác được.`
-        : `Server đang ở chế độ chạy thử: ${formatAmount(b.approval.count)} khách được đánh dấu "Chạy thử", không có tin nào được gửi.`,
-      confirmText: live ? "Duyệt và gửi thật" : "Duyệt",
-      cancelText: "Không",
-      variant: live ? "danger" : "primary",
-    }).then((ok) => {
-      if (!ok) return;
-      Loading.wrap(Api.postJson(EP.batchApprove(b.id), {}), APP.MESSAGES.LOADING_SHORT)
-        .then(() => {
-          $("#znsBatchModal").modal("hide");
-          Toast.success(`Đã duyệt lô #${b.id}.`);
-          reloadHistory();
-        })
-        .catch((x) => Dialog.error(Api.errorMessage(x)));
-    });
-  }
-
-  function rejectBatch(b) {
-    Dialog.confirm({
-      title: `Từ chối lô #${b.id}?`,
-      html: true,
-      message:
-        '<textarea class="form-control form-control-sm" id="znsRejectReason" rows="3" maxlength="500" placeholder="Lý do từ chối (bắt buộc)"></textarea>',
-      confirmText: "Từ chối",
-      cancelText: "Không",
-      variant: "danger",
-    }).then((ok) => {
-      if (!ok) return;
-      Loading.wrap(Api.postJson(EP.batchReject(b.id), { reason: $("#znsRejectReason").val() }), APP.MESSAGES.LOADING_SHORT)
-        .then(() => {
-          $("#znsBatchModal").modal("hide");
-          Toast.success(`Đã từ chối lô #${b.id}.`);
-          reloadHistory();
-        })
-        .catch((x) => Dialog.error(Api.errorMessage(x)));
-    });
   }
 
   function skipCustomers(recipientId, title) {
@@ -589,28 +551,25 @@
 
   function batchActions(b) {
     const options = b.retry_options;
-    const approval = b.can_approve
-      ? '<button type="button" class="btn btn-sm btn-success" data-approve><i class="fas fa-check mr-1"></i>Duyệt</button><button type="button" class="btn btn-sm btn-outline-danger" data-reject><i class="fas fa-times mr-1"></i>Từ chối</button>'
-      : "";
-    const button = (retry, count, cls, icon, text) =>
-      count
-        ? `<button type="button" class="btn btn-sm ${cls}" data-retry="${retry}" data-count="${count}"><i class="fas ${icon} mr-1"></i>${text} (${formatAmount(count)})</button>`
-        : "";
+    const item = (attrs, count, icon, text) =>
+      `<button type="button" class="dropdown-item" ${attrs} data-count="${count}"><i class="fas ${icon}"></i><span>${text}</span><b>${formatAmount(count)}</b></button>`;
+    const retry = (kind, count, icon, text) => (count ? item(`data-retry="${kind}"`, count, icon, text) : "");
     const retries = b.can_retry
-      ? button("temporary", options.temporary, "btn-outline-primary", "fa-redo", "Gửi lại lỗi tạm thời") +
-        button("unknown", options.unknown, "btn-outline-warning", "fa-question-circle", "Gửi lại chưa rõ") +
-        button("new", options.new_batch, "zns-btn-new-batch", "fa-clone", "Tạo lô mới gửi lại")
+      ? retry("temporary", options.temporary, "fa-redo", "Gửi lại lỗi tạm thời") +
+        retry("unknown", options.unknown, "fa-question-circle", "Gửi lại chưa rõ") +
+        retry("new", options.new_batch, "fa-clone", "Tạo lô mới gửi lại")
       : "";
     const errors = b.failed_rows + b.unknown_rows + b.invalid_rows;
     const exportErrors =
       errors && canExportBatch
-        ? `<a class="btn btn-sm btn-outline-secondary" href="${Api.url(EP.batchExport(b.id))}?status=errors"><i class="fas fa-file-excel mr-1"></i>Xuất khách lỗi</a>`
+        ? `<a class="btn btn-sm zns-btn-export" href="${Api.url(EP.batchExport(b.id))}?status=errors"><i class="fas fa-file-excel mr-1"></i>Xuất khách lỗi</a>`
         : "";
-    const skipAll =
-      b.can_skip && b.skip_count
-        ? `<button type="button" class="btn btn-sm btn-outline-secondary" data-skip-all data-count="${b.skip_count}"><i class="fas fa-user-slash mr-1"></i>Bỏ qua khách lỗi (${formatAmount(b.skip_count)})</button>`
-        : "";
-    return approval + retries + skipAll + exportErrors;
+    const skipAll = b.can_skip && b.skip_count ? item("data-skip-all", b.skip_count, "fa-user-slash", "Bỏ qua khách lỗi") : "";
+    const items = retries + skipAll;
+    const menu = items
+      ? `<div class="dropdown"><button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Xử lý khách lỗi${b.skip_count ? ` (${formatAmount(b.skip_count)})` : ""}</button><div class="dropdown-menu dropdown-menu-right zns-batch-menu">${items}</div></div>`
+      : "";
+    return menu + exportErrors;
   }
 
   function retryBatch(id, kind, count) {
@@ -629,7 +588,7 @@
       new: {
         title: `Tạo lô mới cho ${formatAmount(count)} khách?`,
         message:
-          "Lô mới dùng nội dung và biến hiện tại của mẫu tin, nên hãy sửa mẫu tin trước. Lô mới sẽ chờ người khác duyệt rồi mới gửi.",
+          "Lô mới dùng nội dung và biến hiện tại của mẫu tin, nên hãy sửa mẫu tin trước. Mẫu phải được duyệt trước, và các khách này sẽ được gửi ngay.",
         variant: "primary",
       },
     };
@@ -655,12 +614,16 @@
   function toggleAttempts() {
     const $row = $(this).closest("tr");
     if ($row.next().hasClass("zns-attempts-row")) return $row.next().remove();
-    Api.get(EP.recipientAttempts(currentBatchId, $row.data("id")))
+    const cacheKey = `attempts:${$row.data("id")}:${batchTable.row($row).data().attempt_count}`;
+    const request = recipientCache.has(cacheKey)
+      ? $.Deferred().resolve(recipientCache.get(cacheKey))
+      : Api.get(EP.recipientAttempts(currentBatchId, $row.data("id"))).done((res) => recipientCache.set(cacheKey, res));
+    request
       .done((res) => {
         const lines = (res.data || []).map(
           (a) => `<tr>
             <td>${a.attempt_no}</td>
-            <td class="text-nowrap">${formatUtcDateTime(a.created_at)}</td>
+            <td class="text-nowrap">${formatUtcTimeFirst(a.created_at)}</td>
             <td>${a.trigger_type === "manual" ? `Gửi lại${a.triggered_by ? ` · ${escapeHtml(a.triggered_by)}` : ""}` : "Tự động"}</td>
             <td>${escapeHtml(a.result_label)}</td>
             <td>${a.http_status === null ? "—" : a.http_status}</td>
@@ -754,27 +717,26 @@
   });
   $("#znsHistoryReload").on("click", () => reloadHistory());
   $("#znsHistoryExport").on("click", () => Api.download(EP.batchesExport));
-  $("#znsBatchFilter").on("change", () => {
-    hideReasons();
-    batchTable.ajax.reload(null, true);
-  });
   $("#znsBatchRows").on("click", ".zns-attempts-btn", toggleAttempts);
   $("#znsBatchRows").on("click", ".zns-skip-btn", function () {
     const customer = batchTable.row($(this).closest("tr")).data();
     skipCustomers(customer.id, `Bỏ qua khách ${customer.phone || ""}?`);
   });
-  $("#znsBatchStats").on("click", ".zns-stat-btn", function () {
+  $("#znsBatchStats").on("click", ".zns-metric-info", function () {
     toggleReasons(this);
   });
-  $("#znsBatchModal").on("click", (e) => {
-    if (!$(e.target).closest(".zns-stat-btn, #znsBatchReasons").length) hideReasons();
+  $("#znsBatchStats").on("click", ".zns-metric-filter", function () {
+    batchFilter = this.dataset.filter;
+    hideReasons();
+    markActiveMetric();
+    batchTable.ajax.reload(null, true);
   });
-  $("#znsBatchActions")
-    .on("click", "[data-skip-all]", function () {
-      skipCustomers(null, `Bỏ qua ${formatAmount(Number(this.dataset.count))} khách lỗi của lô?`);
-    })
-    .on("click", "[data-approve]", () => approveBatch(currentBatch))
-    .on("click", "[data-reject]", () => rejectBatch(currentBatch));
+  $("#znsBatchModal").on("click", (e) => {
+    if (!$(e.target).closest(".zns-metric-info, #znsBatchReasons").length) hideReasons();
+  });
+  $("#znsBatchActions").on("click", "[data-skip-all]", function () {
+    skipCustomers(null, `Bỏ qua ${formatAmount(Number(this.dataset.count))} khách lỗi của lô?`);
+  });
   $("#znsBatchActions").on("click", "[data-retry]", function () {
     retryBatch(currentBatchId, this.dataset.retry, Number(this.dataset.count));
   });
@@ -785,6 +747,15 @@
     cancelBatch($(this).closest("tr").data("id"));
   });
 
-  loadTemplates().fail(() => $("#znsTemplateSelect").html('<option value="">Không tải được mẫu tin</option>'));
+  // Mẫu có thể vừa được duyệt hoặc từ chối ở tab khác: quay lại trang thì lấy lại danh sách, mẫu không còn dùng được sẽ tự bỏ chọn.
+  $(window).on("focus", () => {
+    loadTemplates(true).done(() => {
+      if (String(state.template || "") !== $("#znsTemplateSelect").val()) selectTemplate();
+    });
+  });
+  loadTemplates().fail(() => {
+    $("#znsTemplateSelect").html('<option value="">Không tải được mẫu tin</option>');
+    templatePicker.refresh();
+  });
   setStep(1);
 })();

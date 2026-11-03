@@ -5,6 +5,7 @@ from typing import Any
 
 from django.db import IntegrityError, connection, transaction
 
+from ..core import audit
 from ..core.sql import rows
 from . import schema
 from .values import DATA_TYPES, OWNERS, SOURCES, MessagingError, coerce, display, iso_utc, placeholders
@@ -27,21 +28,22 @@ DEFAULT_CONTENT = (
     'Mời Quý khách ghé thăm Alpha Works Showroom - A007 đường D9 tòa Sarica, Khu Đô Thị Sala, Phường An Khánh, '
     'Thành Phố Hồ Chí Minh, khám phá công nghệ và nhận ngay ưu đãi giảm <giam> tại cửa hàng Alpha Works'
 )
-_TYPE_LABELS = {'text': 'Text', 'number': 'Number', 'date': 'Date', 'datetime': 'Datetime'}
+_TYPE_LABELS = {'text': 'Văn bản', 'number': 'Số', 'date': 'Ngày', 'datetime': 'Ngày giờ'}
 _SOURCE_LABELS = {'customer': 'theo khách hàng', 'fixed': 'cố định cho lô'}
 
 
-def list_templates(owner: str | None = None, active_only: bool = False) -> list[dict[str, Any]]:
+def list_templates(owner: str | None = None, sendable_only: bool = False) -> list[dict[str, Any]]:
     where, args = ['1 = 1'], []
     if owner:
         where.append('t.Owner = %s')
         args.append(owner)
-    if active_only:
-        where.append('t.IsActive = 1')
+    if sendable_only:
+        where.append("t.IsActive = 1 AND t.ApprovalStatus = 'approved'")
     with connection.cursor() as cursor:
         cursor.execute(
             f"""
             SELECT t.Id AS id, t.Name AS name, t.ZnsCode AS zns_code, t.Owner AS owner, t.IsActive AS is_active,
+                   t.ApprovalStatus AS approval_status, t.SubmittedBy AS submitted_by, t.RejectReason AS reject_reason,
                    t.CreatedBy AS created_by, t.CreatedAt AS created_at, t.UpdatedBy AS updated_by, t.UpdatedAt AS updated_at,
                    (SELECT COUNT(*) FROM dbo.ZnsTemplateVariables v WHERE v.TemplateId = t.Id AND v.IsActive = 1) AS variable_count,
                    (SELECT COUNT(*) FROM dbo.ZnsSendBatches b WHERE b.TemplateId = t.Id AND b.Status NOT IN ('draft', 'cancelled')) AS batch_count,
@@ -61,15 +63,21 @@ def list_templates(owner: str | None = None, active_only: bool = False) -> list[
 
 def load_template(cursor: Any, template_id: int) -> dict[str, Any]:
     cursor.execute(
-        'SELECT Id, Name, ZnsCode, Owner, Content, DataTable, IsActive, CreatedBy, CreatedAt, UpdatedBy, UpdatedAt FROM dbo.ZnsTemplates WHERE Id = %s',
+        """
+        SELECT Id, Name, ZnsCode, Owner, Content, IsActive, CreatedBy, CreatedAt, UpdatedBy, UpdatedAt,
+               ApprovalStatus, SubmittedBy, ApprovedBy, ApprovedAt, RejectedBy, RejectReason
+        FROM dbo.ZnsTemplates WHERE Id = %s
+        """,
         [template_id],
     )
     row = cursor.fetchone()
     if not row:
         raise MessagingError('Không tìm thấy mẫu tin.')
-    keys = ('id', 'name', 'zns_code', 'owner', 'content', 'data_table', 'is_active', 'created_by', 'created_at', 'updated_by', 'updated_at')
+    keys = ('id', 'name', 'zns_code', 'owner', 'content', 'is_active', 'created_by', 'created_at', 'updated_by', 'updated_at',
+            'approval_status', 'submitted_by', 'approved_by', 'approved_at', 'rejected_by', 'reject_reason')
     template = dict(zip(keys, row))
     template['is_active'] = bool(template['is_active'])
+    template['approved_at'] = iso_utc(template['approved_at'])
     cursor.execute(
         """
         SELECT Id AS id, Name AS name, Label AS label, DataType AS data_type, Source AS source,
@@ -84,12 +92,15 @@ def load_template(cursor: Any, template_id: int) -> dict[str, Any]:
     return template
 
 
+def _has_batches(cursor: Any, template_id: int) -> bool:
+    cursor.execute("SELECT COUNT(*) FROM dbo.ZnsSendBatches WHERE TemplateId = %s AND Status <> 'draft'", [template_id])
+    return cursor.fetchone()[0] > 0
+
+
 def get_template(template_id: int) -> dict[str, Any]:
     with connection.cursor() as cursor:
         template = load_template(cursor, template_id)
-        with_data = schema.columns_with_data(cursor, template['data_table'], [v['name'] for v in template['variables']])
-        for v in template['variables']:
-            v['has_data'] = v['name'] in with_data
+        template['code_locked'] = _has_batches(cursor, template_id)
         cursor.execute(
             f"""
             SELECT TOP {CHANGE_LOG_LIMIT} VariableName AS variable, Action AS action, Detail AS detail, ChangedBy AS changed_by, ChangedAt AS changed_at
@@ -177,7 +188,7 @@ def _clean(payload: dict[str, Any]) -> dict[str, Any]:
 def _log(cursor: Any, template_id: int, action: str, detail: str, user: str, variable: str | None = None) -> None:
     cursor.execute(
         'INSERT INTO dbo.ZnsTemplateChangeLog (TemplateId, VariableName, Action, Detail, ChangedBy) VALUES (%s, %s, %s, %s, %s)',
-        [template_id, variable, action, detail[:1000], user],
+        [template_id, variable, action, detail, user],
     )
 
 
@@ -199,30 +210,30 @@ def _describe(v: dict[str, Any]) -> str:
 def _create(cursor: Any, data: dict[str, Any], user: str) -> int:
     cursor.execute(
         """
-        INSERT INTO dbo.ZnsTemplates (Name, ZnsCode, Owner, Content, IsActive, CreatedBy, UpdatedBy)
-        OUTPUT INSERTED.Id VALUES (%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO dbo.ZnsTemplates (Name, ZnsCode, Owner, Content, IsActive, CreatedBy, UpdatedBy, ApprovalStatus, SubmittedBy)
+        OUTPUT INSERTED.Id VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s)
         """,
-        [data['name'], data['zns_code'], data['owner'], data['content'], data['is_active'], user, user],
+        [data['name'], data['zns_code'], data['owner'], data['content'], data['is_active'], user, user, user],
     )
     template_id = int(cursor.fetchone()[0])
     for v in data['variables']:
         _insert_variable(cursor, template_id, v)
-    table = schema.create_data_table(cursor, template_id, data['variables'])
-    cursor.execute('UPDATE dbo.ZnsTemplates SET DataTable = %s WHERE Id = %s', [table, template_id])
-    _log(cursor, template_id, 'CREATE_TEMPLATE', f'Tạo mẫu {data["zns_code"]} ({data["owner"]}), bảng {table}, {len(data["variables"])} biến', user)
+    _log(cursor, template_id, 'CREATE_TEMPLATE', f'Tạo mẫu {data["zns_code"]} ({data["owner"]}), {len(data["variables"])} biến', user)
     return template_id
 
 
 def _update(cursor: Any, template_id: int, data: dict[str, Any], user: str) -> None:
     current = load_template(cursor, template_id)
-    table = current['data_table']
+    # Gửi lại trên lô cũ dùng mã của mẫu: đổi mã sẽ gửi sai mẫu Incom với biến cũ.
+    if current['zns_code'] != data['zns_code'] and _has_batches(cursor, template_id):
+        raise MessagingError('Mẫu đã có lô gửi nên không đổi được mã. Hãy tạo mẫu mới nếu cần dùng mã khác.')
     changed = [
         f'{label}: "{current[key]}" → "{data[key]}"'
         for key, label in (('name', 'Tên'), ('zns_code', 'Mã ZNS'), ('owner', 'Chủ hàng'))
         if current[key] != data[key]
     ]
     if current['content'] != data['content']:
-        changed.append('Sửa nội dung tin nhắn')
+        changed.append(f'Nội dung: "{current["content"]}" → "{data["content"]}"')
     if changed:
         cursor.execute(
             'UPDATE dbo.ZnsTemplates SET Name = %s, ZnsCode = %s, Owner = %s, Content = %s, UpdatedBy = %s, UpdatedAt = SYSUTCDATETIME() WHERE Id = %s',
@@ -231,7 +242,6 @@ def _update(cursor: Any, template_id: int, data: dict[str, Any], user: str) -> N
         _log(cursor, template_id, 'UPDATE_TEMPLATE', '; '.join(changed), user)
     existing = {v['id']: v for v in current['variables']}
     by_name = {v['name']: v for v in current['variables']}
-    with_data = schema.columns_with_data(cursor, table, list(by_name))
     submitted_ids = set()
     touched = bool(changed)
     for v in data['variables']:
@@ -240,19 +250,15 @@ def _update(cursor: Any, template_id: int, data: dict[str, Any], user: str) -> N
             if v['name'] in by_name:
                 raise MessagingError(f'Biến "{v["name"]}" đã tồn tại.')
             _insert_variable(cursor, template_id, v)
-            schema.add_column(cursor, table, v['name'], v['data_type'])
-            _log(cursor, template_id, 'ADD_VARIABLE', f'Thêm biến: {_describe(v)}; thêm cột [{v["name"]}] vào {table}', user, v['name'])
+            _log(cursor, template_id, 'ADD_VARIABLE', f'Thêm biến: {_describe(v)}', user, v['name'])
             touched = True
             continue
         submitted_ids.add(old['id'])
         if old['name'] != v['name']:
-            raise MessagingError(f'Không đổi tên biến "{old["name"]}" được (tránh mất dữ liệu cũ). Hãy ngừng dùng và thêm biến mới.')
+            raise MessagingError(f'Không đổi tên biến "{old["name"]}" được. Hãy xóa biến và thêm biến mới.')
         notes = []
         if old['data_type'] != v['data_type']:
-            if old['name'] in with_data:
-                raise MessagingError(f'Biến "{old["name"]}" đã có dữ liệu gửi, không đổi kiểu được. Hãy thêm biến mới.')
-            schema.change_column_type(cursor, table, old['name'], v['data_type'])
-            notes.append(f'kiểu {_TYPE_LABELS[old["data_type"]]} → {_TYPE_LABELS[v["data_type"]]}')
+            notes.append(f'định dạng {_TYPE_LABELS[old["data_type"]]} → {_TYPE_LABELS[v["data_type"]]}')
         if old['source'] != v['source']:
             notes.append(f'nguồn {_SOURCE_LABELS[old["source"]]} → {_SOURCE_LABELS[v["source"]]}')
         if old['is_required'] != v['is_required']:
@@ -262,7 +268,7 @@ def _update(cursor: Any, template_id: int, data: dict[str, Any], user: str) -> N
         if (old['label'] or None) != v['label']:
             notes.append(f'nhãn "{old["label"] or ""}" → "{v["label"] or ""}"')
         if old['is_active'] != v['is_active']:
-            notes.append('dùng lại' if v['is_active'] else 'ngừng dùng (giữ cột và dữ liệu)')
+            notes.append('dùng lại' if v['is_active'] else 'ngừng dùng (giữ dữ liệu đã gửi)')
         if notes or old['sort_order'] != v['sort_order']:
             cursor.execute(
                 """
@@ -278,17 +284,18 @@ def _update(cursor: Any, template_id: int, data: dict[str, Any], user: str) -> N
     for old in current['variables']:
         if old['id'] in submitted_ids:
             continue
-        if old['name'] not in with_data:
-            cursor.execute('DELETE FROM dbo.ZnsTemplateVariables WHERE Id = %s', [old['id']])
-            schema.drop_column(cursor, table, old['name'])
-            _log(cursor, template_id, 'DELETE_VARIABLE', f'Xóa biến (chưa có dữ liệu gửi); xóa cột [{old["name"]}] khỏi {table}', user, old['name'])
-            touched = True
-        elif old['is_active']:
-            cursor.execute('UPDATE dbo.ZnsTemplateVariables SET IsActive = 0, UpdatedAt = SYSUTCDATETIME() WHERE Id = %s', [old['id']])
-            _log(cursor, template_id, 'DISABLE_VARIABLE', 'ngừng dùng vì đã có dữ liệu gửi (giữ cột và dữ liệu)', user, old['name'])
-            touched = True
-    if touched and not changed:
-        cursor.execute('UPDATE dbo.ZnsTemplates SET UpdatedBy = %s, UpdatedAt = SYSUTCDATETIME() WHERE Id = %s', [user, template_id])
+        cursor.execute('DELETE FROM dbo.ZnsTemplateVariables WHERE Id = %s', [old['id']])
+        _log(cursor, template_id, 'DELETE_VARIABLE', 'Xóa biến (tin đã gửi không bị ảnh hưởng)', user, old['name'])
+        touched = True
+    if touched:
+        cursor.execute(
+            """
+            UPDATE dbo.ZnsTemplates SET UpdatedBy = %s, UpdatedAt = SYSUTCDATETIME(), ApprovalStatus = 'pending', SubmittedBy = %s,
+                   ApprovedBy = NULL, ApprovedAt = NULL, RejectedBy = NULL, RejectedAt = NULL, RejectReason = NULL
+            WHERE Id = %s
+            """,
+            [user, user, template_id],
+        )
 
 
 def save_template(payload: dict[str, Any], user: str) -> int:
@@ -309,9 +316,50 @@ def save_template(payload: dict[str, Any], user: str) -> int:
 
 def set_active(template_id: int, active: bool, user: str) -> None:
     with transaction.atomic(), connection.cursor() as cursor:
+        cursor.execute('SELECT ApprovalStatus FROM dbo.ZnsTemplates WHERE Id = %s', [template_id])
+        row = cursor.fetchone()
+        if active and row and row[0] == 'rejected':
+            raise MessagingError('Mẫu đã bị từ chối, hãy sửa và chờ duyệt lại trước khi bật hoạt động.')
         cursor.execute(
             'UPDATE dbo.ZnsTemplates SET IsActive = %s, UpdatedBy = %s, UpdatedAt = SYSUTCDATETIME() WHERE Id = %s AND IsActive <> %s',
             [active, user, template_id, active],
         )
         if cursor.rowcount:
             _log(cursor, template_id, 'ACTIVATE' if active else 'DEACTIVATE', 'Chuyển sang Hoạt động' if active else 'Chuyển sang Ngừng hoạt động', user)
+
+
+def _pending_for_review(cursor: Any, template_id: int, actor: Any) -> dict[str, Any]:
+    cursor.execute('SELECT ApprovalStatus, Owner, ZnsCode FROM dbo.ZnsTemplates WITH (UPDLOCK, ROWLOCK) WHERE Id = %s', [template_id])
+    row = cursor.fetchone()
+    if not row:
+        raise MessagingError('Không tìm thấy mẫu tin.')
+    if row[0] != 'pending':
+        raise MessagingError('Mẫu tin này không còn ở trạng thái "Chờ duyệt".')
+    if not actor.can_approve_template(row[1]):
+        raise MessagingError(f'Bạn chưa được phân quyền duyệt mẫu của chủ hàng {row[1]}.')
+    return {'owner': row[1], 'zns_code': row[2]}
+
+
+def approve_template(template_id: int, actor: Any) -> None:
+    with transaction.atomic(), connection.cursor() as cursor:
+        info = _pending_for_review(cursor, template_id, actor)
+        cursor.execute(
+            "UPDATE dbo.ZnsTemplates SET ApprovalStatus = 'approved', IsActive = 1, ApprovedBy = %s, ApprovedAt = SYSUTCDATETIME() WHERE Id = %s",
+            [actor.username, template_id],
+        )
+        _log(cursor, template_id, 'APPROVE_TEMPLATE', 'Duyệt mẫu tin', actor.username)
+        audit.log('template.approve', actor.username, 'template', info['zns_code'], info['owner'])
+
+
+def reject_template(template_id: int, reason: Any, actor: Any) -> None:
+    reason = str(reason or '').strip()[:500]
+    if not reason:
+        raise MessagingError('Vui lòng nhập lý do từ chối.')
+    with transaction.atomic(), connection.cursor() as cursor:
+        info = _pending_for_review(cursor, template_id, actor)
+        cursor.execute(
+            "UPDATE dbo.ZnsTemplates SET ApprovalStatus = 'rejected', IsActive = 0, RejectedBy = %s, RejectedAt = SYSUTCDATETIME(), RejectReason = %s WHERE Id = %s",
+            [actor.username, reason, template_id],
+        )
+        _log(cursor, template_id, 'REJECT_TEMPLATE', f'Từ chối mẫu tin: {reason}', actor.username)
+        audit.log('template.reject', actor.username, 'template', info['zns_code'], reason)

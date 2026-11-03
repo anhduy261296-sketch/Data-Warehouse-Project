@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import wraps
 from typing import Any
 
 from django.contrib.auth import get_user_model
@@ -16,39 +15,30 @@ from django.views.decorators.http import require_GET, require_POST
 from .. import access
 from ..core import audit
 from ..core.sql import rows
-from ..messaging import limits
 from ..messaging.values import MessagingError, iso_utc
-from .messaging import _body, _table_params
+from .common import api_view, json_body, table_params
 
 ACTION_LABELS = {
     'user.create': 'Tạo người dùng',
     'user.update': 'Sửa người dùng',
     'user.password': 'Đổi mật khẩu người dùng',
-    'role.create': 'Tạo vai trò',
-    'role.update': 'Sửa vai trò',
-    'role.delete': 'Xóa vai trò',
-    'limit.update': 'Sửa hạn mức',
-    'zns.confirm': 'Tạo lô chờ duyệt',
+    'role.create': 'Tạo nhóm người dùng',
+    'role.update': 'Sửa nhóm người dùng',
+    'role.delete': 'Xóa nhóm người dùng',
+    'template.approve': 'Duyệt mẫu tin',
+    'template.reject': 'Từ chối mẫu tin',
+    'zns.confirm': 'Tạo và gửi lô',
     'zns.approve': 'Duyệt lô',
     'zns.reject': 'Từ chối lô',
     'zns.cancel': 'Hủy lô',
     'zns.skip': 'Bỏ qua khách lỗi',
     'zns.retry': 'Gửi lại trên lô',
     'zns.retry_new': 'Tạo lô gửi lại',
+    'zns.resume': 'Tự chạy tiếp lô',
+    'zns.stale_pause': 'Tạm dừng lô do việc gửi bị ngắt',
     'zns.export': 'Xuất khách của lô',
     'zns.export_history': 'Xuất lịch sử lô',
 }
-
-
-def _api(fn):
-    @wraps(fn)
-    def view(request, *args, **kwargs):
-        try:
-            return fn(request, *args, **kwargs)
-        except MessagingError as exc:
-            return JsonResponse({'error': str(exc)}, status=400)
-
-    return view
 
 
 def _permissions(codenames: Any) -> list[Permission]:
@@ -82,14 +72,13 @@ def page(request):
         {
             'can_users': access.has(user, 'config_users'),
             'can_roles': access.has(user, 'config_roles'),
-            'can_limits': access.has(user, 'config_limits'),
             'can_audit': access.has(user, 'config_audit'),
         },
     )
 
 
 @require_GET
-@_api
+@api_view
 def users(request):
     data = []
     for u in get_user_model().objects.prefetch_related('groups', 'user_permissions').order_by('username'):
@@ -129,9 +118,9 @@ def _set_password(user: Any, password: str) -> None:
 
 
 @require_POST
-@_api
+@api_view
 def user_save(request):
-    data = _body(request)
+    data = json_body(request)
     actor = request.user
     model = get_user_model()
     user_id = data.get('id')
@@ -167,7 +156,7 @@ def user_save(request):
         user.save()
         user.groups.set(roles)
         user.user_permissions.set([*direct, *user.user_permissions.exclude(content_type__app_label=access.APP_LABEL)])
-        detail = f'Vai trò: {", ".join(r.name for r in roles) or "—"}; quyền thêm: {", ".join(sorted(p.codename for p in direct)) or "—"}; hoạt động: {is_active}'
+        detail = f'Nhóm: {", ".join(r.name for r in roles) or "—"}; quyền thêm: {", ".join(sorted(p.codename for p in direct)) or "—"}; hoạt động: {is_active}'
         audit.log('user.update' if user_id else 'user.create', actor.get_username(), 'user', user.username, detail)
         if user_id and password:
             audit.log('user.password', actor.get_username(), 'user', user.username)
@@ -175,74 +164,84 @@ def user_save(request):
 
 
 @require_GET
-@_api
+@api_view
 def roles(request):
     data = [
-        {'id': g.id, 'name': g.name, 'perms': [p.codename for p in g.permissions.all() if p.codename in access.ALL_CODENAMES], 'user_count': g.user_set.count()}
-        for g in Group.objects.prefetch_related('permissions').order_by('name')
+        {
+            'id': g.id,
+            'name': g.name,
+            'perms': [p.codename for p in g.permissions.all() if p.codename in access.ALL_CODENAMES],
+            'members': [u.id for u in g.user_set.all()],
+        }
+        for g in Group.objects.prefetch_related('permissions', 'user_set').order_by('name')
     ]
-    return JsonResponse({'data': data, 'catalog': access.catalog_payload()})
+    people = [
+        {'id': u.id, 'username': u.username, 'full_name': u.first_name, 'is_active': u.is_active, 'is_superuser': u.is_superuser}
+        for u in get_user_model().objects.order_by('username')
+    ]
+    return JsonResponse({'data': data, 'users': people, 'catalog': access.catalog_payload()})
+
+
+def _set_members(actor: Any, group: Group, member_ids: Any, codes: set[str]) -> str:
+    wanted = {u.pk: u for u in get_user_model().objects.filter(pk__in=member_ids)}
+    current = {u.pk: u for u in group.user_set.all()}
+    added = [u for pk, u in wanted.items() if pk not in current]
+    removed = [u for pk, u in current.items() if pk not in wanted]
+    if added:
+        _check_can_grant(actor, codes)
+    if not actor.is_superuser and any(u.is_superuser for u in (*added, *removed)):
+        raise MessagingError('Chỉ tài khoản toàn quyền mới đổi được nhóm của tài khoản toàn quyền.')
+    group.user_set.set(wanted.values())
+    names = lambda people: ', '.join(sorted(u.username for u in people)) or '—'  # noqa: E731
+    return f'Thêm: {names(added)}; gỡ: {names(removed)}'
 
 
 @require_POST
-@_api
+@api_view
 def role_save(request):
-    data = _body(request)
+    data = json_body(request)
     name = str(data.get('name') or '').strip()[:150]
     if not name:
-        raise MessagingError('Vui lòng nhập tên vai trò.')
+        raise MessagingError('Vui lòng nhập tên nhóm.')
     permissions = _permissions(data.get('perms'))
     role_id = data.get('id')
     with transaction.atomic():
         if Group.objects.filter(name__iexact=name).exclude(id=role_id or 0).exists():
-            raise MessagingError(f'Vai trò {name} đã tồn tại.')
+            raise MessagingError(f'Nhóm {name} đã tồn tại.')
         group = Group.objects.filter(id=role_id).first() if role_id else Group()
         if group is None:
-            raise MessagingError('Không tìm thấy vai trò.')
+            raise MessagingError('Không tìm thấy nhóm.')
         old_codes = _role_codenames([group.id]) if role_id else set()
-        _check_can_grant(request.user, {p.codename for p in permissions} - old_codes)
+        new_codes = {p.codename for p in permissions}
+        _check_can_grant(request.user, new_codes - old_codes)
         group.name = name
         group.save()
         group.permissions.set([*permissions, *group.permissions.exclude(content_type__app_label=access.APP_LABEL)])
-        audit.log('role.update' if role_id else 'role.create', request.user.get_username(), 'role', name, ', '.join(sorted(p.codename for p in permissions)))
+        detail = ', '.join(sorted(new_codes))
+        if data.get('members') is not None:
+            detail = f'{_set_members(request.user, group, data["members"], new_codes)}; quyền: {detail}'
+        audit.log('role.update' if role_id else 'role.create', request.user.get_username(), 'role', name, detail)
     return JsonResponse({'ok': True, 'id': group.id})
 
 
 @require_POST
-@_api
+@api_view
 def role_delete(request, role_id: int):
     with transaction.atomic():
         group = Group.objects.filter(id=role_id).first()
         if not group:
-            raise MessagingError('Không tìm thấy vai trò.')
+            raise MessagingError('Không tìm thấy nhóm.')
         if group.user_set.exists():
-            raise MessagingError('Vai trò đang có người dùng, hãy gỡ họ ra trước khi xóa.')
+            raise MessagingError('Nhóm đang có người dùng, hãy gỡ họ ra trước khi xóa.')
         audit.log('role.delete', request.user.get_username(), 'role', group.name)
         group.delete()
     return JsonResponse({'ok': True})
 
 
 @require_GET
-@_api
-def limits_list(request):
-    with connection.cursor() as cursor:
-        return JsonResponse({'data': limits.list_limits(cursor)})
-
-
-@require_POST
-@_api
-def limits_save(request):
-    data = _body(request)
-    with transaction.atomic(), connection.cursor() as cursor:
-        limits.save_limit(cursor, data, request.user.get_username())
-        audit.log('limit.update', request.user.get_username(), 'limit', data.get('owner'), ', '.join(f'{k}={data.get(k)}' for k in ('basis', 'max_per_batch', 'max_per_month', 'unit_price', 'max_budget')))
-    return JsonResponse({'ok': True})
-
-
-@require_GET
-@_api
+@api_view
 def audit_list(request):
-    params = _table_params(request)
+    params = table_params(request)
     with connection.cursor() as cursor:
         cursor.execute('SELECT COUNT(*) FROM dbo.AppAuditLog')
         total = cursor.fetchone()[0]

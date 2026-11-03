@@ -1,4 +1,5 @@
 import json
+import random
 import socket
 import threading
 import time
@@ -20,7 +21,7 @@ Mã template có chữ BAD: status -6 cho mọi số     -> Gửi thất bại (
 """
 
 
-def _handler(hang_seconds: int, stdout):
+def _handler(hang_seconds: int, latency_ms: tuple[int, int], stdout):
     calls: dict[str, int] = {}
     lock = threading.Lock()
 
@@ -36,7 +37,12 @@ def _handler(hang_seconds: int, stdout):
             self.end_headers()
             self.wfile.write(data)
 
+        def do_GET(self):
+            with lock:
+                self._reply(200, calls)
+
         def do_POST(self):
+            time.sleep(random.uniform(*latency_ms) / 1000)
             payload = json.loads(self.rfile.read(int(self.headers.get('Content-Length') or 0)) or b'{}')
             phone = str(payload.get('phonenumber') or '')
             with lock:
@@ -69,8 +75,11 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--port', type=int, default=8765)
         parser.add_argument('--hang', type=int, default=30, help='Số giây không phản hồi ở tình huống 04 (phải lớn hơn ZNS_API_TIMEOUT).')
+        parser.add_argument('--latency-min', type=int, default=0, help='Độ trễ phản hồi tối thiểu (ms).')
+        parser.add_argument('--latency-max', type=int, default=0, help='Độ trễ phản hồi tối đa (ms).')
 
     def handle(self, *args, **opts):
-        server = ThreadingHTTPServer(('127.0.0.1', opts['port']), _handler(opts['hang'], self.stdout))
+        latency = (opts['latency_min'], max(opts['latency_min'], opts['latency_max']))
+        server = ThreadingHTTPServer(('127.0.0.1', opts['port']), _handler(opts['hang'], latency, self.stdout))
         self.stdout.write(f'API Incom giả chạy ở http://127.0.0.1:{opts["port"]}/' + SCENARIOS)
         server.serve_forever()

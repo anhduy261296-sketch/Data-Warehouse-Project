@@ -42,7 +42,7 @@
   <div class="zns-pick-row">
     <label for="znsOwnerSelect">Chủ hàng</label>
     <select class="form-control form-control-sm" id="znsOwnerSelect">
-      <option value="">Tất cả</option>
+      <option value="">Chọn chủ hàng...</option>
       <option value="PGI">PGI</option>
       <option value="AWG">AWG</option>
     </select>
@@ -91,13 +91,13 @@
 
 <div class="rpt-card mb-3" id="znsHistoryCard" data-can-export="{{ perms.tracking.zns_batch_export|yesno:'1,0' }}">
   <div class="rpt-card-title justify-content-between">
-    <span><i class="fas fa-history mr-2"></i>Lịch sử lô gửi <span class="zns-mode d-none" id="znsSendMode"></span></span>
+    <span><i class="fas fa-history mr-2"></i>Lịch sử lô gửi</span>
     <span class="zns-history-tools">
       {% if perms.tracking.zns_batch_export_history %}<button type="button" class="btn btn-sm zns-btn-export" id="znsHistoryExport" title="Xuất toàn bộ lịch sử lô gửi"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</button>{% endif %}
       <button type="button" class="btn btn-sm btn-outline-primary" id="znsHistoryReload"><i class="fas fa-sync-alt mr-1"></i> Làm mới</button>
     </span>
   </div>
-  <table class="table table-hover rpt-table zns-history-table" id="znsHistoryTable" width="100%">
+  <table class="table table-hover rpt-table zns-list-table" id="znsHistoryTable" width="100%">
     <thead>
       <tr>
         <th class="zns-actions-col">Thao tác</th>
@@ -113,6 +113,7 @@
         <th class="num">Đã gửi</th>
         <th class="num" title="Đã gọi API nhưng Incom / Zalo báo lỗi">Gửi lỗi</th>
         <th class="num" title="Không biết tin đã đi chưa, vd. hết thời gian chờ phản hồi">Chưa rõ</th>
+        <th class="zns-duration-col" title="Thời gian thực gửi, không tính lúc lô nằm chờ">Duration</th>
         <th>Người tạo</th>
       </tr>
     </thead>
@@ -128,7 +129,7 @@
         <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
       </div>
       <div class="modal-body">
-        <table class="table table-sm table-bordered rpt-table mb-0"><thead><tr><th>Dòng Excel</th><th>Số điện thoại</th><th>Khách hàng</th><th>Lỗi</th></tr></thead><tbody id="znsInvalidRows"></tbody></table>
+        <table class="table table-sm table-bordered rpt-table zns-invalid-table mb-0"><thead><tr><th class="zns-row-no">Dòng Excel</th><th>Số điện thoại</th><th>Khách hàng</th><th>Lỗi</th></tr></thead><tbody id="znsInvalidRows"></tbody></table>
       </div>
     </div>
   </div>
@@ -145,22 +146,12 @@
         <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
       </div>
       <div class="modal-body">
-        <div class="zns-batch-stats-wrap">
-          <div class="zns-stats zns-batch-stats" id="znsBatchStats"></div>
-          <div class="zns-batch-reasons d-none" id="znsBatchReasons" role="dialog" aria-label="Lý do lỗi"></div>
-        </div>
         <div class="zns-batch-notice zns-text-warn d-none" id="znsBatchNotice"></div>
         <div class="zns-batch-toolbar">
-          <select class="form-control form-control-sm" id="znsBatchFilter" aria-label="Lọc theo trạng thái">
-            <option value="">Tất cả</option>
-            <option value="sent">Thành công</option>
-            <option value="failed">Thất bại</option>
-            <option value="unknown">Chưa rõ</option>
-            <option value="skipped">Bỏ qua</option>
-            <option value="invalid">Lỗi dữ liệu</option>
-            <option value="waiting">Chờ / đang gửi</option>
-            <option value="cancelled">Đã hủy</option>
-          </select>
+          <div class="zns-batch-stats-wrap">
+            <div class="zns-batch-metrics" id="znsBatchStats"></div>
+            <div class="zns-batch-reasons d-none" id="znsBatchReasons" role="dialog" aria-label="Lý do lỗi"></div>
+          </div>
           <div class="zns-batch-actions" id="znsBatchActions"></div>
         </div>
         <table class="table table-sm rpt-table zns-batch-table" id="znsBatchTable" width="100%">
