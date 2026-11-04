@@ -69,6 +69,8 @@ const ENDPOINTS = Object.freeze({
     upload: "/api/zns/send/upload/",
     evaluate: "/api/zns/send/evaluate/",
     confirm: "/api/zns/send/confirm/",
+    report: "/api/report/campaign/",
+    reportExport: "/api/report/campaign/export/",
     logs: "/api/zns/logs/",
     logsExport: "/api/zns/logs/export/",
     batches: "/api/zns/batches/",

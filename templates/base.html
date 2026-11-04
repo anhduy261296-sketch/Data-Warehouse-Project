@@ -41,7 +41,7 @@
         <div id="content">
           {% include "partials/topbar.html" %}
 
-          <div class="container-fluid">{% block content %}{% endblock %}</div>
+          <div class="container-fluid">{% block breadcrumb %}{% include "partials/breadcrumb.html" %}{% endblock %}{% block content %}{% endblock %}</div>
         </div>
         <footer class="sticky-footer bg-white">
           <div class="container my-auto">

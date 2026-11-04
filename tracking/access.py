@@ -120,6 +120,14 @@ CATALOG: tuple[AccessGroup, ...] = (
                     Perm('report_ecom_refresh', 'Cập nhật kênh bán', ('report-ecom-channels-refresh', 'report-ecom-channels-refresh-status')),
                 ),
             ),
+            AccessPage(
+                'zns_reports',
+                'Chiến dịch',
+                (
+                    Perm('zns_report_view', 'Xem', ('zns-report', 'zns-report-data')),
+                    Perm('zns_report_export', 'Xuất Excel', ('zns-report-export',)),
+                ),
+            ),
         ),
     ),
     AccessGroup(
@@ -205,8 +213,10 @@ ROLE_VIEWER = 'Xem dữ liệu & báo cáo'
 ROLE_TEMPLATE_ADMIN = 'ZNS - Quản trị mẫu'
 ROLE_OWNER = {o: f'Chủ hàng {o}' for o in OWNERS}
 _DATA_GROUPS = ('Data Tracking', 'Chi tiết đơn hàng', 'Báo cáo')
+# Báo cáo chiến dịch xem theo chủ hàng và phòng ban của ZNS nên cấp riêng, không theo nhóm xem dữ liệu.
+_NOT_VIEWER_PERMS = ('report_ecom_refresh', 'zns_report_view', 'zns_report_export')
 _VIEWER_PERMS = tuple(
-    p.codename for g in CATALOG if g.label in _DATA_GROUPS for page in g.pages for p in page.perms if p.codename != 'report_ecom_refresh'
+    p.codename for g in CATALOG if g.label in _DATA_GROUPS for page in g.pages for p in page.perms if p.codename not in _NOT_VIEWER_PERMS
 )
 _OWNER_PERMS = tuple(f'zns_owner_{o.lower()}' for o in OWNERS)
 ROLE_DEPARTMENTS = ('IT', 'MKT', 'Kế toán')
@@ -239,6 +249,8 @@ ROLE_SEEDS: dict[str, tuple[str, ...]] = {
         'zns_batch_export_history',
         'zns_log_view',
         'zns_log_export',
+        'zns_report_view',
+        'zns_report_export',
     ),
     ROLE_TEMPLATE_ADMIN: ('zns_templates_view', 'zns_templates_export', 'zns_templates_manage'),
     **{ROLE_OWNER[o]: (f'zns_owner_{o.lower()}',) for o in OWNERS},

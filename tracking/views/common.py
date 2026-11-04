@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 from functools import wraps
 
+from django.contrib.auth.views import redirect_to_login
+from django.http import HttpResponseNotFound
+from django.shortcuts import render
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 
@@ -89,3 +92,14 @@ def datatable_export_view(config: DetailReportConfig, filename: str):
         return excel_response([ExcelSheet('Data', columns, rows, freeze=None)], filename)
 
     return view
+
+
+def page_not_found(request, exception=None):
+    """Chỉ chạy khi DEBUG=False. Chưa đăng nhập thì về trang đăng nhập, không có giao diện để hiện trang lỗi."""
+    if request.path.startswith('/api/'):
+        return JsonResponse({'error': 'Không tìm thấy đường dẫn.'}, status=404)
+    if request.path.startswith('/static/'):
+        return HttpResponseNotFound()
+    if not request.user.is_authenticated:
+        return redirect_to_login(request.get_full_path())
+    return render(request, '404.html', status=404)

@@ -7,7 +7,6 @@
 {% csrf_token %}
 <div id="znsTemplatesPage" data-can-manage="{{ perms.tracking.zns_templates_manage|yesno:'1,0' }}" data-can-delete="{{ perms.tracking.zns_templates_delete|yesno:'1,0' }}" data-edit-url="{% url 'zns-template-edit' 0 %}">
   <div class="zns-page-head">
-    <nav aria-label="breadcrumb"><ol class="zns-breadcrumb"><li><a href="{% url 'zns-templates' %}" data-loading>Quản lý chiến dịch</a></li><li class="is-current" aria-current="page">Mẫu tin nhắn</li></ol></nav>
     <div class="zns-head-row">
       <h1 class="rpt-title">Mẫu tin nhắn</h1>
       <div class="rpt-header-tools">

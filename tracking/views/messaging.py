@@ -10,7 +10,7 @@ from ..access import department_options, zns_actor
 from ..constants import EXPORT_MAX_ROWS
 from ..core import audit
 from ..core.excel import ExcelColumn, ExcelSheet, excel_response, workbook_response
-from ..messaging import importer, logs, provider, sample_file, sending, templates
+from ..messaging import importer, logs, provider, reports, sample_file, sending, templates
 from ..messaging.values import OWNERS, MessagingError, normalize_key
 from .common import api_view, json_body, table_params
 
@@ -351,6 +351,43 @@ def batch_export(request, batch_id: int):
         ExcelColumn('content', 'Nội dung', 80),
     ]
     return excel_response([ExcelSheet('Danh sách gửi', columns, recipients)], f'lo_gui_{batch["id"]}_{status + "_" if status else ""}{batch["zns_code"] or ""}.xlsx')
+
+
+@require_GET
+def report_page(request):
+    actor = _actor(request)
+    visible = [t for t in templates.list_templates() if t['owner'] in actor.owners and actor.in_department(t['department_id'])]
+    return render(request, 'messaging/reports.html', {'owners': actor.owners, 'departments': department_options(request.user), 'templates': visible})
+
+
+@require_GET
+@api_view
+def report_data(request):
+    return JsonResponse(reports.campaign_report(request.GET, _actor(request)))
+
+
+@require_GET
+@api_view
+def report_export(request):
+    data = reports.campaign_report(request.GET, _actor(request))
+    counts = [
+        ExcelColumn('batches', 'Số lô', 10),
+        ExcelColumn('total', 'Lượt khách', 12),
+        ExcelColumn('sent', 'Incom đã nhận', 14),
+        ExcelColumn('unknown', 'Chưa rõ', 10),
+        ExcelColumn('failed', 'Thất bại', 10),
+        ExcelColumn('rate', 'Tỷ lệ nhận (%)', 14),
+        ExcelColumn('invalid', 'Dòng lỗi dữ liệu', 16),
+    ]
+    sheets = [
+        ExcelSheet('Theo ngày', [ExcelColumn('day', 'Ngày', 14), *counts], data['daily']),
+        ExcelSheet('Theo mẫu tin', [ExcelColumn('zns_code', 'Mã', 14), ExcelColumn('name', 'Tên mẫu', 36), ExcelColumn('owner', 'Chủ hàng', 10), *counts], data['templates']),
+        ExcelSheet('Theo phòng ban', [ExcelColumn('name', 'Phòng ban', 22), *counts], data['departments']),
+        ExcelSheet('Theo người gửi', [ExcelColumn('name', 'Người gửi', 22), *counts], data['users']),
+        ExcelSheet('Lý do lỗi', [ExcelColumn('kind_label', 'Loại lỗi', 20), ExcelColumn('message', 'Nội dung lỗi', 80), ExcelColumn('count', 'Số khách', 10), ExcelColumn('batches', 'Số lô', 10)], data['errors']),
+    ]
+    audit.log('zns.report_export', request.user.get_username(), None, None, f'{data["summary"]["total"]} lượt khách')
+    return excel_response(sheets, 'bao_cao_chien_dich.xlsx')
 
 
 @require_GET

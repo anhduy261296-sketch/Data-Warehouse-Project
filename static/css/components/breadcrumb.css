@@ -1,0 +1,31 @@
+.app-breadcrumb {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 3px 12px;
+  background: #fff;
+  border: 1px solid #e5e8ef;
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+.app-breadcrumb li + li::before {
+  content: "/";
+  color: #9aa3b2;
+  margin: 0 10px;
+}
+.app-breadcrumb a {
+  color: #2f6fde;
+}
+.app-breadcrumb a:hover {
+  color: #1f56b8;
+  text-decoration: underline;
+}
+.app-breadcrumb .is-current {
+  color: #9aa3b2;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

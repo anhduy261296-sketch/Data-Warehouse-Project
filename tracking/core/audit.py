@@ -41,6 +41,7 @@ ACTION_LABELS = {
     'zns.export': 'Xuất khách của lô',
     'zns.export_history': 'Xuất lịch sử lô',
     'zns.log_export': 'Xuất nhật ký chiến dịch',
+    'zns.report_export': 'Xuất báo cáo chiến dịch',
 }
 # Log thuộc menu Quản lý chiến dịch; còn lại (người dùng, nhóm, bị chặn quyền) thuộc Cấu hình.
 CAMPAIGN_PREFIXES = ('template.', 'zns.')

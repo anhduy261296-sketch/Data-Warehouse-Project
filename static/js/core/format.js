@@ -98,6 +98,13 @@ function formatUtcDate(value) {
   return formatUtcDateTime(value).split(" ")[0];
 }
 
+// Ngày cho ô input date, theo giờ máy người dùng: toISOString là UTC, trước 7h sáng sẽ lùi về hôm qua.
+function dayInputValue(daysAgo) {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
 function normalizeSearchText(value) {
   return (value || "").toString().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
 }

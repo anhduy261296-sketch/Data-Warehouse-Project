@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Báo cáo chiến dịch{% endblock %}
+{% block page_css %}<link href="{% static 'css/pages/messaging/messaging.css' %}" rel="stylesheet" />{% endblock %}
+{% block content %}
+<div class="zns-page-head">
+  <div class="zns-head-row">
+    <h1 class="rpt-title">Báo cáo chiến dịch</h1>
+    <div class="rpt-header-tools">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="znsReportReset" title="Bỏ bộ lọc"><i class="fas fa-undo mr-1"></i> Reset</button>
+      {% if perms.tracking.zns_report_export %}
+      <button type="button" class="btn btn-sm zns-btn-export" id="znsReportExport" title="Xuất báo cáo theo bộ lọc hiện tại"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</button>
+      {% endif %}
+      <button type="button" class="btn btn-sm btn-outline-primary" id="znsReportReload"><i class="fas fa-sync-alt mr-1"></i> Làm mới</button>
+    </div>
+  </div>
+</div>
+
+<div class="rpt-card mb-3 rpt-filter">
+  <div class="form-row align-items-end">
+    <div class="col-lg-2 col-md-4 col-sm-6 mb-2">
+      <label for="znsReportFrom">Từ ngày</label>
+      <input type="date" class="form-control form-control-sm" id="znsReportFrom" />
+    </div>
+    <div class="col-lg-2 col-md-4 col-sm-6 mb-2">
+      <label for="znsReportTo">Đến ngày</label>
+      <input type="date" class="form-control form-control-sm" id="znsReportTo" />
+    </div>
+    <div class="col-lg-2 col-md-4 col-sm-6 mb-2">
+      <label for="znsReportOwner">Chủ hàng</label>
+      <select class="form-control form-control-sm" id="znsReportOwner">
+        <option value="">Tất cả</option>
+        {% for owner in owners %}<option value="{{ owner }}">{{ owner }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-lg-2 col-md-6 col-sm-6 mb-2">
+      <label for="znsReportDepartment">Phòng ban</label>
+      <select class="form-control form-control-sm" id="znsReportDepartment">
+        <option value="">Tất cả</option>
+        {% for department in departments %}<option value="{{ department.id }}">{{ department.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-lg-4 col-md-6 mb-2">
+      <label for="znsReportTemplate">Mẫu tin</label>
+      <select class="form-control form-control-sm" id="znsReportTemplate">
+        <option value="">Tất cả</option>
+        {% for template in templates %}<option value="{{ template.id }}">{{ template.zns_code }} - {{ template.name }}</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+  <small class="text-muted"><i class="fas fa-info-circle mr-1"></i>Chỉ tính lô gửi thật, theo ngày xác nhận. <b>Incom đã nhận</b> là Incom đã tiếp nhận yêu cầu, chưa phải tin đã đến điện thoại khách.</small>
+</div>
+
+<div class="zns-report" id="znsReport">
+  <div class="zns-report-kpis" id="znsReportKpis"></div>
+
+  <div class="rpt-card mb-3">
+    <div class="rpt-card-title"><i class="fas fa-chart-bar"></i> Kết quả gửi theo ngày</div>
+    <div id="znsReportCharts">
+      <div class="zns-report-chart-title">Số lượt khách</div>
+      <div class="rpt-chart zns-report-chart zns-report-chart--volume"><canvas id="znsReportVolume" role="img" aria-label="Biểu đồ số lượt khách theo ngày"></canvas></div>
+      <div class="zns-report-chart-title">Tỷ lệ kết quả (%)</div>
+      <div class="rpt-chart zns-report-chart"><canvas id="znsReportShare" role="img" aria-label="Biểu đồ tỷ lệ Incom đã nhận, chưa rõ và thất bại theo ngày"></canvas></div>
+    </div>
+    <div class="zns-report-empty d-none" id="znsReportDailyEmpty">Không có lô gửi trong khoảng đã chọn</div>
+  </div>
+
+  <div class="rpt-card mb-3">
+    <div class="rpt-card-title"><i class="fas fa-envelope-open-text"></i> Theo mẫu tin</div>
+    <div class="table-responsive"><table class="table table-hover rpt-table zns-list-table zns-report-table" id="znsReportTemplates"></table></div>
+  </div>
+
+  <div class="row">
+    <div class="col-xl-6 mb-3">
+      <div class="rpt-card h-100">
+        <div class="rpt-card-title"><i class="fas fa-building"></i> Theo phòng ban</div>
+        <div class="table-responsive"><table class="table table-hover rpt-table zns-list-table zns-report-table" id="znsReportDepartments"></table></div>
+      </div>
+    </div>
+    <div class="col-xl-6 mb-3">
+      <div class="rpt-card h-100">
+        <div class="rpt-card-title"><i class="fas fa-user"></i> Theo người gửi</div>
+        <div class="table-responsive"><table class="table table-hover rpt-table zns-list-table zns-report-table" id="znsReportUsers"></table></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rpt-card mb-3">
+    <div class="rpt-card-title"><i class="fas fa-exclamation-triangle"></i> Lý do lỗi nhiều nhất</div>
+    <div class="table-responsive"><table class="table table-hover rpt-table zns-list-table zns-report-table" id="znsReportErrors"></table></div>
+  </div>
+</div>
+{% endblock %}
+{% block page_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/core/charts.js' %}"></script>
+<script src="{% static 'js/pages/messaging/reports.js' %}"></script>
+{% endblock %}

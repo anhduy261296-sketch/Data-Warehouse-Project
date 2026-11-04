@@ -33,3 +33,4 @@ deploy/caddy/certs/*
 
 .vscode/
 .idea/
+.ReportQuery.MD

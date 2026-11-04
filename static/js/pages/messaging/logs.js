@@ -1,15 +1,9 @@
 (function () {
   const EP = ENDPOINTS.messaging;
   const cache = Api.createPageCache();
-  // Lấy ngày theo giờ máy người dùng: toISOString là UTC, trước 7h sáng sẽ lùi về hôm qua và ẩn log mới.
-  const dayValue = (daysAgo) => {
-    const d = new Date();
-    d.setDate(d.getDate() - daysAgo);
-    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-  };
   const setDefaultDates = () => {
-    $("#znsLogFrom").val(dayValue(APP.DATE_FILTER_MAX_RANGE_DAYS));
-    $("#znsLogTo").val(dayValue(0));
+    $("#znsLogFrom").val(dayInputValue(APP.DATE_FILTER_MAX_RANGE_DAYS));
+    $("#znsLogTo").val(dayInputValue(0));
   };
   setDefaultDates();
 
