@@ -41,7 +41,7 @@
                   <div class="cfg-matrix-perms">${page.perms
                     .map((perm) => {
                       const fromRole = inherited.has(perm.codename);
-                      return `<label class="${fromRole ? "is-inherited" : ""}"><input type="checkbox" value="${perm.codename}" ${fromRole || checked.has(perm.codename) ? "checked" : ""} ${fromRole ? "disabled" : ""} />${escapeHtml(perm.label)}</label>`;
+                      return `<label class="${fromRole ? "is-inherited" : ""}"${fromRole ? ' title="Có sẵn từ nhóm. Bấm để bỏ quyền này cho riêng người này"' : ""}><input type="checkbox" value="${perm.codename}" ${fromRole || checked.has(perm.codename) ? "checked" : ""} ${fromRole ? "disabled" : ""} />${escapeHtml(perm.label)}</label>`;
                     })
                     .join("")}</div>
                 </div>`,
@@ -200,6 +200,31 @@
     $("#cfgUserModal").modal("show");
   }
 
+  // Quyền được cộng từ nhóm nên không thể bỏ riêng khi còn trong nhóm: đổi sang quyền riêng rồi mới bỏ.
+  function dropInherited(code, label) {
+    const $matrix = $("#cfgUserMatrix");
+    const sources = roles.filter((r) => pickedRoles().includes(r.id) && r.perms.includes(code));
+    const names = sources.map((r) => r.name).join(", ");
+    const departments = sources.filter((r) => r.is_department);
+    if (departments.length) {
+      Dialog.error(`Quyền này đến từ phòng ban ${departments.map((r) => r.name).join(", ")}. Gỡ khỏi phòng ban sẽ đổi phạm vi xem mẫu tin và lô gửi, nên hãy sửa quyền của nhóm, hoặc bỏ tick phòng ban nếu đúng là muốn chuyển phòng.`);
+      return;
+    }
+    Dialog.confirm({
+      title: `Bỏ quyền "${label}"?`,
+      message: `Quyền này đến từ nhóm ${names}. Để bỏ riêng cho người này, hệ thống sẽ gỡ họ khỏi nhóm và giữ các quyền còn lại của nhóm dưới dạng quyền riêng. Từ đó, sửa quyền của nhóm sẽ không còn áp dụng cho người này. Bấm Lưu để hoàn tất.`,
+      confirmText: "Bỏ quyền",
+      cancelText: "Không",
+      variant: "warning",
+    }).then((ok) => {
+      if (!ok) return;
+      const direct = new Set([...matrixValues($matrix), ...$matrix.data("direct"), ...sources.flatMap((r) => r.perms)]);
+      direct.delete(code);
+      sources.forEach((r) => $(`#cfgRolePicks input[value="${r.id}"]`).prop("checked", false));
+      renderMatrix($matrix, direct, inheritedCodes(pickedRoles()));
+    });
+  }
+
   function deleteUser(user) {
     Dialog.confirm({
       title: `Xóa người dùng ${user.username}?`,
@@ -255,6 +280,9 @@
       .on("click", ".cfg-user-delete", function () {
         deleteUser(usersTable.row($(this).closest("tr")).data());
       });
+    $("#cfgUserMatrix").on("click", "label.is-inherited", function () {
+      dropInherited($(this).find("input").val(), $(this).text().trim());
+    });
     $("#cfgUserAdd").on("click", () => openUser(null));
     bindMatrix($("#cfgUserMatrix"));
     $("#cfgUserGroupFilter").on("change", showUsers);

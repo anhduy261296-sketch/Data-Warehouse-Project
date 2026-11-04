@@ -148,7 +148,14 @@
 }
 .cfg-matrix-perms label.is-inherited {
   color: #9ca3af;
-  cursor: default;
+  cursor: pointer;
+}
+.cfg-matrix-perms label.is-inherited:hover {
+  color: #6b7280;
+}
+/* Ô bị khóa không nhận click: để click rơi vào nhãn */
+.cfg-matrix-perms label.is-inherited input {
+  pointer-events: none;
 }
 .cfg-matrix-perms input {
   margin-right: 0.25rem;
