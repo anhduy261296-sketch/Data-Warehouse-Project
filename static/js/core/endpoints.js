@@ -86,6 +86,7 @@ const ENDPOINTS = Object.freeze({
   config: Object.freeze({
     users: "/api/config/users/",
     userSave: "/api/config/users/save/",
+    userDelete: (id) => `/api/config/users/${id}/delete/`,
     roles: "/api/config/roles/",
     roleSave: "/api/config/roles/save/",
     roleDelete: (id) => `/api/config/roles/${id}/delete/`,

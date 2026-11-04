@@ -6,6 +6,8 @@ class User(AbstractUser):
     employee_code = models.CharField(max_length=50, blank=True, null=True, unique=True)
     department = models.CharField(max_length=100, blank=True, null=True)
     role = models.CharField(max_length=50, blank=True, null=True)
+    deleted_at = models.DateTimeField(blank=True, null=True)
+    deleted_by = models.CharField(max_length=150, blank=True, null=True)
 
     class Meta:
         db_table = 'AppUser'

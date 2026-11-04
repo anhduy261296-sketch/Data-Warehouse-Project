@@ -89,7 +89,7 @@ class Command(BaseCommand):
         viewer = Group.objects.get(name=access.ROLE_VIEWER)
         template_admin = Group.objects.get(name=access.ROLE_TEMPLATE_ADMIN)
         owners = Group.objects.filter(name__in=access.ROLE_OWNER.values())
-        for user in get_user_model().objects.filter(is_active=True, is_superuser=False):
+        for user in get_user_model().objects.filter(is_active=True, is_superuser=False, deleted_at__isnull=True):
             user.groups.add(viewer)
             if user.is_staff:
                 user.groups.add(template_admin, *owners)

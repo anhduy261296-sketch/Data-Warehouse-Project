@@ -172,7 +172,7 @@ CATALOG: tuple[AccessGroup, ...] = (
                 'config',
                 'Phân quyền',
                 (
-                    Perm('config_users', 'Phân quyền theo người dùng', ('config-page', 'config-users', 'config-user-save', 'config-roles')),
+                    Perm('config_users', 'Phân quyền theo người dùng', ('config-page', 'config-users', 'config-user-save', 'config-user-delete', 'config-roles')),
                     Perm('config_roles', 'Phân quyền theo nhóm người dùng', ('config-page', 'config-roles', 'config-role-save', 'config-role-delete')),
                     Perm('config_audit', 'Xem nhật ký', ('config-page', 'config-audit')),
                 ),

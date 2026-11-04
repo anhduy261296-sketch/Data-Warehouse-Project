@@ -200,6 +200,24 @@
     $("#cfgUserModal").modal("show");
   }
 
+  function deleteUser(user) {
+    Dialog.confirm({
+      title: `Xóa người dùng ${user.username}?`,
+      message: "Người này sẽ không đăng nhập được và không còn hiện trên hệ thống. Mẫu tin, lô gửi và nhật ký của họ vẫn giữ nguyên. Tên đăng nhập này không dùng lại được.",
+      confirmText: "Xóa",
+      cancelText: "Không",
+      variant: "danger",
+    }).then((ok) => {
+      if (!ok) return;
+      Api.postJson(EP.userDelete(user.id), {})
+        .done(() => {
+          Toast.success(`Đã xóa người dùng ${user.username}.`);
+          loadUsers();
+        })
+        .fail(fail);
+    });
+  }
+
   function initUsers() {
     usersTable = $("#cfgUsersTable").DataTable({
       ...tableOptions,
@@ -208,7 +226,10 @@
         {
           data: "id",
           className: "cfg-actions",
-          render: () => '<button type="button" class="btn btn-sm btn-light cfg-user-edit" title="Sửa"><i class="fas fa-pen"></i></button>',
+          render: (id, type, u) =>
+            `<button type="button" class="zns-act cfg-user-edit" title="Sửa"><i class="fas fa-pen"></i></button>${
+              u.can_delete ? ' <button type="button" class="zns-act zns-act--delete cfg-user-delete" title="Xóa"><i class="far fa-trash-alt"></i></button>' : ""
+            }`,
         },
         { data: "username", render: (v) => escapeHtml(v) },
         { data: "full_name", render: (v) => escapeHtml(v || "—") },
@@ -227,9 +248,13 @@
         { data: "last_login", render: (v) => (v ? formatUtcDate(v) : "—") },
       ],
     });
-    $("#cfgUsersTable tbody").on("click", ".cfg-user-edit", function () {
-      openUser(usersTable.row($(this).closest("tr")).data());
-    });
+    $("#cfgUsersTable tbody")
+      .on("click", ".cfg-user-edit", function () {
+        openUser(usersTable.row($(this).closest("tr")).data());
+      })
+      .on("click", ".cfg-user-delete", function () {
+        deleteUser(usersTable.row($(this).closest("tr")).data());
+      });
     $("#cfgUserAdd").on("click", () => openUser(null));
     bindMatrix($("#cfgUserMatrix"));
     $("#cfgUserGroupFilter").on("change", showUsers);
@@ -336,7 +361,7 @@
           data: "id",
           className: "cfg-actions",
           render: () =>
-            '<button type="button" class="btn btn-sm btn-light cfg-role-edit" title="Sửa"><i class="fas fa-pen"></i></button> <button type="button" class="btn btn-sm btn-light cfg-role-delete" title="Xóa"><i class="fas fa-trash text-danger"></i></button>',
+            '<button type="button" class="zns-act cfg-role-edit" title="Sửa"><i class="fas fa-pen"></i></button> <button type="button" class="zns-act zns-act--delete cfg-role-delete" title="Xóa"><i class="far fa-trash-alt"></i></button>',
         },
         { data: "name", render: (v, type, r) => `${escapeHtml(v)}${r.is_department ? ' <span class="cfg-chip">Phòng ban</span>' : ""}` },
         { data: "members", render: (v) => v.length },

@@ -272,17 +272,12 @@
     const t = r.template;
     const live = state.sendMode === "live";
     Dialog.confirm({
-      title: live ? "Xác nhận gửi tin thật?" : "Xác nhận gửi tin (chạy thử)?",
+      title: live ? "Xác nhận gửi tin?" : "Xác nhận gửi tin (chạy thử)?",
       html: true,
-      message: `<div class="mb-1">Mẫu: <b>${escapeHtml(t.name)}</b> · ${ZnsUi.codeChip(t.zns_code)} ${ZnsUi.ownerBadge(t.owner)}</div>
-        <div class="mb-1">File: ${escapeHtml(state.upload.file_name)}</div>
-        <div>Sẽ gửi: <b>${formatAmount(r.summary.valid)}</b> khách hàng${r.summary.invalid ? ` · <span class="text-danger">bỏ qua <b>${formatAmount(r.summary.invalid)}</b> dòng lỗi</span>` : ""}</div>
-        ${
-          live
-            ? '<div class="small text-danger mt-2">Hệ thống sẽ <b>gửi tin thật</b> tới từng khách ngay sau khi xác nhận. Không hoàn tác được (chỉ dừng được các khách chưa gửi).</div>'
-            : '<div class="small text-muted mt-2">Server đang ở chế độ <b>chạy thử</b>: không gọi API, không có tin nào được gửi. Khách hợp lệ được đánh dấu "Chạy thử".</div>'
-        }`,
-      confirmText: live ? "Gửi thật" : "Xác nhận",
+      message: `<div class="mb-1">Chủ hàng: <b>${escapeHtml(t.owner)}</b></div>
+        <div class="mb-1">Mẫu: <b>${escapeHtml(t.zns_code)} - ${escapeHtml(t.name)}</b></div>
+        <div>Số lượng: <b>${formatAmount(r.summary.valid)}</b> khách hàng</div>`,
+      confirmText: "Gửi",
       cancelText: "Quay lại",
       variant: live ? "danger" : "primary",
       icon: "fa-paper-plane",

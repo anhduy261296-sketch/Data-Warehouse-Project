@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from django.db import connection, transaction
 from django.http import JsonResponse
 from django.shortcuts import render
+from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from .. import access
@@ -59,7 +60,8 @@ def page(request):
 @api_view
 def users(request):
     data = []
-    for u in get_user_model().objects.prefetch_related('groups', 'user_permissions').order_by('username'):
+    actor = request.user
+    for u in get_user_model().objects.filter(deleted_at__isnull=True).prefetch_related('groups', 'user_permissions').order_by('username'):
         data.append(
             {
                 'id': u.id,
@@ -71,6 +73,7 @@ def users(request):
                 'last_login': iso_utc(u.last_login.replace(tzinfo=None)) if u.last_login else None,
                 'roles': [g.id for g in u.groups.all()],
                 'perms': [p.codename for p in u.user_permissions.all() if p.codename in access.ALL_CODENAMES],
+                'can_delete': u.pk != actor.pk and (actor.is_superuser or not u.is_superuser),
             }
         )
     return JsonResponse({'data': data})
@@ -108,7 +111,7 @@ def user_save(request):
     direct = _permissions(data.get('perms'))
     with transaction.atomic():
         if user_id:
-            user = model.objects.select_for_update().filter(id=user_id).first()
+            user = model.objects.select_for_update().filter(id=user_id, deleted_at__isnull=True).first()
             if not user:
                 raise MessagingError('Không tìm thấy người dùng.')
             if user.is_superuser and not actor.is_superuser:
@@ -118,8 +121,10 @@ def user_save(request):
             old_codes = _role_codenames(user.groups.values_list('id', flat=True)) | set(user.user_permissions.values_list('codename', flat=True))
         else:
             username = _clean_username(data.get('username'))
-            if model.objects.filter(username__iexact=username).exists():
-                raise MessagingError(f'Tên đăng nhập {username} đã tồn tại.')
+            existing = model.objects.filter(username__iexact=username).first()
+            if existing:
+                # Không cho dùng lại tên đã xóa: mẫu, lô, nhật ký ghi theo tên nên người mới sẽ thừa hưởng lịch sử của người cũ.
+                raise MessagingError(f'Tên đăng nhập {username} đã từng dùng cho tài khoản đã xóa, hãy chọn tên khác.' if existing.deleted_at else f'Tên đăng nhập {username} đã tồn tại.')
             if not password:
                 raise MessagingError('Vui lòng nhập mật khẩu cho người dùng mới.')
             user = model(username=username)
@@ -141,6 +146,31 @@ def user_save(request):
     return JsonResponse({'ok': True, 'id': user.id})
 
 
+@require_POST
+@api_view
+def user_delete(request, user_id: int):
+    """Xóa mềm: ẩn khỏi hệ thống, không đăng nhập được, vẫn giữ trong DB. Mẫu tin, lô gửi, nhật ký của người này giữ nguyên."""
+    actor = request.user
+    with transaction.atomic():
+        user = get_user_model().objects.select_for_update().filter(id=user_id, deleted_at__isnull=True).first()
+        if not user:
+            raise MessagingError('Không tìm thấy người dùng.')
+        if user.pk == actor.pk:
+            raise MessagingError('Không thể tự xóa tài khoản của mình.')
+        if user.is_superuser and not actor.is_superuser:
+            raise MessagingError('Chỉ tài khoản toàn quyền mới xóa được tài khoản toàn quyền.')
+        # Gỡ nhóm để nhóm không còn thành viên ẩn (nhóm có người thì không xóa được); danh sách cũ được lưu vào nhật ký.
+        detail = f'Nhóm: {", ".join(g.name for g in user.groups.all()) or "—"}; quyền thêm: {", ".join(sorted(p.codename for p in user.user_permissions.all())) or "—"}'
+        user.groups.clear()
+        user.user_permissions.clear()
+        user.is_active = False
+        user.deleted_at = timezone.now()
+        user.deleted_by = actor.get_username()
+        user.save(update_fields=['is_active', 'deleted_at', 'deleted_by'])
+        audit.log('user.delete', actor.get_username(), 'user', user.username, detail)
+    return JsonResponse({'ok': True})
+
+
 @require_GET
 @api_view
 def roles(request):
@@ -157,13 +187,13 @@ def roles(request):
     ]
     people = [
         {'id': u.id, 'username': u.username, 'full_name': u.first_name, 'is_active': u.is_active, 'is_superuser': u.is_superuser}
-        for u in get_user_model().objects.order_by('username')
+        for u in get_user_model().objects.filter(deleted_at__isnull=True).order_by('username')
     ]
     return JsonResponse({'data': data, 'users': people, 'catalog': access.catalog_payload()})
 
 
 def _set_members(actor: Any, group: Group, member_ids: Any, codes: set[str]) -> str:
-    wanted = {u.pk: u for u in get_user_model().objects.filter(pk__in=member_ids)}
+    wanted = {u.pk: u for u in get_user_model().objects.filter(pk__in=member_ids, deleted_at__isnull=True)}
     current = {u.pk: u for u in group.user_set.all()}
     added = [u for pk, u in wanted.items() if pk not in current]
     removed = [u for pk, u in current.items() if pk not in wanted]

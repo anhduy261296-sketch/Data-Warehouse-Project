@@ -23,9 +23,6 @@
 .cfg-label .text-muted {
   font-size: 0.78rem;
 }
-.cfg-actions .btn {
-  padding: 0.2rem 0.4rem;
-}
 .cfg-chip {
   display: inline-block;
   margin: 0 0.25rem 0.25rem 0;

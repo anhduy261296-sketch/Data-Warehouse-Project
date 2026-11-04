@@ -29,6 +29,39 @@ div.dataTables_wrapper div.dataTables_length label {
     width: 12.5rem;
   }
 }
+/* Nút thao tác gọn (28px) nhưng vùng bấm nới ra bằng ::after */
+.zns-act {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: #fff;
+  color: #3b6fb6;
+  font-size: 0.8rem;
+  vertical-align: middle;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.zns-act::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+.zns-act:hover {
+  text-decoration: none;
+  background: #eef4fd;
+  border-color: #c9d9f2;
+  color: #2f5fa7;
+}
+.zns-act--delete {
+  color: #b42318;
+}
 /* Thanh trên cùng gọn lại, nội dung trang lên gần hơn */
 .topbar {
   height: 3.25rem;

@@ -8,36 +8,10 @@
 .zns-actions {
   white-space: nowrap;
 }
-/* Nút thao tác gọn (28px) nhưng vùng bấm nới ra bằng ::after */
-.zns-act {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  background: #fff;
-  color: #3b6fb6;
-  font-size: 0.8rem;
-  vertical-align: middle;
-  transition:
-    background 0.15s,
-    border-color 0.15s,
-    color 0.15s;
-}
-.zns-act::after,
 .zns-mini-switch::after {
   content: "";
   position: absolute;
   inset: -6px;
-}
-.zns-act:hover {
-  text-decoration: none;
-  background: #eef4fd;
-  border-color: #c9d9f2;
-  color: #2f5fa7;
 }
 .zns-mini-switch {
   position: relative;
@@ -1680,8 +1654,7 @@ table.dataTable.zns-list-table thead th:first-child {
 .zns-act--approve {
   color: #2f7a4c;
 }
-.zns-act--reject,
-.zns-act--delete {
+.zns-act--reject {
   color: #b42318;
 }
 .zns-approval-bar {

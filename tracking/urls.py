@@ -139,6 +139,7 @@ urlpatterns += [
     path('config/', config.page, name='config-page'),
     path('api/config/users/', config.users, name='config-users'),
     path('api/config/users/save/', config.user_save, name='config-user-save'),
+    path('api/config/users/<int:user_id>/delete/', config.user_delete, name='config-user-delete'),
     path('api/config/roles/', config.roles, name='config-roles'),
     path('api/config/roles/save/', config.role_save, name='config-role-save'),
     path('api/config/roles/<int:role_id>/delete/', config.role_delete, name='config-role-delete'),
