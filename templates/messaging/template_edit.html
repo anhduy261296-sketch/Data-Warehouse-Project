@@ -8,17 +8,17 @@
 <div id="znsEditor" data-id="{{ template_id }}" data-can-manage="{{ perms.tracking.zns_templates_manage|yesno:'1,0' }}"
      data-list-url="{% url 'zns-templates' %}" data-edit-url="{% url 'zns-template-edit' 0 %}">
   <div class="zns-editor-head">
-    <div>
-      <nav aria-label="breadcrumb"><ol class="zns-breadcrumb"><li><a href="{% url 'zns-templates' %}" data-loading>Quản lý chiến dịch</a></li><li><a href="{% url 'zns-templates' %}" data-loading>Mẫu tin nhắn</a></li></ol></nav>
+    <nav aria-label="breadcrumb"><ol class="zns-breadcrumb"><li><a href="{% url 'zns-templates' %}" data-loading>Quản lý chiến dịch</a></li><li><a href="{% url 'zns-templates' %}" data-loading>Mẫu tin nhắn</a></li></ol></nav>
+    <div class="zns-head-row">
       <h2 class="rpt-title zns-page-title" id="znsEditorTitle">{% if template_id %}Mẫu tin nhắn{% else %}Thêm mẫu tin mới{% endif %}</h2>
-    </div>
-    <div class="zns-head-actions">
+      <div class="zns-head-actions">
       <span id="znsEditorTools"></span>
       <input type="file" class="d-none" id="znsImportFile" accept=".xlsx,.xlsm" />
       <a href="{% url 'zns-templates' %}" class="btn btn-sm btn-light zns-round-btn zns-edit-only" id="znsCancel" data-loading><i class="fas fa-times mr-1"></i> Hủy</a>
       <button type="button" class="btn btn-sm btn-primary zns-round-btn zns-edit-only" id="znsSave" title="Lưu (Ctrl+S)"><i class="fas fa-save mr-1"></i> Lưu</button>
-      <button type="button" class="btn btn-sm zns-btn-import zns-round-btn zns-edit-only" id="znsImportBtn" title="Tự điền mã, tên, chủ hàng, nội dung và các biến từ file cấu hình Excel"><i class="fas fa-file-import mr-1"></i> Nhập từ Excel</button>
+      <button type="button" class="btn btn-sm zns-btn-import zns-round-btn zns-edit-only" id="znsImportBtn" title="Tự điền mã, tên, chủ hàng, phòng ban, nội dung và các biến từ file cấu hình Excel"><i class="fas fa-file-import mr-1"></i> Nhập từ Excel</button>
       <a class="btn btn-sm btn-outline-secondary zns-round-btn zns-edit-only" href="{% url 'zns-template-sample' %}" id="znsTemplateSample" download title="Tải file Excel mẫu cấu hình mẫu tin"><i class="fas fa-file-download mr-1"></i> File mẫu</a>
+      </div>
     </div>
   </div>
 
@@ -39,20 +39,24 @@
         </div>
 
         <div class="form-row">
-          <div class="form-group col-lg-3 col-md-5">
+          <div class="form-group col-md-4">
             <label for="znsCode">Mã <span class="text-danger">*</span></label>
             <input type="text" class="form-control zns-input" id="znsCode" maxlength="50" placeholder="Ví dụ: 649673" />
           </div>
-          <div class="form-group col-lg-6 col-md-7">
+          <div class="form-group col-md-8">
             <label for="znsName">Tên<span class="text-danger">*</span></label>
             <input type="text" class="form-control zns-input" id="znsName" maxlength="200" placeholder="Ví dụ: Thông báo ưu đãi showroom" />
           </div>
-          <div class="form-group col-lg-3 col-md-5">
+          <div class="form-group col-md-4">
             <label>Chủ hàng <span class="text-danger">*</span></label>
             <div class="zns-segment" id="znsOwner" role="radiogroup">
               <button type="button" data-value="PGI" role="radio">PGI</button>
               <button type="button" data-value="AWG" role="radio">AWG</button>
             </div>
+          </div>
+          <div class="form-group col-md-8">
+            <label for="znsDepartment">Phòng ban <span class="text-danger">*</span></label>
+            <select class="form-control zns-input" id="znsDepartment"></select>
           </div>
         </div>
         <div class="form-group mb-0">
@@ -76,17 +80,16 @@
         </div>
         <div class="zns-var-row zns-var-header">
           <span>Tên biến</span>
-          <span title="Dùng để kiểm tra dữ liệu và trình bày trong tin: số 5000000 thành 5.000.000, ngày thành 03/11/2026">Định dạng</span>
-          <span title="Dữ liệu của biến cố định, dùng cho mọi lần gửi">Dữ liệu</span>
-          <span class="text-center" title="Bắt buộc phải có giá trị khi gửi">Bắt buộc</span>
-          <span class="text-center" title="Theo khách hàng: mỗi khách một giá trị, lấy từ cột Excel cùng tên. Không chọn: nhập một lần cho cả lô.">Theo KH</span>
+          <span title="Dữ liệu dùng chung cho cả lô. Để trống thì nhập khi gửi hoặc lấy từ bảng biến cố định trong file.">Dữ liệu</span>
+          <span class="text-center" title="Mỗi khách một giá trị, lấy từ cột cùng tên trong file. Không chọn: dùng chung cho cả lô.">Theo KH</span>
           <span></span>
         </div>
         <div id="znsVariables"></div>
         <button type="button" class="btn btn-block zns-round-btn zns-add-wide zns-edit-only" id="znsAddVariable"><i class="fas fa-plus mr-1"></i> Thêm biến mới</button>
         <div class="zns-help mt-3">
-          <div><b>Theo khách hàng</b>: mỗi khách một giá trị, lấy từ cột Excel cùng tên biến (vd: <code>&lt;name&gt;</code> ↔ cột "Tên khách hàng").</div>
-          <div><b>Không chọn</b>: biến cố định cho cả lô, nhập một lần khi gửi hoặc tự điền từ bảng "Biến cố định | Dữ liệu" trong file Excel.</div>
+          <div><b>Theo KH</b>: mỗi khách một giá trị, lấy từ cột cùng tên biến trong file (vd: <code>&lt;name&gt;</code> ↔ cột "Tên khách hàng").</div>
+          <div><b>Không chọn</b>: dùng chung cho cả lô. Nhập dữ liệu ở đây; để trống thì nhập khi gửi hoặc lấy từ bảng "Biến cố định | Dữ liệu" trong file.</div>
+          <div>Biến đang có trong mẫu đều được gửi cho Incom và phải có dữ liệu. Biến không dùng thì xóa.</div>
           <div>Biến đã lưu không đổi tên được. Sửa hoặc xóa biến không ảnh hưởng các tin đã gửi, và mẫu sẽ phải duyệt lại.</div>
         </div>
       </div>
@@ -130,14 +133,12 @@
       <span class="zns-var-badges"></span>
       <div class="invalid-feedback"></div>
     </div>
-    <select class="form-control zns-input" data-field="data_type" aria-label="Định dạng"></select>
     <div class="zns-var-value">
       <input type="text" class="form-control zns-input" data-field="default_value" maxlength="500" aria-label="Dữ liệu" />
-      <span class="zns-var-excel"><i class="fas fa-file-excel mr-1"></i>Cột Excel</span>
+      <span class="zns-var-excel"><i class="fas fa-file-excel mr-1"></i>Cột từ Excel</span>
       <div class="invalid-feedback"></div>
     </div>
-    <label class="zns-check zns-check--solo mb-0" title="Bắt buộc phải có giá trị khi gửi"><input type="checkbox" data-field="is_required" aria-label="Bắt buộc" /><span></span><em>Bắt buộc</em></label>
-    <label class="zns-check zns-check--solo mb-0" title="Mỗi khách một giá trị, lấy từ cột Excel cùng tên"><input type="checkbox" data-field="per_customer" aria-label="Theo khách hàng" /><span></span><em>Theo khách hàng</em></label>
+    <label class="zns-check zns-check--solo mb-0" title="Mỗi khách một giá trị, lấy từ cột cùng tên trong file"><input type="checkbox" data-field="per_customer" aria-label="Theo khách hàng" /><span></span><em>Theo khách hàng</em></label>
     <div class="zns-var-action"></div>
   </div>
 </template>

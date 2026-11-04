@@ -2,15 +2,11 @@
   const EP = ENDPOINTS.messaging;
   const $page = $("#znsTemplatesPage");
   const canManage = $page.data("canManage") === 1;
+  const canDelete = $page.data("canDelete") === 1;
   const editUrl = (id) => String($page.data("editUrl")).replace(/0\/$/, `${id}/`);
   const $rows = $("#znsTemplateRows");
   const $card = $("#znsTemplatesCard");
   let templates = [];
-  const shortTime = (value) => {
-    if (!value) return "—";
-    const [day, time] = formatUtcDateTime(value).split(" ");
-    return `${(time || "").slice(0, 5)}<div class="zns-by">${day}</div>`;
-  };
 
   const rejected = (t) => t.approval_status === "rejected";
   const shared = pagedTableOptions();
@@ -35,6 +31,11 @@
               : ""
           }
           ${
+            canDelete && !t.has_batches
+              ? '<button type="button" class="zns-act zns-act--delete zns-delete" title="Xóa mẫu (mẫu chưa có lô gửi)"><i class="far fa-trash-alt"></i></button>'
+              : ""
+          }
+          ${
             t.can_approve
               ? '<button type="button" class="zns-act zns-act--approve zns-review" data-approve="1" title="Duyệt mẫu"><i class="fas fa-check"></i></button><button type="button" class="zns-act zns-act--reject zns-review" data-approve="0" title="Từ chối mẫu"><i class="fas fa-times"></i></button>'
               : ""
@@ -43,11 +44,12 @@
       { data: "zns_code", className: "zns-code-col", render: (v) => ZnsUi.codeChip(v) },
       { data: "name", className: "zns-name-col", render: (v, type, t) => `<a href="${editUrl(t.id)}" data-loading title="Xem chi tiết">${escapeHtml(v)}</a>` },
       { data: "owner", render: (v) => ZnsUi.ownerBadge(v) },
+      { data: "department_name", className: "zns-dept-col", render: (v) => escapeHtml(v || "—") },
       { data: "message_count", render: (v, type, t) => `<span title="${formatAmount(t.batch_count)} lô gửi">${formatAmount(v)}</span>` },
       { data: "is_active", render: (v) => ZnsUi.activeBadge(v) },
-      { data: "created_at", className: "text-nowrap", render: (v) => shortTime(v) },
+      { data: "created_at", className: "text-nowrap", render: (v) => formatUtcDate(v) },
       { data: "created_by", render: (v) => ZnsUi.userChip(v) },
-      { data: "updated_at", className: "text-nowrap", render: (v) => shortTime(v) },
+      { data: "updated_at", className: "text-nowrap", render: (v) => formatUtcDate(v) },
       { data: "updated_by", render: (v) => ZnsUi.userChip(v) },
     ],
   });
@@ -112,6 +114,22 @@
       if (!saved) return;
       Toast.success(saved.approval_status === "approved" ? `Đã duyệt mẫu ${saved.zns_code}.` : `Đã từ chối mẫu ${saved.zns_code}.`);
       load();
+    });
+  });
+  $rows.on("click", ".zns-delete", function () {
+    const t = templates.find((x) => x.id === $(this).closest("tr").data("id"));
+    if (!t) return;
+    Dialog.confirm({
+      title: `Xóa mẫu ${t.zns_code}?`,
+      message: `Mẫu "${t.name}" sẽ không còn hiện trên hệ thống. Thao tác được ghi vào Nhật ký và mã này có thể dùng lại cho mẫu mới.`,
+      confirmText: "Xóa mẫu",
+      variant: "danger",
+    }).then((ok) => {
+      if (!ok) return;
+      Loading.wrap(Api.postJson(EP.templateDelete(t.id)), "Đang xóa mẫu tin...")
+        .then(() => Toast.success(`Đã xóa mẫu ${t.zns_code}.`))
+        .catch((x) => Toast.error(Api.errorMessage(x, "Không xóa được mẫu tin.")))
+        .then(load);
     });
   });
   $rows.on("click", ".zns-toggle", function () {

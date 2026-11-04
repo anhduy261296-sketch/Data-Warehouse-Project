@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Nhật ký chiến dịch{% endblock %}
+{% block page_css %}<link href="{% static 'css/pages/messaging/messaging.css' %}" rel="stylesheet" />{% endblock %}
+{% block content %}
+<div class="zns-page-head">
+  <nav aria-label="breadcrumb"><ol class="zns-breadcrumb"><li><a href="{% url 'zns-templates' %}" data-loading>Quản lý chiến dịch</a></li><li class="is-current" aria-current="page">Nhật ký</li></ol></nav>
+  <div class="zns-head-row">
+    <h1 class="rpt-title">Nhật ký</h1>
+    <div class="rpt-header-tools">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="znsLogReset" title="Bỏ bộ lọc"><i class="fas fa-undo mr-1"></i> Reset</button>
+      {% if perms.tracking.zns_log_export %}
+      <button type="button" class="btn btn-sm zns-btn-export" id="znsLogExport" title="Xuất nhật ký theo bộ lọc hiện tại"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</button>
+      {% endif %}
+      <button type="button" class="btn btn-sm btn-outline-primary" id="znsLogReload"><i class="fas fa-sync-alt mr-1"></i> Làm mới</button>
+    </div>
+  </div>
+</div>
+
+<div class="rpt-card mb-3 rpt-filter">
+  <div class="form-row align-items-end">
+    <div class="col-lg-2 col-md-3 col-sm-6 mb-2">
+      <label for="znsLogFrom">Từ ngày</label>
+      <input type="date" class="form-control form-control-sm" id="znsLogFrom" />
+    </div>
+    <div class="col-lg-2 col-md-3 col-sm-6 mb-2">
+      <label for="znsLogTo">Đến ngày</label>
+      <input type="date" class="form-control form-control-sm" id="znsLogTo" />
+    </div>
+    <div class="col-lg-2 col-md-6 col-sm-6 mb-2">
+      <label for="znsLogDepartment">Phòng ban</label>
+      <select class="form-control form-control-sm" id="znsLogDepartment">
+        <option value="">Tất cả</option>
+        {% for department in departments %}<option value="{{ department.id }}">{{ department.name }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-lg-2 col-md-6 col-sm-6 mb-2">
+      <label for="znsLogActor">Người thực hiện</label>
+      <input type="search" class="form-control form-control-sm" id="znsLogActor" placeholder="Tên đăng nhập" autocomplete="off" />
+    </div>
+    <div class="col-lg-4 col-md-12 mb-2">
+      <label for="znsLogSearch">Tìm kiếm</label>
+      <input type="search" class="form-control form-control-sm" id="znsLogSearch" placeholder="Số lô, mã mẫu hoặc nội dung chi tiết" autocomplete="off" />
+    </div>
+  </div>
+</div>
+
+<div class="rpt-card mb-3">
+  <table class="table table-hover rpt-table zns-list-table zns-log-table" id="znsLogTable" width="100%">
+    <thead>
+      <tr>
+        <th>Thời gian</th>
+        <th>Người thực hiện</th>
+        <th>Thao tác</th>
+        <th>Đối tượng</th>
+        <th>Phòng ban</th>
+        <th>Chi tiết</th>
+        <th>IP</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+{% endblock %}
+{% block page_js %}
+<script src="{% static 'js/pages/messaging/logs.js' %}"></script>
+{% endblock %}

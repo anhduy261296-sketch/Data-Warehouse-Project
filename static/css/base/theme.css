@@ -13,6 +13,35 @@ div.dataTables_wrapper div.dataTables_length label {
   padding: 0.5rem !important;
   padding-right: 30px !important;
 }
+/* Menu con khi thu gọn thanh bên phải nằm trên tiêu đề cố định của bảng, dưới lớp phủ của modal */
+.sidebar .nav-item .collapse,
+.sidebar .nav-item .collapsing,
+.sidebar.toggled .nav-item .collapse,
+.sidebar.toggled .nav-item .collapsing {
+  z-index: 1020;
+}
+/* Thanh bên hẹp hơn mặc định 14rem của SB Admin để bảng có thêm chỗ; khi thu gọn vẫn theo .sidebar.toggled */
+@media (min-width: 768px) {
+  .sidebar {
+    width: 12.5rem !important;
+  }
+  .sidebar .nav-item .nav-link {
+    width: 12.5rem;
+  }
+}
+/* Thanh trên cùng gọn lại, nội dung trang lên gần hơn */
+.topbar {
+  height: 3.25rem;
+}
+.topbar .nav-item .nav-link {
+  height: 3.25rem;
+}
+.topbar .topbar-divider {
+  height: 2rem;
+}
+.topbar.mb-4 {
+  margin-bottom: 0.75rem !important;
+}
 ul#accordionSidebar {
   background-image: linear-gradient(135deg, var(--pgi-primary) 0%, var(--pgi-primary-dark) 100%);
   background-size: cover;

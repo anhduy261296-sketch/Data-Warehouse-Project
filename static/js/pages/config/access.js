@@ -224,7 +224,7 @@
             '<span class="text-muted">Chưa phân quyền</span>',
         },
         { data: "is_active", render: (v) => activeBadge(v) },
-        { data: "last_login", render: (v) => (v ? formatUtcTimeFirst(v) : "—") },
+        { data: "last_login", render: (v) => (v ? formatUtcDate(v) : "—") },
       ],
     });
     $("#cfgUsersTable tbody").on("click", ".cfg-user-edit", function () {
@@ -282,6 +282,7 @@
     editingRole = role;
     $("#cfgRoleTitle").text(role ? `Sửa nhóm ${role.name}` : "Thêm nhóm người dùng");
     $("#cfgRoleName").val(role ? role.name : "");
+    $("#cfgRoleIsDepartment").prop("checked", Boolean(role && role.is_department));
     $("#cfgRoleModal .cfg-pick-search").val("");
     $("#cfgRoleMatrix").empty();
     const members = role ? role.members : [];
@@ -337,7 +338,7 @@
           render: () =>
             '<button type="button" class="btn btn-sm btn-light cfg-role-edit" title="Sửa"><i class="fas fa-pen"></i></button> <button type="button" class="btn btn-sm btn-light cfg-role-delete" title="Xóa"><i class="fas fa-trash text-danger"></i></button>',
         },
-        { data: "name", render: (v) => escapeHtml(v) },
+        { data: "name", render: (v, type, r) => `${escapeHtml(v)}${r.is_department ? ' <span class="cfg-chip">Phòng ban</span>' : ""}` },
         { data: "members", render: (v) => v.length },
         { data: "perms", render: (v) => v.length },
       ],
@@ -358,6 +359,7 @@
       Api.postJson(EP.roleSave, {
         id: editingRole ? editingRole.id : null,
         name: $("#cfgRoleName").val(),
+        is_department: $("#cfgRoleIsDepartment").prop("checked"),
         perms: matrixValues($("#cfgRoleMatrix")),
         members: pickedMembers(),
       })
@@ -382,11 +384,12 @@
       processing: true,
       ajax: Api.dataTableSource(EP.audit, null, auditCache),
       columns: [
-        { data: "created_at", className: "text-nowrap", render: (v) => formatUtcTimeFirst(v) },
+        { data: "created_at", className: "text-nowrap", render: (v) => formatUtcDate(v) },
         { data: "actor", render: (v) => escapeHtml(v) },
         { data: "action_label", render: (v) => escapeHtml(v) },
         { data: "target_id", render: (v, type, r) => escapeHtml([r.target_type, v].filter(Boolean).join(" ")) },
         { data: "detail", render: (v) => escapeHtml(v || "") },
+        { data: "ip_address", className: "text-nowrap", render: (v) => escapeHtml(v || "—") },
       ],
     });
   }

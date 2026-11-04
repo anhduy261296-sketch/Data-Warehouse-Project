@@ -9,6 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from django.db import connection
+
 from .menu import MENU
 from .messaging.values import OWNERS
 
@@ -130,6 +132,7 @@ CATALOG: tuple[AccessGroup, ...] = (
                     Perm('zns_templates_view', 'Xem', ('zns-templates', 'zns-template-list', 'zns-template-detail', 'zns-template-edit', 'zns-template-sample')),
                     Perm('zns_templates_export', 'Xuất Excel', ('zns-template-export',)),
                     Perm('zns_templates_manage', 'Tạo / sửa / bật tắt', ('zns-template-new', 'zns-template-save', 'zns-template-import', 'zns-template-active')),
+                    Perm('zns_templates_delete', 'Xóa mẫu chưa gửi', ('zns-template-delete',)),
                     Perm('zns_templates_approve', 'Duyệt / từ chối mẫu', ('zns-template-approve', 'zns-template-reject')),
                 ),
             ),
@@ -150,7 +153,16 @@ CATALOG: tuple[AccessGroup, ...] = (
                     Perm('zns_batch_export_history', 'Xuất toàn bộ lịch sử', ('zns-batch-list-export',)),
                 ),
             ),
+            AccessPage(
+                'zns_logs',
+                'Nhật ký',
+                (
+                    Perm('zns_log_view', 'Xem', ('zns-logs', 'zns-log-list')),
+                    Perm('zns_log_export', 'Xuất Excel', ('zns-log-export',)),
+                ),
+            ),
             AccessPage('zns_owner', 'Phạm vi chủ hàng', tuple(Perm(f'zns_owner_{o.lower()}', o) for o in OWNERS)),
+            AccessPage('zns_department', 'Phạm vi phòng ban', (Perm('zns_department_all', 'Xem mọi phòng ban'),)),
         ),
     ),
     AccessGroup(
@@ -197,6 +209,7 @@ _VIEWER_PERMS = tuple(
     p.codename for g in CATALOG if g.label in _DATA_GROUPS for page in g.pages for p in page.perms if p.codename != 'report_ecom_refresh'
 )
 _OWNER_PERMS = tuple(f'zns_owner_{o.lower()}' for o in OWNERS)
+ROLE_DEPARTMENTS = ('IT', 'MKT', 'Kế toán')
 ROLE_SEEDS: dict[str, tuple[str, ...]] = {
     ROLE_ADMIN: tuple(sorted(ALL_CODENAMES)),
     ROLE_VIEWER: _VIEWER_PERMS,
@@ -224,6 +237,8 @@ ROLE_SEEDS: dict[str, tuple[str, ...]] = {
         'zns_batch_cancel',
         'zns_batch_export',
         'zns_batch_export_history',
+        'zns_log_view',
+        'zns_log_export',
     ),
     ROLE_TEMPLATE_ADMIN: ('zns_templates_view', 'zns_templates_export', 'zns_templates_manage'),
     **{ROLE_OWNER[o]: (f'zns_owner_{o.lower()}',) for o in OWNERS},
@@ -279,21 +294,65 @@ class ZnsActor:
     approve: bool = False
     retry: bool = False
     cancel: bool = False
+    departments: tuple[int, ...] = ()
+    all_departments: bool = False
+
+    def in_department(self, department: int | None) -> bool:
+        return self.all_departments or department in self.departments
 
     def owns(self, created_by: str | None, confirmed_by: str | None) -> bool:
         return self.username in (created_by, confirmed_by)
 
-    def can_see(self, owner: str | None, created_by: str | None, confirmed_by: str | None) -> bool:
-        return owner in self.owners and (self.view_all or self.owns(created_by, confirmed_by))
+    def _in_batch_scope(self, owner: str | None, created_by: str | None, confirmed_by: str | None, department: int | None) -> bool:
+        # Lô cũ chưa xác định được phòng ban: người tạo vẫn thấy lô của mình.
+        in_scope = self.in_department(department) or (department is None and self.owns(created_by, confirmed_by))
+        return owner in self.owners and in_scope
 
-    def can_cancel(self, owner: str | None, created_by: str | None, confirmed_by: str | None) -> bool:
-        return owner in self.owners and (self.cancel or self.owns(created_by, confirmed_by))
+    def can_see(self, owner: str | None, created_by: str | None, confirmed_by: str | None, department: int | None) -> bool:
+        return self._in_batch_scope(owner, created_by, confirmed_by, department) and (self.view_all or self.owns(created_by, confirmed_by))
 
-    def can_approve_template(self, owner: str | None) -> bool:
-        return self.approve and owner in self.owners
+    def can_cancel(self, owner: str | None, created_by: str | None, confirmed_by: str | None, department: int | None) -> bool:
+        return self._in_batch_scope(owner, created_by, confirmed_by, department) and (self.cancel or self.owns(created_by, confirmed_by))
 
-    def can_retry(self, owner: str | None, created_by: str | None, confirmed_by: str | None) -> bool:
-        return owner in self.owners and (self.retry or self.owns(created_by, confirmed_by))
+    def can_approve_template(self, owner: str | None, department: int | None) -> bool:
+        return self.approve and owner in self.owners and self.in_department(department)
+
+    def can_retry(self, owner: str | None, created_by: str | None, confirmed_by: str | None, department: int | None) -> bool:
+        return self._in_batch_scope(owner, created_by, confirmed_by, department) and (self.retry or self.owns(created_by, confirmed_by))
+
+
+def department_ids() -> set[int]:
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT GroupId FROM dbo.AppDepartmentGroups')
+        return {row[0] for row in cursor.fetchall()}
+
+
+def user_department_ids(user: Any) -> tuple[int, ...]:
+    return tuple(sorted(department_ids() & set(user.groups.values_list('id', flat=True))))
+
+
+def department_options(user: Any) -> list[dict[str, Any]]:
+    """Phòng ban người dùng được chọn khi tạo mẫu tin."""
+    from django.contrib.auth.models import Group
+
+    ids = department_ids() if has(user, 'zns_department_all') else user_department_ids(user)
+    return [{'id': g.id, 'name': g.name} for g in Group.objects.filter(id__in=ids).order_by('name')]
+
+
+def department_in_use(group_id: int) -> bool:
+    with connection.cursor() as cursor:
+        cursor.execute(
+            'SELECT CASE WHEN EXISTS (SELECT 1 FROM dbo.ZnsTemplates WHERE DepartmentId = %s AND DeletedAt IS NULL) OR EXISTS (SELECT 1 FROM dbo.ZnsSendBatches WHERE DepartmentId = %s) THEN 1 ELSE 0 END',
+            [group_id, group_id],
+        )
+        return bool(cursor.fetchone()[0])
+
+
+def set_department(group_id: int, is_department: bool) -> None:
+    with connection.cursor() as cursor:
+        cursor.execute('DELETE FROM dbo.AppDepartmentGroups WHERE GroupId = %s', [group_id])
+        if is_department:
+            cursor.execute('INSERT INTO dbo.AppDepartmentGroups (GroupId) VALUES (%s)', [group_id])
 
 
 def zns_actor(user: Any) -> ZnsActor:
@@ -304,4 +363,6 @@ def zns_actor(user: Any) -> ZnsActor:
         approve=has(user, 'zns_templates_approve'),
         retry=has(user, 'zns_batch_retry'),
         cancel=has(user, 'zns_batch_cancel'),
+        departments=user_department_ids(user),
+        all_departments=has(user, 'zns_department_all'),
     )

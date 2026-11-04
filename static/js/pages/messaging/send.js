@@ -2,6 +2,7 @@
   const EP = ENDPOINTS.messaging;
   const FILE_PLACEHOLDER = "Chọn file Excel (.xlsx)";
   const PREVIEW_LIMIT = 10;
+  const INVALID_LIMIT = 500;
   const state = {
     upload: null,
     templates: [],
@@ -101,6 +102,11 @@
     templatePicker.refresh();
   }
 
+  function clearInvalid() {
+    $("#znsInvalidPanel").addClass("d-none");
+    $("#znsInvalidRows").empty();
+  }
+
   function selectTemplate() {
     const id = Number($("#znsTemplateSelect").val()) || null;
     state.template = id;
@@ -109,6 +115,7 @@
     if (!id) {
       $("#znsConfig").addClass("d-none");
       $("#znsEvalSummary").empty();
+      clearInvalid();
       state.result = null;
       renderPreview();
       setStep(2);
@@ -143,6 +150,13 @@
       ${columns.map((c, i) => `<option value="${i}"${i === selected ? " selected" : ""}>${escapeHtml(c)}</option>`).join("")}</select>`;
   }
 
+  // Vùng dữ liệu biến ẩn cho gọn; thiếu cột thì tự mở vì phải chọn cột mới gửi được.
+  function showVars(visible) {
+    state.showVars = visible;
+    $("#znsVarsCol").toggleClass("d-none", !visible);
+    $("#znsToggleVars").text(visible ? "Ẩn dữ liệu biến" : "Xem dữ liệu biến");
+  }
+
   function renderConfig(res) {
     const vars = res.template.variables;
     const customer = vars.filter((v) => v.source === "customer");
@@ -152,15 +166,19 @@
        <td>${v.name ? `<span class="zns-var-tag">${escapeHtml(v.name)}</span>` : '<span class="text-muted">—</span>'}</td>`;
     const group = (kind, icon, title, valueTitle) =>
       `<tr class="zns-vars-group zns-vars-group--${kind}"><th><i class="fas ${icon} mr-1"></i>${title}</th><th>Mã biến</th><th>${valueTitle}</th></tr>`;
+    const fixedInput = (name, value) =>
+      `<input type="text" class="form-control form-control-sm zns-fixed-input" data-key="${escapeHtml(name)}" value="${escapeHtml(value || "")}" maxlength="500" placeholder="Nhập giá trị dùng chung" aria-label="Giá trị dùng chung cho ${escapeHtml(name)}" />`;
     const fixedValue = (v) => {
       const error = res.fixed_errors[v.name];
-      if (error)
-        return `<td class="zns-vars-value is-missing"><i class="fas fa-exclamation-circle mr-1"></i>${escapeHtml(error === "Bắt buộc nhập" ? "Chưa có dữ liệu" : error)}</td>`;
+      // Biến dùng chung chưa có dữ liệu, hoặc đang nhập tay: cho nhập ngay tại đây.
+      if (v.name in state.fixed || !(res.fixed[v.name] || {}).input)
+        return `<td class="zns-vars-value${error ? " is-missing" : ""}">${fixedInput(v.name, state.fixed[v.name])}${error ? `<div class="small mt-1">${escapeHtml(error)}</div>` : ""}</td>`;
+      if (error) return `<td class="zns-vars-value is-missing"><i class="fas fa-exclamation-circle mr-1"></i>${escapeHtml(error)}</td>`;
       const value = (res.fixed[v.name] || {}).display;
       return `<td class="zns-vars-value">${value ? escapeHtml(value) : '<span class="text-muted">—</span>'}</td>`;
     };
     $("#znsMapping").html(
-      group("customer", "fa-user", "Theo khách hàng", "Cột trong file") +
+      group("customer", "fa-user", "Theo khách hàng", "Cột từ Excel") +
         `<tr>${label({ is_required: true }, "Số điện thoại")}<td>${columnSelect("__phone__", res.mapping.__phone__, res.columns)}</td></tr>` +
         customer.map((v) => `<tr>${label(v)}<td>${columnSelect(v.name, res.mapping[v.name], res.columns)}</td></tr>`).join("") +
         (fixed.length
@@ -172,23 +190,24 @@
     const s = res.summary;
     const stat = (cls, text, value) => `<div class="zns-stat ${cls}"><span>${text}</span><b>${formatAmount(value)}</b></div>`;
     $("#znsEvalSummary").html(
-      stat("", "Tổng", s.total) +
-        stat("is-ok", "Hợp lệ", s.valid) +
-        (s.invalid
-          ? `<button type="button" class="zns-stat is-bad" id="znsShowInvalid" title="Xem các dòng lỗi"><span>Lỗi <i class="fas fa-eye ml-1"></i></span><b>${formatAmount(s.invalid)}</b></button>`
-          : stat("", "Lỗi", 0)),
+      stat("", "Tổng", s.total) + stat("is-ok", "Hợp lệ", s.valid) + stat(s.invalid ? "is-bad" : "", "Lỗi", s.invalid),
     );
     const errors = res.mapping_errors.concat(
       Object.keys(res.fixed_errors).length
-        ? ['Mẫu tin còn thiếu / sai dữ liệu biến cố định - bấm "Sửa ở mẫu tin" để cập nhật rồi chọn lại mẫu.']
+        ? ['Còn biến dùng chung thiếu hoặc sai dữ liệu - nhập ở bảng dữ liệu biến, hoặc bấm "Sửa ở mẫu tin" rồi chọn lại mẫu.']
         : [],
     );
+    showVars(Boolean(state.showVars || res.mapping_errors.length || Object.keys(res.fixed_errors).length));
     ZnsUi.alertBox($("#znsEvalErrors"), errors.map(escapeHtml).join("<br>"));
     ZnsUi.alertBox($("#znsEvalWarnings"), (res.warnings || []).map(escapeHtml).join("<br>"), "warning");
     const invalid = res.rows.filter((r) => r.errors.length);
+    $("#znsInvalidPanel").toggleClass("d-none", !invalid.length);
+    $("#znsInvalidNote").text(
+      invalid.length > INVALID_LIMIT ? `· ${formatAmount(INVALID_LIMIT)} / ${formatAmount(invalid.length)} dòng đầu` : "",
+    );
     $("#znsInvalidRows").html(
       invalid
-        .slice(0, 500)
+        .slice(0, INVALID_LIMIT)
         .map(
           (r) =>
             `<tr><td class="zns-row-no">${r.row_no}</td><td>${cellText(r.phone || r.raw_phone)}</td><td>${cellText(r.customer)}</td><td>${escapeHtml(r.errors.join("; "))}</td></tr>`,
@@ -297,9 +316,11 @@
     $("#znsFileName").text(FILE_PLACEHOLDER).removeClass("has-file");
     $("#znsUploadResult, #znsConfig").addClass("d-none");
     $("#znsEvalSummary").empty();
+    clearInvalid();
     $("#znsOwnerSelect").val("");
     renderTemplateOptions();
     $("#znsMapping").empty();
+    showVars(false);
     $("#znsCustomerSearch").val("");
     renderPreview();
     setStep(1);
@@ -323,8 +344,16 @@
       data: "id",
       render: (id, type, b) => `#${id}${b.parent_batch_id ? `<div class="small text-muted">Ref #${b.parent_batch_id}</div>` : ""}`,
     },
-    { data: "confirmed_at", className: "zns-date-cell", render: (v) => formatUtcTimeFirst(v) },
-    { data: "template_name", render: (v, type, b) => `${escapeHtml(v || "—")}<div class="mt-1">${ZnsUi.codeChip(b.zns_code)}</div>` },
+    { data: "confirmed_at", className: "zns-date-cell", render: (v) => formatUtcDate(v) },
+    {
+      data: "template_name",
+      className: "zns-template-cell",
+      render: (v, type, b) => {
+        const text = escapeHtml([b.zns_code, v].filter(Boolean).join(" - ") || "—");
+        // escapeHtml không thoát dấu " nên phải tự thoát khi đưa vào thuộc tính title.
+        return `<span title="${text.replace(/"/g, "&quot;")}">${text}</span>`;
+      },
+    },
     { data: "owner", render: (v) => ZnsUi.ownerBadge(v) },
     { data: "file_name", className: "zns-file-cell", render: (v) => escapeHtml(v) },
     { data: "total_rows", className: "num", render: (v) => formatAmount(v) },
@@ -385,7 +414,13 @@
       state.sendMode = res.send_mode;
       pollIfSending(res.data);
     })
-    .DataTable({ ...pagedTableOptions(), serverSide: true, processing: true, ajax: Api.dataTableSource(EP.batches, null, historyCache), columns: HISTORY_COLUMNS });
+    .DataTable({
+      ...pagedTableOptions(),
+      serverSide: true,
+      processing: true,
+      ajax: Api.dataTableSource(EP.batches, null, historyCache),
+      columns: HISTORY_COLUMNS,
+    });
 
   function reloadHistory(resetPaging = false) {
     historyCache.clear();
@@ -408,7 +443,11 @@
     processing: true,
     deferLoading: 0,
     ajax: (d, callback) =>
-      Api.dataTableSource(EP.batchRecipients(currentBatchId), () => ({ status: batchFilter }), currentBatchSending ? null : recipientCache)(d, callback),
+      Api.dataTableSource(
+        EP.batchRecipients(currentBatchId),
+        () => ({ status: batchFilter }),
+        currentBatchSending ? null : recipientCache,
+      )(d, callback),
     columns: [
       {
         data: "id",
@@ -487,7 +526,7 @@
             ZnsUi.ownerBadge(b.owner),
             ZnsUi.codeChip(b.zns_code),
             `<span>${escapeHtml(b.file_name)}</span>`,
-            `<span>Xác nhận ${formatUtcTimeFirst(b.confirmed_at)}${b.created_by ? ` · ${escapeHtml(b.created_by)}` : ""}</span>`,
+            `<span>Xác nhận ${formatUtcDate(b.confirmed_at)}${b.created_by ? ` · ${escapeHtml(b.created_by)}` : ""}</span>`,
             b.parent_batch_id ? `<span>Gửi lại từ lô #${b.parent_batch_id}</span>` : "",
           ].join(""),
         );
@@ -623,7 +662,7 @@
         const lines = (res.data || []).map(
           (a) => `<tr>
             <td>${a.attempt_no}</td>
-            <td class="text-nowrap">${formatUtcTimeFirst(a.created_at)}</td>
+            <td class="text-nowrap">${formatUtcDate(a.created_at)}</td>
             <td>${a.trigger_type === "manual" ? `Gửi lại${a.triggered_by ? ` · ${escapeHtml(a.triggered_by)}` : ""}` : "Tự động"}</td>
             <td>${escapeHtml(a.result_label)}</td>
             <td>${a.http_status === null ? "—" : a.http_status}</td>
@@ -681,8 +720,18 @@
       .fail((x) => Toast.error(Api.errorMessage(x, "Không tải được danh sách mẫu tin.")))
       .always(() => $icon.removeClass("fa-spin"));
   });
+  $("#znsToggleVars").on("click", (e) => {
+    e.preventDefault();
+    showVars(!state.showVars);
+  });
   $("#znsMapping").on("change", ".zns-map-select", function () {
     state.mapping[this.dataset.key] = this.value === "" ? null : Number(this.value);
+    evaluate();
+  });
+  $("#znsMapping").on("change", ".zns-fixed-input", function () {
+    const value = this.value.trim();
+    if (value) state.fixed[this.dataset.key] = value;
+    else delete state.fixed[this.dataset.key];
     evaluate();
   });
   $("#znsCustomer").on("change", function () {
@@ -690,7 +739,6 @@
     showCustomer();
   });
   $("#znsCustomerSearch").on("input", filterCustomers);
-  $("#znsEvalSummary").on("click", "#znsShowInvalid", () => $("#znsInvalidModal").modal("show"));
   $("#znsPrev").on("click", () => {
     state.index = Math.max(0, state.index - 1);
     showCustomer();

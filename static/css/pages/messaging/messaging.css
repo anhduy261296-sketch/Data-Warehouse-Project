@@ -154,6 +154,66 @@ mark.zns-var--missing {
   color: #8a94a6;
 }
 
+.zns-send-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 8px;
+  margin-bottom: 1rem;
+}
+.zns-send-grid > .rpt-card {
+  margin-bottom: 0 !important; /* khoảng cách do lưới và .zns-send-grid lo */
+}
+@media (max-width: 1199.98px) {
+  .zns-send-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.zns-log-table td.zns-log-detail {
+  text-align: left;
+  word-break: break-word;
+}
+.zns-invalid-panel {
+  margin-top: 0.875rem;
+}
+.zns-invalid-title {
+  margin-bottom: 0.375rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #374151;
+}
+.zns-invalid-wrap {
+  max-height: 18rem;
+  overflow: auto;
+  border: 1px solid #edf0f4;
+  border-radius: 8px;
+}
+.zns-invalid-wrap thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-right: 0.5rem !important; /* theme.css đặt padding-right 30px cho mọi tiêu đề bảng */
+}
+.zns-invalid-wrap td {
+  font-size: 0.8rem;
+}
+#znsConfig .zns-phone {
+  min-height: 110px;
+}
+/* Trong nửa khung: nhãn nằm trên ô để không bị tách khi thiếu chỗ */
+#znsStep2 .zns-pick-row {
+  display: grid;
+  grid-template-rows: auto auto;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 0.25rem 0.75rem;
+}
+#znsStep2 .zns-pick-row #znsOwnerSelect {
+  width: 100%;
+  margin-right: 0;
+}
+#znsStep2 .zns-pick-row .input-group {
+  max-width: none;
+}
 .zns-steps {
   display: flex;
   flex-wrap: wrap;
@@ -389,7 +449,7 @@ textarea.zns-input {
 }
 .zns-var-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 124px minmax(0, 1.25fr) 58px 54px 26px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) 54px 26px;
   align-items: center;
   gap: 6px;
 }
@@ -458,50 +518,9 @@ textarea.zns-input {
   display: flex;
   justify-content: center;
 }
-.zns-check--solo {
-  justify-content: center;
-}
-.zns-check--solo em {
-  display: none;
-  font-style: normal;
-}
-.zns-count {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #8a94a6;
-}
-.zns-var-card .zns-input:not(.is-invalid):focus {
-  border-color: #e2e6ee;
-  box-shadow: none;
-}
-.zns-var-card.is-off {
-  background: #f8f9fb;
-}
-.zns-var-card.is-off .zns-input {
-  opacity: 0.55;
-}
 .zns-var-card.is-off .zns-check {
   opacity: 0.45;
   cursor: not-allowed;
-}
-.zns-icon-btn {
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border-radius: 8px;
-  color: #a3abb9;
-  font-size: 0.8rem;
-  line-height: 1;
-}
-.zns-icon-btn:hover {
-  background: #f3f4f6;
-  color: #4b5563;
-}
-.zns-icon-btn.zns-var-remove:hover {
-  color: #dc2626;
 }
 .zns-check {
   display: inline-flex;
@@ -549,7 +568,72 @@ textarea.zns-input {
 }
 .zns-check input:disabled + span {
   opacity: 0.6;
-}.zns-empty {
+}
+.zns-check input:disabled + span,
+.zns-check input:disabled ~ em {
+  cursor: not-allowed;
+}
+#znsEditor .zns-check {
+  font-weight: 400 !important;
+}
+.zns-check--solo {
+  justify-content: center;
+}
+.zns-check--solo em {
+  display: none;
+  font-style: normal;
+}
+.zns-var-excel {
+  display: none;
+  font-size: 0.78rem;
+  color: #8a94a6;
+  white-space: nowrap;
+  padding-left: 4px;
+}
+.zns-var-excel i {
+  color: #2f7a4c;
+}
+.zns-var-card.is-customer .zns-var-value input {
+  display: none;
+}
+.zns-var-card.is-customer .zns-var-excel {
+  display: inline-block;
+}
+.zns-count {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #8a94a6;
+}
+.zns-var-card .zns-input:not(.is-invalid):focus {
+  border-color: #e2e6ee;
+  box-shadow: none;
+}
+.zns-var-card.is-off {
+  background: #f8f9fb;
+}
+.zns-var-card.is-off .zns-input {
+  opacity: 0.55;
+}
+.zns-icon-btn {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  color: #a3abb9;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+.zns-icon-btn:hover {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+.zns-icon-btn.zns-var-remove:hover {
+  color: #dc2626;
+}
+.zns-empty {
   text-align: center;
   color: #8a94a6;
   border: 1px dashed #d8dde6;
@@ -596,27 +680,23 @@ textarea.zns-input {
     display: none;
   }
   .zns-var-row {
-    grid-template-columns: 1fr 1fr 36px;
+    grid-template-columns: 1fr 36px;
     row-gap: 6px;
   }
   .zns-var-name {
-    grid-column: 1 / 3;
-  }
-  .zns-var-row > select {
-    grid-column: 1 / 3;
-    grid-row: 2;
+    grid-column: 1;
   }
   .zns-var-action {
-    grid-column: 3;
+    grid-column: 2;
     grid-row: 1;
   }
   .zns-var-value {
     grid-column: 1 / 3;
-    grid-row: 3;
+    grid-row: 2;
   }
   .zns-check--solo {
     justify-content: flex-start;
-    grid-row: 4;
+    grid-row: 3;
   }
   .zns-check--solo em {
     display: inline;
@@ -675,8 +755,8 @@ textarea.zns-input {
   flex-wrap: wrap;
   align-items: center;
   list-style: none;
-  margin: 0 0 10px;
-  padding: 7px 16px;
+  margin: 0 0 6px;
+  padding: 3px 12px;
   background: #fff;
   border: 1px solid #e5e8ef;
   border-radius: 8px;
@@ -727,8 +807,8 @@ textarea.zns-input {
   z-index: 20;
   background: rgba(248, 249, 252, 0.95);
   backdrop-filter: blur(4px);
-  margin: 0 -1.5rem 16px;
-  padding: 10px 1.5rem;
+  margin: 0 -1.5rem 12px;
+  padding: 0 1.5rem 8px;
   border-bottom: 1px solid transparent;
 }
 .zns-editor-head.is-stuck {
@@ -764,18 +844,11 @@ textarea.zns-input {
   width: 1%;
   white-space: nowrap;
 }
-.zns-check input:disabled + span,
-.zns-check input:disabled ~ em {
-  cursor: not-allowed;
-}
 .zns-head-actions {
   display: flex;
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed #e5e8ef;
 }
 .zns-head-actions:empty {
   display: none;
@@ -850,7 +923,7 @@ textarea.zns-input {
   }
 }
 .zns-page-head {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 .zns-head-row {
   display: flex;
@@ -863,22 +936,7 @@ textarea.zns-input {
   position: relative;
   min-width: 0;
 }
-.zns-var-excel {
-  display: none;
-  font-size: 0.78rem;
-  color: #8a94a6;
-  white-space: nowrap;
-  padding-left: 4px;
-}
-.zns-var-excel i {
-  color: #2f7a4c;
-}
-.zns-var-card.is-customer .zns-var-value input {
-  display: none;
-}
-.zns-var-card.is-customer .zns-var-excel {
-  display: inline-block;
-}.zns-var-card.is-off .zns-var-name .zns-input {
+.zns-var-card.is-off .zns-var-name .zns-input {
   padding-right: 64px;
 }
 .zns-var-value .zns-input::placeholder {
@@ -889,8 +947,8 @@ textarea.zns-input {
   padding-left: 10px;
   font-size: 0.85rem;
 }
-.zns-var-card select.zns-input {
-  padding-right: 22px;
+.zns-fixed-input {
+  margin-top: 4px;
 }
 .zns-var-name .zns-input {
   padding-right: 24px;
@@ -1125,15 +1183,9 @@ textarea.zns-input {
   background: #fdf3f2;
   border-color: #f6d5d1;
   color: #b42318;
-  cursor: pointer;
 }
 .zns-stat.is-bad b {
   color: #b42318;
-}
-.zns-stat.is-bad:hover,
-.zns-stat.is-bad:focus {
-  border-color: #eeb4ad;
-  outline: none;
 }
 
 .zns-state {
@@ -1216,9 +1268,6 @@ textarea.zns-input {
 #znsEditor .btn {
   font-weight: 400;
 }
-#znsEditor .zns-check {
-  font-weight: 400 !important;
-}
 /* Font Awesome solid cần weight 900, nếu không icon biến mất */
 #znsEditor .fas,
 #znsEditor .fa {
@@ -1249,6 +1298,23 @@ textarea.zns-input {
 .zns-list-table td.zns-file-cell {
   max-width: 5rem;
 }
+#znsHistoryTable thead th,
+#znsHistoryTable tbody td {
+  padding-left: 0.6rem !important;
+  padding-right: 0.6rem !important;
+}
+.zns-list-table td.zns-template-cell {
+  max-width: 14rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+.zns-list-table .zns-dept-col {
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+  white-space: nowrap;
+}
 .zns-list-table td.zns-date-cell {
   width: 5.5rem;
   white-space: normal;
@@ -1273,6 +1339,11 @@ table.dataTable.zns-list-table thead th:first-child {
 }
 
 /* Chi tiết lô gửi */
+.zns-vars-links {
+  display: inline-flex;
+  gap: 0.875rem;
+  white-space: nowrap;
+}
 .zns-batch-head {
   align-items: flex-start;
 }
@@ -1391,6 +1462,7 @@ table.dataTable.zns-list-table thead th:first-child {
 }
 #znsHistoryTable_wrapper .dataTables_info,
 #znsTemplateTable_wrapper .dataTables_info,
+#znsLogTable_wrapper .dataTables_info,
 #znsBatchTable_wrapper .dataTables_info {
   padding-top: 0;
   font-size: 0.82rem;
@@ -1608,7 +1680,8 @@ table.dataTable.zns-list-table thead th:first-child {
 .zns-act--approve {
   color: #2f7a4c;
 }
-.zns-act--reject {
+.zns-act--reject,
+.zns-act--delete {
   color: #b42318;
 }
 .zns-approval-bar {

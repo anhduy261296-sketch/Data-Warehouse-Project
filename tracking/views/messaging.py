@@ -6,11 +6,11 @@ from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
 
-from ..access import zns_actor
+from ..access import department_options, zns_actor
 from ..constants import EXPORT_MAX_ROWS
 from ..core import audit
 from ..core.excel import ExcelColumn, ExcelSheet, excel_response, workbook_response
-from ..messaging import importer, provider, sample_file, sending, templates
+from ..messaging import importer, logs, provider, sample_file, sending, templates
 from ..messaging.values import OWNERS, MessagingError, normalize_key
 from .common import api_view, json_body, table_params
 
@@ -31,13 +31,33 @@ def _actor(request):
 
 def _with_review(template: dict, actor) -> dict:
     template['approval_label'] = APPROVAL_LABELS.get(template['approval_status'], template['approval_status'])
-    template['can_approve'] = template['approval_status'] == 'pending' and actor.can_approve_template(template['owner'])
+    template['can_approve'] = template['approval_status'] == 'pending' and actor.can_approve_template(template['owner'], template['department_id'])
     return template
 
 
 def _check_owner(request, owner: str | None) -> None:
     if owner not in _actor(request).owners:
         raise MessagingError(f'Bạn chưa được phân quyền chủ hàng {owner or ""}.'.strip())
+
+
+def _check_template_scope(request, template: dict) -> None:
+    _check_owner(request, template['owner'])
+    if not _actor(request).in_department(template['department_id']):
+        raise MessagingError('Không tìm thấy mẫu tin.')
+
+
+def _chosen_department(request, payload: dict, current: int | None = None) -> int:
+    """Phòng ban của mẫu: chỉ được chọn phòng mình thuộc. Thuộc đúng một phòng thì tự điền khi tạo mới."""
+    options = [d['id'] for d in department_options(request.user)]
+    chosen = payload.get('department_id') or current
+    if not chosen and len(options) == 1:
+        chosen = options[0]
+    if not chosen:
+        raise MessagingError('Vui lòng chọn phòng ban của mẫu tin.' if options else 'Bạn chưa thuộc phòng ban nào nên chưa tạo được mẫu tin.')
+    chosen = _int(chosen, 'phòng ban')
+    if chosen not in options:
+        raise MessagingError('Bạn không thuộc phòng ban đã chọn.')
+    return chosen
 
 
 @require_GET
@@ -54,7 +74,8 @@ def template_list(request):
     sendable_only = request.GET.get('active') == '1'
     actor = _actor(request)
     return JsonResponse(
-        {'data': [_with_review(t, actor) for t in templates.list_templates(owner, sendable_only) if t['owner'] in actor.owners], 'defaults': templates.DEFAULT_VARIABLES, 'default_content': templates.DEFAULT_CONTENT}
+        {'data': [_with_review(t, actor) for t in templates.list_templates(owner, sendable_only) if t['owner'] in actor.owners and actor.in_department(t['department_id'])],
+         'departments': department_options(request.user), 'defaults': templates.DEFAULT_VARIABLES, 'default_content': templates.DEFAULT_CONTENT}
     )
 
 
@@ -75,9 +96,9 @@ def template_export(request):
     approval = request.GET.get('approval', '')
     query = normalize_key(request.GET.get('q', ''))
     rows = []
-    owners = _actor(request).owners
+    actor = _actor(request)
     for t in templates.list_templates(owner if owner in OWNERS else None):
-        if t['owner'] not in owners:
+        if t['owner'] not in actor.owners or not actor.in_department(t['department_id']):
             continue
         if status in ('0', '1') and t['is_active'] != (status == '1'):
             continue
@@ -94,10 +115,12 @@ def template_export(request):
                 'updated_vn': _vn_time(t['updated_at']),
             }
         )
+    audit.log('template.export', request.user.get_username(), 'template', None, f'{len(rows)} mẫu')
     columns = [
         ExcelColumn('zns_code', 'Mã', 14),
         ExcelColumn('name', 'Tên', 32),
         ExcelColumn('owner', 'Chủ hàng', 10),
+        ExcelColumn('department_name', 'Phòng ban', 14),
         ExcelColumn('variable_count', 'Số biến', 9),
         ExcelColumn('message_count', 'Số lượng', 10),
         ExcelColumn('batch_count', 'Số lô gửi', 10),
@@ -117,12 +140,14 @@ def template_import(request):
     upload = request.FILES.get('file')
     if not upload:
         raise MessagingError('Vui lòng chọn file Excel.')
-    return JsonResponse(importer.parse_template_workbook(upload))
+    parsed = importer.parse_template_workbook(upload)
+    audit.log('template.import', request.user.get_username(), 'template', parsed.get('zns_code'), f'{upload.name} · {len(parsed["variables"])} biến')
+    return JsonResponse(parsed)
 
 
 def _template_payload(request, template_id: int) -> dict:
     template = templates.get_template(template_id)
-    _check_owner(request, template['owner'])
+    _check_template_scope(request, template)
     return _with_review(template, _actor(request))
 
 
@@ -137,8 +162,12 @@ def template_detail(request, template_id: int):
 def template_save(request):
     payload = json_body(request)
     _check_owner(request, payload.get('owner'))
+    current = None
     if payload.get('id'):
-        _check_owner(request, templates.get_template(int(payload['id']))['owner'])
+        existing = templates.get_template(_int(payload['id'], 'mẫu tin'))
+        _check_template_scope(request, existing)
+        current = existing['department_id']
+    payload['department_id'] = _chosen_department(request, payload, current)
     template_id = templates.save_template(payload, request.user.get_username())
     return JsonResponse(_template_payload(request, template_id))
 
@@ -160,15 +189,23 @@ def template_reject(request, template_id: int):
 @require_POST
 @api_view
 def template_active(request, template_id: int):
-    _check_owner(request, templates.get_template(template_id)['owner'])
+    _check_template_scope(request, templates.get_template(template_id))
     templates.set_active(template_id, bool(json_body(request).get('active')), request.user.get_username())
+    return JsonResponse({'ok': True})
+
+
+@require_POST
+@api_view
+def template_delete(request, template_id: int):
+    _check_template_scope(request, templates.get_template(template_id))
+    templates.delete_template(template_id, request.user.get_username())
     return JsonResponse({'ok': True})
 
 
 @require_GET
 @api_view
 def template_sample(request):
-    return workbook_response(*sample_file.template_sample_workbook())
+    return workbook_response(*sample_file.template_sample_workbook([d['name'] for d in department_options(request.user)]))
 
 
 @require_GET
@@ -185,6 +222,7 @@ def send_upload(request):
         raise MessagingError('Vui lòng chọn file Excel.')
     parsed = sending.parse_workbook(upload)
     batch_id = sending.create_draft(parsed, upload.name, request.user.get_username())
+    audit.log('zns.upload', request.user.get_username(), 'batch', batch_id, f'{upload.name} · {len(parsed["rows"])} dòng')
     return JsonResponse(
         {
             'batch_id': batch_id,
@@ -313,3 +351,35 @@ def batch_export(request, batch_id: int):
         ExcelColumn('content', 'Nội dung', 80),
     ]
     return excel_response([ExcelSheet('Danh sách gửi', columns, recipients)], f'lo_gui_{batch["id"]}_{status + "_" if status else ""}{batch["zns_code"] or ""}.xlsx')
+
+
+@require_GET
+def log_page(request):
+    return render(request, 'messaging/logs.html', {'departments': department_options(request.user)})
+
+
+@require_GET
+@api_view
+def log_list(request):
+    params = table_params(request)
+    total, data = logs.list_logs(request.GET, _actor(request), params['start'], params['length'])
+    return JsonResponse({'draw': params['draw'], 'recordsTotal': total, 'recordsFiltered': total, 'data': data})
+
+
+@require_GET
+@api_view
+def log_export(request):
+    _, data = logs.list_logs(request.GET, _actor(request), 0, EXPORT_MAX_ROWS)
+    audit.log('zns.log_export', request.user.get_username(), None, None, f'{len(data)} dòng')
+    for r in data:
+        r['created_vn'] = _vn_time(r['created_at'])
+    columns = [
+        ExcelColumn('created_vn', 'Thời gian', 18),
+        ExcelColumn('actor', 'Người thực hiện', 18),
+        ExcelColumn('action_label', 'Thao tác', 28),
+        ExcelColumn('target_label', 'Đối tượng', 16),
+        ExcelColumn('department_name', 'Phòng ban', 14),
+        ExcelColumn('detail', 'Chi tiết', 80),
+        ExcelColumn('ip_address', 'IP', 16),
+    ]
+    return excel_response([ExcelSheet('Nhật ký', columns, data)], 'nhat_ky_chien_dich.xlsx')

@@ -93,10 +93,9 @@ function formatUtcDateTime(value) {
   return formatDateTime(/[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`);
 }
 
-// Giờ trước ngày, không có giây: 16:00 03/11/2026.
-function formatUtcTimeFirst(value) {
-  const [day, time] = formatUtcDateTime(value).split(" ");
-  return time ? `${time.slice(0, 5)} ${day}` : day;
+// Chỉ ngày: 03/11/2026.
+function formatUtcDate(value) {
+  return formatUtcDateTime(value).split(" ")[0];
 }
 
 function normalizeSearchText(value) {

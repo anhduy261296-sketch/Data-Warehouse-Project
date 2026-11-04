@@ -66,6 +66,7 @@ MENU: tuple[MenuGroup, ...] = (
         (
             MenuItem('Mẫu tin nhắn', 'zns-templates', active_for=('zns-template-new', 'zns-template-edit')),
             MenuItem('Danh sách gửi tin', 'zns-send'),
+            MenuItem('Nhật ký', 'zns-logs'),
         ),
     ),
     MenuGroup('config', 'Cấu hình', 'fa-cog', 'collapseConfig', (MenuItem('Phân quyền', 'config-page'),)),

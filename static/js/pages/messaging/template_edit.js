@@ -42,28 +42,17 @@
     });
   }
 
-  const DATE_PART = /\d{2}\/\d{2}\/\d{4}/;
-  const TIME_PART = /\d{1,2}:\d{2}/;
+  const sampleValue = (v) => defaultSamples[v.name] || v.label || v.name;
 
-  function sampleValue(v) {
-    const base = defaultSamples[v.name] || "";
-    const day = (DATE_PART.exec(base) || [new Date().toLocaleDateString("en-GB")])[0];
-    if (v.data_type === "date") return day;
-    if (v.data_type === "datetime") return `${(TIME_PART.exec(base) || ["22:00"])[0]} ${day}`;
-    if (base) return base;
-    if (v.data_type === "number") return "50.000";
-    return v.label || v.name;
-  }
-
-  const VALUE_PLACEHOLDERS = { text: "Nhập dữ liệu", number: "50000", date: "dd/mm/yyyy", datetime: "hh:mm dd/mm/yyyy" };
+  const perCustomer = (v) => v.source === "customer";
 
   function valuePlaceholder(v) {
     const hint = defaultSamples[v.name];
-    return hint || VALUE_PLACEHOLDERS[v.data_type];
+    return `${hint ? `vd: ${hint} · ` : ""}để trống = nhập khi gửi`;
   }
 
   function renderSamples() {
-    const active = vars.filter((v) => v.is_active && v.name && v.source === "customer");
+    const active = vars.filter((v) => v.is_active && v.name && perCustomer(v));
     active.forEach((v) => {
       if (!(v.name in samples)) samples[v.name] = sampleValue(v);
     });
@@ -71,9 +60,9 @@
     const html = active
       .map(
         (v) => `<label class="zns-sample">
-          <span><code>&lt;${escapeHtml(v.name)}&gt;</code>${v.source === "customer" ? '<i class="fas fa-user ml-1" title="Theo từng khách hàng"></i>' : ""}</span>
+          <span><code>&lt;${escapeHtml(v.name)}&gt;</code><i class="fas fa-user ml-1" title="Theo từng khách hàng"></i></span>
           <input type="text" class="form-control form-control-sm" data-sample="${escapeHtml(v.name)}" value="${escapeHtml(samples[v.name])}"
-            placeholder="${APP.ZNS.TYPES[v.data_type]}" /></label>`,
+            placeholder="Giá trị thử" /></label>`,
       )
       .join("");
     if ($("#znsSamples").data("html") !== html.replace(/value="[^"]*"/g, "")) {
@@ -111,8 +100,8 @@
     renderSamples();
     const values = {};
     const activeVars = vars.filter((v) => v.is_active && v.name);
-    activeVars.forEach((v) => (values[v.name] = (v.source === "customer" ? samples[v.name] : v.default_value) || ""));
-    const sampleVars = activeVars.filter((v) => v.source === "customer");
+    activeVars.forEach((v) => (values[v.name] = (perCustomer(v) ? samples[v.name] : v.default_value) || ""));
+    const sampleVars = activeVars.filter(perCustomer);
     $("#znsSampleReset").prop("disabled", !sampleVars.some((v) => samples[v.name] !== sampleValue(v)));
     const content = $("#znsContent").val();
     $("#znsPreview").html(
@@ -131,12 +120,10 @@
     );
     const unknown = used.filter((n) => !names.includes(n));
     const unused = names.filter((n) => !used.includes(n));
-    const missingData = vars
-      .filter((v) => v.is_active && v.name && v.source === "fixed" && v.is_required && !(v.default_value || "").trim())
-      .map((v) => v.name);
-    const requiredUnused = vars.filter((v) => v.is_active && v.name && v.is_required && !used.includes(v.name)).map((v) => v.name);
+    const tags = (list) => escapeHtml(list.map((n) => `<${n}>`).join(", "));
+    const askNames = activeVars.filter((v) => !perCustomer(v) && !String(v.default_value || "").trim()).map((v) => v.name);
     const checks = [
-      [Boolean($("#znsName").val().trim() && $("#znsCode").val().trim() && owner), "Đủ tên, mã template và chủ hàng"],
+      [Boolean($("#znsName").val().trim() && $("#znsCode").val().trim() && owner && $("#znsDepartment").val()), "Đủ tên, mã template, phòng ban và chủ hàng"],
       [Boolean(content.trim()), "Có nội dung tin nhắn"],
       [
         !unknown.length,
@@ -150,14 +137,9 @@
             `<div class="${ok ? "is-ok" : "is-bad"}"><i class="fas ${ok ? "fa-check-circle" : "fa-times-circle"} mr-1"></i>${escapeHtml(text)}</div>`,
         )
         .join("") +
-        (missingData.length
-          ? `<div class="is-warn"><i class="fas fa-exclamation-triangle mr-1"></i>Biến bắt buộc chưa có dữ liệu: ${escapeHtml(missingData.map((n) => `<${n}>`).join(", "))} - chưa gửi được</div>`
-          : "") +
-        (requiredUnused.length
-          ? `<div class="is-warn"><i class="fas fa-exclamation-triangle mr-1"></i>Biến bắt buộc nhưng chưa dùng trong nội dung: ${escapeHtml(requiredUnused.map((n) => `<${n}>`).join(", "))} - khi gửi vẫn phải có giá trị</div>`
-          : "") +
+        (askNames.length ? `<div class="is-info"><i class="fas fa-info-circle mr-1"></i>Chưa có dữ liệu, phải nhập khi gửi: ${tags(askNames)}</div>` : "") +
         (unused.length
-          ? `<div class="is-info"><i class="fas fa-info-circle mr-1"></i>Biến chưa dùng trong nội dung: ${escapeHtml(unused.map((n) => `<${n}>`).join(", "))}</div>`
+          ? `<div class="is-warn"><i class="fas fa-exclamation-triangle mr-1"></i>Chưa có trong nội dung: ${tags(unused)} - vẫn gửi cho Incom và phải có dữ liệu, không dùng thì xóa</div>`
           : ""),
     );
     renderHeader();
@@ -183,13 +165,12 @@
     if (!vars.length) $vars.html('<div class="zns-empty">Chưa có biến nào. Bấm "Thêm biến" để bắt đầu.</div>');
     vars.forEach((v, i) => {
       const node = tpl.content.firstElementChild.cloneNode(true);
-      const $card = $(node).attr("data-index", i).toggleClass("is-off", !v.is_active);
+      const $card = $(node).attr("data-index", i).toggleClass("is-off", !v.is_active).toggleClass("is-customer", perCustomer(v));
       const saved = Boolean(v.id);
       $card
         .find("[data-field=name]")
         .val(v.name)
         .prop("readonly", saved || readOnly);
-      $card.toggleClass("is-customer", v.source === "customer");
       $card
         .find("[data-field=default_value]")
         .val(v.default_value || "")
@@ -197,22 +178,8 @@
         .prop("readonly", readOnly)
         .prop("disabled", !v.is_active);
       $card
-        .find("[data-field=data_type]")
-        .html(
-          Object.entries(APP.ZNS.TYPES)
-            .map(([k, l]) => `<option value="${k}">${l}</option>`)
-            .join(""),
-        )
-        .val(v.data_type)
-        .prop("disabled", readOnly || !v.is_active)
-        .attr("title", !v.is_active ? "Biến đang ngừng dùng" : "");
-      $card
-        .find("[data-field=is_required]")
-        .prop("checked", v.is_required)
-        .prop("disabled", readOnly || !v.is_active);
-      $card
         .find("[data-field=per_customer]")
-        .prop("checked", v.source === "customer")
+        .prop("checked", perCustomer(v))
         .prop("disabled", readOnly || !v.is_active);
       $card
         .find(".zns-var-action")
@@ -254,7 +221,7 @@
 
   const codeIsLocked = () => Boolean(template && template.code_locked);
 
-  function fill(t, defaults, defaultContent) {
+  function fill(t, defaults, defaultContent, departments) {
     template = t;
     renderApproval();
     samples = {};
@@ -262,6 +229,13 @@
     (defaults || []).forEach((v) => (defaultSamples[v.name] = v.sample));
     vars = t ? t.variables.map((v) => Object.assign({}, v)) : defaults.map((v) => Object.assign({ is_active: true }, v));
     owner = t ? t.owner : "";
+    const chosen = t && t.department_id ? t.department_id : departments.length === 1 ? departments[0].id : "";
+    $("#znsDepartment")
+      .html(
+        `<option value="">Chọn phòng ban</option>${departments.map((d) => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join("")}`,
+      )
+      .val(String(chosen))
+      .prop("disabled", readOnly);
     $("#znsName").val(t ? t.name : "");
     $("#znsCode").val(t ? t.zns_code : "");
     $("#znsContent").val(t ? t.content : defaultContent || "");
@@ -278,7 +252,7 @@
     $("#znsChanges").html(
       changes
         .map(
-          (c) => `<li><span class="zns-change-time">${formatUtcTimeFirst(c.changed_at)}</span> · <b>${escapeHtml(c.changed_by || "")}</b>
+          (c) => `<li><span class="zns-change-time">${formatUtcDate(c.changed_at)}</span> · <b>${escapeHtml(c.changed_by || "")}</b>
           ${c.variable ? `<code>&lt;${escapeHtml(c.variable)}&gt;</code>` : ""} ${escapeHtml(c.detail || c.action)}</li>`,
         )
         .join(""),
@@ -299,7 +273,12 @@
       data.zns_code && !codeIsLocked() ? `Mã: <b>${escapeHtml(data.zns_code)}</b>` : "",
       data.name && !$("#znsName").val().trim() ? `Tên: <b>${escapeHtml(data.name)}</b>` : "",
       data.owner ? `Chủ hàng: <b>${escapeHtml(data.owner)}</b>` : "",
-      data.content ? "Nội dung tin nhắn: <b>thay bằng nội dung trong file</b> (biến có trong nội dung sẽ là bắt buộc)" : "",
+      data.department
+        ? departmentValue(data.department)
+          ? `Phòng ban: <b>${escapeHtml($(`#znsDepartment option[value="${departmentValue(data.department)}"]`).text())}</b>`
+          : `Phòng ban <b>${escapeHtml(data.department)}</b> không có hoặc bạn không thuộc phòng này: vui lòng chọn lại sau khi điền.`
+        : "",
+      data.content ? "Nội dung tin nhắn: <b>thay bằng nội dung trong file</b>" : "",
       added.length ? `Thêm <b>${added.length}</b> biến: ${varList(added)}` : "",
       updated.length ? `Cập nhật <b>${updated.length}</b> biến đã có` : "",
       removed.length ? `Bỏ <b>${removed.length}</b> biến không có trong file: ${varList(removed)}` : "",
@@ -318,6 +297,12 @@
     }).then((ok) => ok && applyImport(data, byName, added, updated, removed));
   }
 
+  function departmentValue(name) {
+    const wanted = normalizeSearchText(String(name || "").trim());
+    const option = wanted && $("#znsDepartment option").filter((i, o) => o.value && normalizeSearchText(o.textContent) === wanted)[0];
+    return option ? option.value : "";
+  }
+
   function applyImport(data, byName, added, updated, removed) {
     if (data.zns_code && !codeIsLocked()) $("#znsCode").val(data.zns_code);
     if (data.name && !$("#znsName").val().trim()) $("#znsName").val(data.name);
@@ -326,12 +311,12 @@
       owner = data.owner;
       setSegment($("#znsOwner"), owner);
     }
+    if (departmentValue(data.department)) $("#znsDepartment").val(departmentValue(data.department));
     updated.forEach((iv) => {
       const v = byName.get(iv.name);
       v.data_type = iv.data_type;
       v.source = iv.source;
-      if (iv.source === "fixed") v.default_value = iv.default_value || "";
-      if (iv.is_required !== null) v.is_required = iv.is_required;
+      v.default_value = iv.default_value || "";
       v.is_active = true;
       delete samples[v.name];
     });
@@ -342,22 +327,12 @@
         label: iv.label,
         data_type: iv.data_type,
         source: iv.source,
-        is_required: Boolean(iv.is_required),
         is_active: true,
         default_value: iv.default_value || "",
       }),
     );
     const order = new Map(data.variables.map((iv, i) => [iv.name, i]));
     vars.sort((a, b) => (order.has(a.name) ? order.get(a.name) : Infinity) - (order.has(b.name) ? order.get(b.name) : Infinity));
-    if (data.content) {
-      // File không có cột Bắt buộc: biến có trong nội dung là bắt buộc, không dùng thì bỏ bắt buộc.
-      const used = ZnsUi.placeholders(data.content);
-      const fromFile = new Map(data.variables.map((iv) => [iv.name, iv]));
-      vars.forEach((v) => {
-        const iv = fromFile.get(v.name);
-        if (v.is_active !== false && (!iv || iv.is_required === null)) v.is_required = used.includes(v.name);
-      });
-    }
     markDirty();
     renderVariables();
     Toast.success(`Đã điền dữ liệu từ file: ${added.length} biến mới, ${updated.length} biến cập nhật, ${removed.length} biến bỏ.`, {
@@ -366,7 +341,7 @@
   }
 
   function addVariable() {
-    vars.push({ name: "", label: null, data_type: "text", source: "fixed", is_required: false, is_active: true, default_value: "" });
+    vars.push({ name: "", label: null, data_type: "text", source: "fixed", is_active: true, default_value: "" });
     markDirty();
     renderVariables();
     $vars.find(".zns-var-card:last input[data-field=name]").trigger("focus");
@@ -407,17 +382,6 @@
       showError(`Biến thứ ${index + 1}: ${text}.`);
       return false;
     }
-    // Biến cố định chỉ bắt nhập dữ liệu khi tick "Bắt buộc".
-    const empty = vars.findIndex(
-      (v) => v.is_active !== false && v.is_required && v.source === "fixed" && !String(v.default_value || "").trim(),
-    );
-    if (empty >= 0) {
-      markInvalid(empty, "Nhập dữ liệu cho biến", "default_value");
-      showError(
-        `Biến "${vars[empty].name}": bắt buộc nhưng chưa nhập dữ liệu (bỏ tick "Bắt buộc", hoặc tick "Theo KH" nếu mỗi khách một giá trị).`,
-      );
-      return false;
-    }
     return true;
   }
 
@@ -428,15 +392,15 @@
       name: $("#znsName").val(),
       zns_code: $("#znsCode").val(),
       owner,
+      department_id: Number($("#znsDepartment").val()) || null,
       content: $("#znsContent").val(),
       is_active: template ? template.is_active : newActive,
-      variables: vars.map(({ id, name, label, data_type, source, is_required, is_active, default_value }) => ({
+      variables: vars.map(({ id, name, label, data_type, source, is_active, default_value }) => ({
         id,
         name: (name || "").trim(),
         label,
         data_type,
         source,
-        is_required,
         is_active,
         default_value: source === "fixed" ? default_value || "" : null,
       })),
@@ -492,7 +456,7 @@
     });
   }
 
-  $vars.on("input change", "input[data-field], select[data-field]", function () {
+  $vars.on("input change", "input[data-field]", function () {
     const v = vars[$(this).closest(".zns-var-card").data("index")];
     const field = this.dataset.field;
     if (field === "name" || field === "default_value") {
@@ -502,15 +466,11 @@
       const clean = this.value.toLowerCase().replace(/[^a-z0-9_]/g, "");
       if (clean !== this.value) this.value = clean;
       v.name = clean;
-    } else if (field === "data_type") {
-      v.data_type = this.value;
-      delete samples[v.name];
-      $(this).closest(".zns-var-card").find("[data-field=default_value]").attr("placeholder", valuePlaceholder(v));
     } else if (field === "per_customer") {
       v.source = this.checked ? "customer" : "fixed";
       $(this).closest(".zns-var-card").toggleClass("is-customer", this.checked);
     } else {
-      v[field] = this.type === "checkbox" ? this.checked : this.value;
+      v[field] = this.value;
     }
     markDirty();
     renderPreview();
@@ -624,11 +584,11 @@
   });
 
   if (new URLSearchParams(window.location.search).get("saved")) {
-    Toast.success("Đã tạo mẫu tin và bảng dữ liệu riêng cho mẫu.");
+    Toast.success("Đã tạo mẫu tin.");
     window.history.replaceState(null, "", window.location.pathname);
   }
   const loading = templateId
-    ? $.when(Api.get(EP.template(templateId)), Api.get(EP.templates)).then((t, list) => fill(t[0], list[0].defaults || []))
-    : Api.get(EP.templates).then((res) => fill(null, res.defaults || [], res.default_content));
+    ? $.when(Api.get(EP.template(templateId)), Api.get(EP.templates)).then((t, list) => fill(t[0], list[0].defaults || [], undefined, list[0].departments || []))
+    : Api.get(EP.templates).then((res) => fill(null, res.defaults || [], res.default_content, res.departments || []));
   Loading.wrap(loading, APP.MESSAGES.LOADING_SHORT).catch((x) => Toast.error(Api.errorMessage(x, "Không tải được mẫu tin.")));
 })();

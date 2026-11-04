@@ -21,6 +21,7 @@
   <li data-step="2"><span>2</span> Chọn mẫu tin, xem trước &amp; xác nhận</li>
 </ol>
 
+<div class="zns-send-grid">
 <div class="rpt-card mb-3" id="znsStep1">
   <div class="rpt-card-title"><i class="fas fa-file-upload"></i> Bước 1 · Upload danh sách khách hàng</div>
   <form class="zns-upload-row" id="znsUploadForm">
@@ -34,6 +35,13 @@
     <a class="btn btn-sm btn-outline-secondary" href="{% url 'zns-send-sample' %}" id="znsSample" title="Tải file Excel mẫu danh sách khách hàng"><i class="fas fa-file-download mr-1"></i> File mẫu</a>
     <span class="zns-upload-ok d-none" id="znsUploadResult"><i class="fas fa-check-circle mr-1"></i><b id="znsUploadCount">0</b> khách hàng upload thành công</span>
   </form>
+  <div class="zns-stats" id="znsEvalSummary"></div>
+  <div class="zns-invalid-panel d-none" id="znsInvalidPanel">
+    <div class="zns-invalid-title">Các dòng lỗi <small class="text-muted">(không được gửi)</small> <small class="text-muted" id="znsInvalidNote"></small></div>
+    <div class="zns-invalid-wrap">
+      <table class="table table-sm table-bordered rpt-table zns-invalid-table mb-0"><thead><tr><th class="zns-row-no">Dòng</th><th>Số điện thoại</th><th>Khách hàng</th><th>Lỗi</th></tr></thead><tbody id="znsInvalidRows"></tbody></table>
+    </div>
+  </div>
   {% comment %} <small class="text-muted">File gồm bảng khách hàng (Số điện thoại, Tên khách hàng, ...). Nếu có bảng "Biến cố định | Dữ liệu" hệ thống tự điền giá trị ở bước 2. Tối đa 5.000 khách hàng, 5 MB.</small> {% endcomment %}
 </div>
 
@@ -54,21 +62,24 @@
   </div>
 
   <div class="row d-none" id="znsConfig">
-    <div class="col-xl-7 mb-3">
-      <div class="zns-vars-panel mb-2">
-        <div class="zns-vars-head">
-          <span class="zns-section-label">Dữ liệu biến của mẫu tin</span>
-          <a href="#" class="small" id="znsEditTemplate" target="_blank" rel="noopener" title="Mở mẫu tin ở tab mới, sửa xong bấm ⟳ để tải lại"><i class="fas fa-pen mr-1"></i>Sửa ở mẫu tin</a>
-        </div>
-        <table class="zns-vars-table"><tbody id="znsMapping"></tbody></table>
-      </div>
+    <div class="col-12">
       <div class="alert alert-danger py-2 d-none" id="znsEvalErrors"></div>
       <div class="alert alert-warning py-2 d-none" id="znsEvalWarnings"></div>
     </div>
-    <div class="col-xl-5 mb-3">
+    <div class="col-12 mb-3 d-none" id="znsVarsCol">
+      <div class="zns-vars-panel">
+        <div class="zns-vars-head"><span class="zns-section-label">Dữ liệu biến của mẫu tin</span></div>
+        <table class="zns-vars-table"><tbody id="znsMapping"></tbody></table>
+      </div>
+    </div>
+    <div class="col-12 mb-3" id="znsPreviewCol">
       <div class="zns-vars-panel">
         <div class="zns-vars-head">
           <label for="znsCustomer" class="zns-section-label mb-0">Xem trước tin nhắn <small class="text-muted font-weight-normal">(chỉ khách hợp lệ)</small></label>
+          <span class="zns-vars-links">
+            <a href="#" class="small" id="znsToggleVars">Xem dữ liệu biến</a>
+            <a href="#" class="small" id="znsEditTemplate" target="_blank" rel="noopener" title="Mở mẫu tin ở tab mới, sửa xong bấm ⟳ để tải lại"><i class="fas fa-pen mr-1"></i>Sửa ở mẫu tin</a>
+          </span>
         </div>
         <div class="zns-preview-body">
           <div class="input-group input-group-sm">
@@ -81,10 +92,10 @@
           <small class="text-muted d-block mt-2" id="znsCustomerMeta"></small>
         </div>
       </div>
-      <div class="zns-stats" id="znsEvalSummary"></div>
       <button type="button" class="btn btn-primary btn-block mt-2" id="znsConfirmBtn" disabled><i class="fas fa-paper-plane mr-1"></i> Xác nhận</button>
     </div>
   </div>
+</div>
 </div>
 
 {% endif %}
@@ -119,20 +130,6 @@
     </thead>
     <tbody id="znsHistoryRows"></tbody>
   </table>
-</div>
-
-<div class="modal fade" id="znsInvalidModal" tabindex="-1" role="dialog" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Các dòng lỗi <small class="text-muted">(không được gửi)</small></h5>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
-      </div>
-      <div class="modal-body">
-        <table class="table table-sm table-bordered rpt-table zns-invalid-table mb-0"><thead><tr><th class="zns-row-no">Dòng Excel</th><th>Số điện thoại</th><th>Khách hàng</th><th>Lỗi</th></tr></thead><tbody id="znsInvalidRows"></tbody></table>
-      </div>
-    </div>
-  </div>
 </div>
 
 <div class="modal fade" id="znsBatchModal" tabindex="-1" role="dialog" aria-hidden="true">

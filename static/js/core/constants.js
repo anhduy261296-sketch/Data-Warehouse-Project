@@ -62,8 +62,6 @@ const APP = Object.freeze({
 
   ZNS: Object.freeze({
     OWNERS: Object.freeze(["PGI", "AWG"]),
-    TYPES: Object.freeze({ text: "Văn bản", number: "Số", date: "Ngày", datetime: "Ngày giờ" }),
-    SOURCES: Object.freeze({ customer: "Khách hàng", fixed: "Cố định lô" }),
     STATUS_BADGE: Object.freeze({
       draft: "",
       pending: "is-warn",

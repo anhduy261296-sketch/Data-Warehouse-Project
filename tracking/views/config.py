@@ -14,32 +14,10 @@ from django.views.decorators.http import require_GET, require_POST
 
 from .. import access
 from ..core import audit
+from ..core.audit import ACTION_LABELS, CAMPAIGN_SQL
 from ..core.sql import rows
 from ..messaging.values import MessagingError, iso_utc
 from .common import api_view, json_body, table_params
-
-ACTION_LABELS = {
-    'user.create': 'Tạo người dùng',
-    'user.update': 'Sửa người dùng',
-    'user.password': 'Đổi mật khẩu người dùng',
-    'role.create': 'Tạo nhóm người dùng',
-    'role.update': 'Sửa nhóm người dùng',
-    'role.delete': 'Xóa nhóm người dùng',
-    'template.approve': 'Duyệt mẫu tin',
-    'template.reject': 'Từ chối mẫu tin',
-    'zns.confirm': 'Tạo và gửi lô',
-    'zns.approve': 'Duyệt lô',
-    'zns.reject': 'Từ chối lô',
-    'zns.cancel': 'Hủy lô',
-    'zns.skip': 'Bỏ qua khách lỗi',
-    'zns.retry': 'Gửi lại trên lô',
-    'zns.retry_new': 'Tạo lô gửi lại',
-    'zns.resume': 'Tự chạy tiếp lô',
-    'zns.stale_pause': 'Tạm dừng lô do việc gửi bị ngắt',
-    'zns.export': 'Xuất khách của lô',
-    'zns.export_history': 'Xuất lịch sử lô',
-}
-
 
 def _permissions(codenames: Any) -> list[Permission]:
     wanted = set(codenames or [])
@@ -166,10 +144,12 @@ def user_save(request):
 @require_GET
 @api_view
 def roles(request):
+    departments = access.department_ids()
     data = [
         {
             'id': g.id,
             'name': g.name,
+            'is_department': g.id in departments,
             'perms': [p.codename for p in g.permissions.all() if p.codename in access.ALL_CODENAMES],
             'members': [u.id for u in g.user_set.all()],
         }
@@ -217,7 +197,11 @@ def role_save(request):
         group.name = name
         group.save()
         group.permissions.set([*permissions, *group.permissions.exclude(content_type__app_label=access.APP_LABEL)])
-        detail = ', '.join(sorted(new_codes))
+        is_department = bool(data.get('is_department'))
+        if not is_department and group.id in access.department_ids() and access.department_in_use(group.id):
+            raise MessagingError('Phòng ban này đang có mẫu tin hoặc lô gửi nên không bỏ đánh dấu được.')
+        access.set_department(group.id, is_department)
+        detail = f'{"Phòng ban; " if is_department else ""}{", ".join(sorted(new_codes))}'
         if data.get('members') is not None:
             detail = f'{_set_members(request.user, group, data["members"], new_codes)}; quyền: {detail}'
         audit.log('role.update' if role_id else 'role.create', request.user.get_username(), 'role', name, detail)
@@ -233,6 +217,9 @@ def role_delete(request, role_id: int):
             raise MessagingError('Không tìm thấy nhóm.')
         if group.user_set.exists():
             raise MessagingError('Nhóm đang có người dùng, hãy gỡ họ ra trước khi xóa.')
+        if access.department_in_use(group.id):
+            raise MessagingError('Phòng ban này đang có mẫu tin hoặc lô gửi nên không xóa được.')
+        access.set_department(group.id, False)
         audit.log('role.delete', request.user.get_username(), 'role', group.name)
         group.delete()
     return JsonResponse({'ok': True})
@@ -243,12 +230,12 @@ def role_delete(request, role_id: int):
 def audit_list(request):
     params = table_params(request)
     with connection.cursor() as cursor:
-        cursor.execute('SELECT COUNT(*) FROM dbo.AppAuditLog')
+        cursor.execute(f'SELECT COUNT(*) FROM dbo.AppAuditLog a WHERE NOT {CAMPAIGN_SQL}')
         total = cursor.fetchone()[0]
         cursor.execute(
-            """
-            SELECT Id AS id, Action AS action, Actor AS actor, TargetType AS target_type, TargetId AS target_id, Detail AS detail, CreatedAt AS created_at
-            FROM dbo.AppAuditLog ORDER BY Id DESC OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
+            f"""
+            SELECT a.Id AS id, a.Action AS action, a.Actor AS actor, a.TargetType AS target_type, a.TargetId AS target_id, a.Detail AS detail, a.IpAddress AS ip_address, a.CreatedAt AS created_at
+            FROM dbo.AppAuditLog a WHERE NOT {CAMPAIGN_SQL} ORDER BY a.Id DESC OFFSET %s ROWS FETCH NEXT %s ROWS ONLY
             """,
             [params['start'], params['length']],
         )

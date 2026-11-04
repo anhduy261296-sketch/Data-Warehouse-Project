@@ -5,7 +5,7 @@
 {% block page_css %}<link href="{% static 'css/pages/messaging/messaging.css' %}" rel="stylesheet" />{% endblock %}
 {% block content %}
 {% csrf_token %}
-<div id="znsTemplatesPage" data-can-manage="{{ perms.tracking.zns_templates_manage|yesno:'1,0' }}" data-edit-url="{% url 'zns-template-edit' 0 %}">
+<div id="znsTemplatesPage" data-can-manage="{{ perms.tracking.zns_templates_manage|yesno:'1,0' }}" data-can-delete="{{ perms.tracking.zns_templates_delete|yesno:'1,0' }}" data-edit-url="{% url 'zns-template-edit' 0 %}">
   <div class="zns-page-head">
     <nav aria-label="breadcrumb"><ol class="zns-breadcrumb"><li><a href="{% url 'zns-templates' %}" data-loading>Quản lý chiến dịch</a></li><li class="is-current" aria-current="page">Mẫu tin nhắn</li></ol></nav>
     <div class="zns-head-row">
@@ -77,6 +77,7 @@
             <th>Mã</th>
             <th>Tên</th>
             <th>Chủ hàng</th>
+            <th>Phòng ban</th>
             <th title="Số tin đã đưa vào gửi (khách hợp lệ của các lô đã xác nhận, không tính lô hủy)">Số lượng</th>
             <th>Trạng thái</th>
             <th>Ngày tạo</th>
