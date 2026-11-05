@@ -44,7 +44,7 @@ with DAG(
     dag_id='oms_orders_to_sqlserver_daily',
     description='Full-refresh OMS orders (som-api.smartlogvn.com) into dbo.OMS_ORDERS (SQL Server).',
     start_date=pendulum.datetime(2026, 9, 14, tz=LOCAL_TZ),
-    schedule='0 2 * * *',
+    schedule='15 4 * * *',
     catchup=False,
     max_active_runs=1,
     tags=['oms', 'sqlserver', 'orders'],
