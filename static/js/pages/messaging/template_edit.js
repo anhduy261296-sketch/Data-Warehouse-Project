@@ -544,6 +544,10 @@
     markDirty();
     renderPreview();
   });
+  $("#znsDepartment").on("change", () => {
+    markDirty();
+    renderPreview();
+  });
   $("#znsAddVariable").on("click", addVariable);
   $("#znsImportBtn").on("click", () => $("#znsImportFile").val("").trigger("click"));
   $("#znsImportFile").on("change", function () {
