@@ -55,7 +55,9 @@ def _login_oms() -> str:
         headers={'Content-Type': 'application/x-www-form-urlencoded'},
         timeout=30,
     )
-    response.raise_for_status()
+    if not response.ok:
+        # Body lỗi OAuth (error, error_description) không chứa token, ghi lại để biết vì sao bị từ chối.
+        raise RuntimeError(f'OMS tu choi refresh_token (HTTP {response.status_code}): {response.text[:300]}')
     payload = response.json()
     if payload.get('refresh_token'):
         _save_refresh_token(payload['refresh_token'])
