@@ -10,103 +10,155 @@
   color: #b42318;
   font-size: 0.85rem;
 }
-.ec-stat {
-  --c: #3b6fb6;
-  --g1: #e9f1fc;
-  --g2: #f7faff;
-  background: linear-gradient(135deg, var(--g1) 0%, var(--g2) 100%);
-  border: 1px solid rgba(15, 23, 42, 0.05);
-  padding: 14px 16px 12px;
+.ec-filter-card {
+  padding: 16px 18px;
 }
-.ec-stat-head {
+.ec-filter {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 16px;
+}
+.ec-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ec-filter-field label {
+  margin: 0;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.ec-filter-field .form-control {
+  width: 180px;
+}
+.ec-filter-field input[type="date"] {
+  width: 145px;
+}
+@media (max-width: 991.98px) {
+  .ec-filter-card {
+    padding: 12px 16px 14px;
+  }
+  .ec-filter {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+  }
+  .ec-filter-field .form-control,
+  .ec-filter-field input[type="date"] {
+    width: 100%;
+    min-width: 0; /* tên gian hàng dài không được đẩy ô chọn tràn khung */
+  }
+  .ec-filter .btn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+@media (max-width: 575.98px) {
+  .ec-filter {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.ec-kpi-board {
+  height: auto;
+  padding: 0;
+  overflow: hidden;
+}
+.ec-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border-light);
+}
+@media (max-width: 767.98px) {
+  .ec-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.ec-kpi {
+  padding: 14px 18px;
+  background: linear-gradient(135deg, var(--tone-bg) 0%, var(--tone-bg2) 100%);
   min-width: 0;
 }
-.ec-stat-icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  background: rgba(255, 255, 255, 0.75);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-  color: var(--c);
-  font-size: 0.85rem;
+.ec-kpi--revenue {
+  --tone: #2f8a63;
+  --tone-bg: #e3f6ec;
+  --tone-bg2: #f6fcf9;
 }
-.ec-stat-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: #64748b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.ec-kpi--orders {
+  --tone: #3b6fb6;
+  --tone-bg: #e6effc;
+  --tone-bg2: #f7faff;
 }
-.ec-stat-value {
-  font-size: 1.5rem;
-  font-weight: 500;
-  line-height: 1.2;
-  color: var(--c);
-  white-space: nowrap;
+.ec-kpi--aov {
+  --tone: #7a5bc0;
+  --tone-bg: #f0eafc;
+  --tone-bg2: #faf8ff;
 }
-.ec-stat-sub {
+.ec-kpi--sku {
+  --tone: #5563c1;
+  --tone-bg: #e9ebfc;
+  --tone-bg2: #f8f8ff;
+}
+.ec-kpi--qty {
+  --tone: #3a83b8;
+  --tone-bg: #e5f2fb;
+  --tone-bg2: #f6fafe;
+}
+.ec-kpi--new {
+  --tone: #2b8597;
+  --tone-bg: #e2f5f8;
+  --tone-bg2: #f5fbfc;
+}
+.ec-kpi--processing {
+  --tone: #b7791f;
+  --tone-bg: #fdf1df;
+  --tone-bg2: #fffaf3;
+}
+.ec-kpi--success {
+  --tone: #3f8f4f;
+  --tone-bg: #e8f6e8;
+  --tone-bg2: #f7fcf7;
+}
+.ec-kpi--cancel {
+  --tone: #c0485a;
+  --tone-bg: #fce8eb;
+  --tone-bg2: #fff7f8;
+}
+.ec-kpi--return {
+  --tone: #5b6b82;
+  --tone-bg: #e9eef4;
+  --tone-bg2: #f7f9fb;
+}
+.ec-kpi-label {
   font-size: 0.8rem;
-  color: #64748b;
-  margin-top: 4px;
+  font-weight: 500;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ec-stat--revenue {
-  --c: #2f8a63;
-  --g1: #e3f6ec;
-  --g2: #f6fcf9;
+.ec-kpi-label i {
+  width: 14px;
+  margin-right: 6px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--tone);
 }
-.ec-stat--orders {
-  --c: #3b6fb6;
-  --g1: #e6effc;
-  --g2: #f7faff;
+.ec-kpi-value {
+  margin-top: 2px;
+  font-size: 1.45rem;
+  font-weight: 400;
+  line-height: 1.3;
+  color: var(--tone);
+  white-space: nowrap;
 }
-.ec-stat--new {
-  --c: #2b8597;
-  --g1: #e2f5f8;
-  --g2: #f5fbfc;
-}
-.ec-stat--processing {
-  --c: #b7791f;
-  --g1: #fdf1df;
-  --g2: #fffaf3;
-}
-.ec-stat--success {
-  --c: #3f8f4f;
-  --g1: #e8f6e8;
-  --g2: #f7fcf7;
-}
-.ec-stat--cancel {
-  --c: #c0485a;
-  --g1: #fce8eb;
-  --g2: #fff7f8;
-}
-.ec-stat--aov {
-  --c: #7a5bc0;
-  --g1: #f0eafc;
-  --g2: #faf8ff;
-}
-.ec-stat--sku {
-  --c: #5563c1;
-  --g1: #e9ebfc;
-  --g2: #f8f8ff;
-}
-.ec-stat--qty {
-  --c: #3a83b8;
-  --g1: #e5f2fb;
-  --g2: #f6fafe;
+.ec-kpi-note {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .ec-channels-msg {
   font-size: 0.88rem;
@@ -171,9 +223,6 @@
   font-size: 0.82rem;
 }
 @media (max-width: 575.98px) {
-  .ec-stat-value {
-    font-size: 1.3rem;
-  }
   .ec-orders-tools {
     flex-wrap: wrap;
     width: 100%;

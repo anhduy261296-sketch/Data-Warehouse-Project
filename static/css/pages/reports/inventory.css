@@ -20,6 +20,14 @@
   table-layout: fixed;
   width: 100%;
   min-width: 620px;
+  height: 100%; /* các dòng giãn đều cho cao bằng bảng Top kho bên cạnh */
+}
+#rptTopSku {
+  display: flex;
+  flex-direction: column;
+}
+#rptTopSku .table-responsive {
+  flex: 1 1 auto;
 }
 #rptSkuTable td.rpt-name-cell {
   min-width: 280px;

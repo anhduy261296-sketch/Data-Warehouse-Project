@@ -131,9 +131,7 @@
     return `<tr><td colspan="${cols}" class="text-center text-muted">${APP.MESSAGES.NO_DATA}</td></tr>`;
   }
 
-  const KPI_CARDS = $(".ec-stat")
-    .map((_, el) => `#${el.id}`)
-    .get();
+  const KPI_CARDS = ["#ecKpis"];
   function loadKpi() {
     return area(KPI_CARDS, RPT.kpi, (d) => {
       const set = (key, text) => $(`[data-kpi="${key}"]`).text(text);

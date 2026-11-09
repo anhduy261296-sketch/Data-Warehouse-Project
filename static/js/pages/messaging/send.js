@@ -60,7 +60,7 @@
       });
   }
 
-  const templatePicker = ZnsUi.searchableSelect($("#znsTemplateSelect"), "Tìm theo tên hoặc mã mẫu...");
+  const templatePicker = searchableSelect($("#znsTemplateSelect"), { placeholder: "Tìm theo tên hoặc mã mẫu...", emptyText: "Không có mẫu tin phù hợp" });
 
   function autoSelectTemplate(code) {
     const match = code && state.templates.find((t) => String(t.zns_code) === String(code));

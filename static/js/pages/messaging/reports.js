@@ -4,6 +4,7 @@
   const VOLUME = "#4e73df";
   const $report = $("#znsReport");
   let seq = 0;
+  const templatePicker = searchableSelect($("#znsReportTemplate"), { placeholder: "Tìm theo mã hoặc tên mẫu...", emptyText: "Không có mẫu tin phù hợp", includeEmpty: true });
 
   const setDefaultDates = () => {
     $("#znsReportFrom").val(dayInputValue(APP.DATE_FILTER_MAX_RANGE_DAYS));
@@ -21,20 +22,23 @@
 
   function renderKpis(s) {
     const tiles = [
-      ["fa-layer-group", "Số lô", s.batches || 0, "Lô đã xác nhận gửi"],
-      ["fa-users", "Lượt khách", s.total, `${formatAmount(s.phones)} số điện thoại khác nhau`],
-      ["fa-check-circle", "Incom đã nhận", s.sent, `Tỷ lệ ${rate(s.rate)}`],
-      ["fa-question-circle", "Chưa rõ", s.unknown, "Không biết tin đã đi hay chưa"],
-      ["fa-times-circle", "Thất bại", s.failed, "Incom từ chối hoặc gọi không được"],
-      ["fa-file-excel", "Dòng lỗi dữ liệu", s.invalid, "Không gửi, không tính vào lượt khách"],
+      ["fa-layer-group", "is-brand", "Số lô", s.batches || 0, "Lô đã xác nhận gửi"],
+      ["fa-users", "is-blue", "Lượt khách", s.total, `${formatAmount(s.phones)} số điện thoại khác nhau`],
+      ["fa-check", "is-green", "Incom đã nhận", s.sent, `Tỷ lệ ${rate(s.rate)}`],
+      ["fa-question", "is-amber", "Chưa rõ", s.unknown, "Không biết tin đã đi hay chưa"],
+      ["fa-times", "is-red", "Thất bại", s.failed, "Incom từ chối hoặc gọi không được"],
+      ["fa-file-excel", "is-gray", "Dòng lỗi dữ liệu", s.invalid, "Không gửi, không tính vào lượt khách"],
     ];
     $("#znsReportKpis").html(
       tiles
         .map(
-          ([icon, label, value, note]) => `<div class="rpt-card zns-report-kpi">
-            <div class="zns-report-kpi-label"><i class="fas ${icon} mr-1"></i>${label}</div>
-            <div class="zns-report-kpi-value">${formatAmount(value)}</div>
-            <div class="zns-report-kpi-note">${escapeHtml(note)}</div>
+          ([icon, tone, label, value, note]) => `<div class="rpt-card rpt-tile ${tone}">
+            <div class="rpt-tile-icon"><i class="fas ${icon}"></i></div>
+            <div class="rpt-tile-text">
+              <div class="rpt-tile-label">${label}</div>
+              <div class="rpt-tile-note">${escapeHtml(note)}</div>
+            </div>
+            <div class="rpt-tile-value">${formatAmount(value)}</div>
           </div>`,
         )
         .join(""),
@@ -154,6 +158,7 @@
   $("#znsReportReload").on("click", load);
   $("#znsReportReset").on("click", () => {
     $("#znsReportOwner, #znsReportDepartment, #znsReportTemplate").val("");
+    templatePicker.refresh();
     setDefaultDates();
     load();
   });

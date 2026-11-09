@@ -1175,19 +1175,9 @@ textarea.zns-input {
 }
 
 /* Xuất Excel (xanh Excel) và Nhập từ Excel (xanh ngọc) tách màu để dễ phân biệt */
-.zns-btn-export,
 .zns-btn-import {
   background: #fff;
   font-weight: 500;
-}
-.zns-btn-export {
-  color: #17693b;
-  border-color: #17693b;
-}
-.zns-btn-export:hover,
-.zns-btn-export:focus {
-  color: #fff;
-  background: #17693b;
 }
 .zns-btn-import {
   color: #0b6e78;
@@ -1252,28 +1242,8 @@ textarea.zns-input {
 .zns-report.is-busy {
   opacity: 0.55;
 }
-.zns-report-kpis {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-}
-.zns-report-kpi {
-  margin: 0;
-}
-.zns-report-kpi-label {
-  font-size: 0.8rem;
-  color: #5a5f6b;
-}
-.zns-report-kpi-value {
-  font-size: 1.5rem;
-  font-weight: 600;
-  line-height: 1.5;
-  color: #1f2937;
-}
-.zns-report-kpi-note {
-  font-size: 0.74rem;
-  color: #8a94a6;
+.zns-report .rpt-card-title {
+  text-transform: uppercase;
 }
 .zns-report-chart {
   height: 230px;
@@ -1593,78 +1563,6 @@ table.dataTable.zns-list-table thead th:first-child {
 .zns-mini-switch:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-.zns-combo {
-  position: relative;
-  flex: 1 1 auto;
-  width: 1%;
-  min-width: 0;
-}
-.zns-combo-btn {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  background: #fff;
-  text-align: left;
-  cursor: pointer;
-}
-.input-group > .zns-combo:not(:last-child) .zns-combo-btn {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-.zns-combo-btn:disabled {
-  background: #f3f4f6;
-  color: #9ca3af;
-  cursor: not-allowed;
-}
-.zns-combo-text {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.zns-combo-btn i {
-  flex: none;
-  font-size: 0.65rem;
-  color: #6b7280;
-}
-.zns-combo-panel {
-  position: absolute;
-  top: calc(100% + 0.25rem);
-  left: 0;
-  z-index: 30;
-  width: 100%;
-  min-width: 16rem;
-  padding: 0.375rem;
-  border: 1px solid #e2e6ec;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 6px 20px rgba(31, 36, 48, 0.14);
-}
-.zns-combo-list {
-  max-height: 15rem;
-  margin: 0.375rem 0 0;
-  padding: 0;
-  overflow-y: auto;
-  list-style: none;
-  font-size: 0.82rem;
-}
-.zns-combo-list li {
-  padding: 0.3rem 0.5rem;
-  border-radius: 5px;
-  cursor: pointer;
-}
-.zns-combo-list li.is-active {
-  background: #eef2f7;
-}
-.zns-combo-list li.is-selected {
-  font-weight: 500;
-  color: var(--pgi-primary);
-}
-.zns-combo-list li.is-empty {
-  color: #9ca3af;
-  cursor: default;
 }
 .zns-row-legend {
   display: inline-flex;

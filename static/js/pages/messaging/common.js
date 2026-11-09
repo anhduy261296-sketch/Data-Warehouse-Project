@@ -45,99 +45,6 @@ const ZnsUi = (function () {
     });
   }
 
-  // Dropdown có ô tìm kiếm cho danh sách dài. Native select vẫn giữ giá trị và phát sự kiện change như cũ.
-  function searchableSelect($select, searchPlaceholder) {
-    const $combo = $(`<div class="zns-combo">
-      <button type="button" class="form-control form-control-sm zns-combo-btn" aria-haspopup="listbox" aria-expanded="false"><span class="zns-combo-text"></span><i class="fas fa-chevron-down" aria-hidden="true"></i></button>
-      <div class="zns-combo-panel d-none">
-        <input type="search" class="form-control form-control-sm zns-combo-search" autocomplete="off" />
-        <ul class="zns-combo-list" role="listbox"></ul>
-      </div>
-    </div>`);
-    $select.addClass("d-none").after($combo);
-    const $btn = $combo.find(".zns-combo-btn");
-    const $panel = $combo.find(".zns-combo-panel");
-    const $search = $combo.find(".zns-combo-search").attr("placeholder", searchPlaceholder);
-    const $list = $combo.find(".zns-combo-list");
-    const isOpen = () => !$panel.hasClass("d-none");
-
-    function refresh() {
-      $btn.find(".zns-combo-text").text($select.find("option:selected").text());
-      $btn.prop("disabled", $select.prop("disabled"));
-      if ($select.prop("disabled")) close();
-    }
-
-    function renderList() {
-      const query = normalizeSearchText($search.val());
-      const items = $select
-        .find("option")
-        .toArray()
-        .filter((o) => o.value && normalizeSearchText(o.text).includes(query));
-      $list.html(
-        items.length
-          ? items
-              .map(
-                (o) =>
-                  `<li role="option" data-value="${escapeHtml(o.value)}" class="${o.value === $select.val() ? "is-selected" : ""}">${escapeHtml(o.text)}</li>`,
-              )
-              .join("")
-          : '<li class="is-empty">Không có mẫu tin phù hợp</li>',
-      );
-      $list.find("li[data-value]").first().addClass("is-active");
-    }
-
-    function open() {
-      $search.val("");
-      renderList();
-      $panel.removeClass("d-none");
-      $btn.attr("aria-expanded", "true");
-      $search.trigger("focus");
-    }
-
-    function close() {
-      $panel.addClass("d-none");
-      $btn.attr("aria-expanded", "false");
-    }
-
-    function choose(value) {
-      close();
-      $select.val(value).trigger("change");
-      refresh();
-      $btn.trigger("focus");
-    }
-
-    function moveActive(step) {
-      const items = $list.find("li[data-value]");
-      if (!items.length) return;
-      const next = (items.index(items.filter(".is-active")) + step + items.length) % items.length;
-      items.removeClass("is-active").eq(next).addClass("is-active")[0].scrollIntoView({ block: "nearest" });
-    }
-
-    $btn.on("click", () => (isOpen() ? close() : open()));
-    $search.on("input", renderList).on("keydown", (e) => {
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        e.preventDefault();
-        moveActive(e.key === "ArrowDown" ? 1 : -1);
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        const active = $list.find("li.is-active");
-        if (active.length) choose(String(active.data("value")));
-      } else if (e.key === "Escape") {
-        close();
-        $btn.trigger("focus");
-      }
-    });
-    $list.on("mousedown", "li[data-value]", function (e) {
-      e.preventDefault();
-      choose(String($(this).data("value")));
-    });
-    $(document).on("mousedown", (e) => {
-      if (isOpen() && !$(e.target).closest($combo).length) close();
-    });
-    refresh();
-    return { refresh };
-  }
-
   function activeBadge(active) {
     return active ? '<span class="zns-state is-on">Hoạt động</span>' : '<span class="zns-state">Ngừng hoạt động</span>';
   }
@@ -197,7 +104,6 @@ const ZnsUi = (function () {
     statusBadge,
     approvalBadge,
     reviewTemplate,
-    searchableSelect,
     activeBadge,
     ownerBadge,
     codeChip,

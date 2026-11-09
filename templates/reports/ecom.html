@@ -6,7 +6,7 @@
 {% block content %}
 <div class="rpt-header">
   <div>
-    <h1 class="rpt-title">Báo cáo hiệu quả kinh doanh E-commerce</h1>
+    <h1 class="rpt-title">Báo cáo E-COM</h1>
     <p class="rpt-subtitle">(nguồn: OMS)</p>
   </div>
   <div class="rpt-header-tools">
@@ -22,103 +22,31 @@
 </div>
 <div class="ec-channels-msg d-none" id="ecChannelsMsg"></div>
 
-<div class="rpt-card mb-3 rpt-filter">
-  <form class="form-row align-items-end" id="ecFilter" autocomplete="off">
-    <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-2">
-      <label for="ecPeriod">Kỳ báo cáo</label>
-      <select class="form-control form-control-sm" id="ecPeriod"></select>
-    </div>
-    <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-2 ec-custom d-none">
-      <label for="ecFrom">Từ ngày</label>
-      <input type="date" class="form-control form-control-sm" id="ecFrom" />
-    </div>
-    <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-2 ec-custom d-none">
-      <label for="ecTo">Đến ngày</label>
-      <input type="date" class="form-control form-control-sm" id="ecTo" />
-    </div>
-    <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-2">
-      <label for="ecChannel">Sàn TMĐT</label>
-      <select class="form-control form-control-sm" id="ecChannel"><option value="">Tất cả</option></select>
-    </div>
-    <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6 mb-2">
-      <label for="ecShop">Gian hàng</label>
-      <select class="form-control form-control-sm" id="ecShop"><option value="">Tất cả</option></select>
-    </div>
-    <div class="col-xl-auto col-12 mb-2 d-flex rpt-actions">
-      <button type="submit" class="btn btn-sm btn-primary flex-fill" id="ecSearch"><i class="fas fa-search mr-1"></i> Xem báo cáo</button>
-    </div>
+<div class="rpt-card mb-3 rpt-filter ec-filter-card">
+  <form class="ec-filter" id="ecFilter" autocomplete="off">
+    <div class="ec-filter-field"><label for="ecPeriod">Kỳ</label><select class="form-control form-control-sm" id="ecPeriod"></select></div>
+    <div class="ec-filter-field ec-custom d-none"><label for="ecFrom">Từ ngày</label><input type="date" class="form-control form-control-sm" id="ecFrom" /></div>
+    <div class="ec-filter-field ec-custom d-none"><label for="ecTo">Đến ngày</label><input type="date" class="form-control form-control-sm" id="ecTo" /></div>
+    <div class="ec-filter-field"><label for="ecChannel">Sàn TMĐT</label><select class="form-control form-control-sm" id="ecChannel"><option value="">Tất cả</option></select></div>
+    <div class="ec-filter-field"><label for="ecShop">Gian hàng</label><select class="form-control form-control-sm" id="ecShop"><option value="">Tất cả</option></select></div>
+    <button type="submit" class="btn btn-sm btn-primary" id="ecSearch"><i class="fas fa-search mr-1"></i> Xem báo cáo</button>
   </form>
   <div class="ec-filter-error d-none" id="ecFilterError"></div>
 </div>
 
 
-<div class="row rpt-row">
-  <div class="col-md-6 mb-3">
-    <div class="rpt-card ec-stat ec-stat--revenue" id="ecKpiRevenue"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
-      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="fas fa-money-bill-wave"></i></span><span class="ec-stat-label">Tổng doanh thu</span></div>
-      <div class="ec-stat-value" data-kpi="revenue_short">—</div>
-      <div class="ec-stat-sub"><span data-kpi="revenue">—</span> đ · giá niêm yết × SL, không gồm đơn hủy, chưa trừ hàng trả</div>
-    </div>
-  </div>
-  <div class="col-md-6 mb-3">
-    <div class="rpt-card ec-stat ec-stat--orders" id="ecKpiOrders"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
-      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="fas fa-shopping-bag"></i></span><span class="ec-stat-label">Tổng số lượng đơn hàng</span></div>
-      <div class="ec-stat-value" data-kpi="total_orders">—</div>
-      <div class="ec-stat-sub">Trả hàng: <span data-kpi="return_orders">—</span> đơn (<span data-kpi="return_rate">—</span>)</div>
-    </div>
-  </div>
-</div>
-<div class="row rpt-row">
-  <div class="col-xl-3 col-md-6 mb-3">
-    <div class="rpt-card ec-stat ec-stat--new" id="ecKpiNew"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
-      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="fas fa-box-open"></i></span><span class="ec-stat-label">Thêm mới</span></div>
-      <div class="ec-stat-value" data-kpi="new_orders">—</div>
-      <div class="ec-stat-sub"><span data-kpi="new_rate">—</span></div>
-    </div>
-  </div>
-  <div class="col-xl-3 col-md-6 mb-3">
-    <div class="rpt-card ec-stat ec-stat--processing" id="ecKpiProcessing"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
-      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="far fa-clock"></i></span><span class="ec-stat-label">Đang xử lý</span></div>
-      <div class="ec-stat-value" data-kpi="processing_orders">—</div>
-      <div class="ec-stat-sub"><span data-kpi="processing_rate">—</span></div>
-    </div>
-  </div>
-  <div class="col-xl-3 col-md-6 mb-3">
-    <div class="rpt-card ec-stat ec-stat--success" id="ecKpiSuccess"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
-      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="far fa-check-circle"></i></span><span class="ec-stat-label">Hoàn thành</span></div>
-      <div class="ec-stat-value" data-kpi="success_orders">—</div>
-      <div class="ec-stat-sub"><span data-kpi="success_rate">—</span></div>
-    </div>
-  </div>
-  <div class="col-xl-3 col-md-6 mb-3">
-    <div class="rpt-card ec-stat ec-stat--cancel" id="ecKpiCancel"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
-      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="far fa-times-circle"></i></span><span class="ec-stat-label">Hủy</span></div>
-      <div class="ec-stat-value" data-kpi="cancel_orders">—</div>
-      <div class="ec-stat-sub"><span data-kpi="cancel_rate">—</span></div>
-    </div>
-  </div>
-</div>
-<div class="row rpt-row">
-  <div class="col-md-4 mb-3">
-    <div class="rpt-card ec-stat ec-stat--aov" id="ecKpiAov"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
-      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="fas fa-chart-line"></i></span><span class="ec-stat-label">Giá trị đơn hàng TRUNG BÌNH</span></div>
-      <div class="ec-stat-value" data-kpi="avg_order_value">—</div>
-      <div class="ec-stat-sub">Doanh thu / tổng số đơn</div>
-    </div>
-  </div>
-  <div class="col-md-4 mb-3">
-    <div class="rpt-card ec-stat ec-stat--sku" id="ecKpiSku"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
-      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="fas fa-layer-group"></i></span><span class="ec-stat-label">SỐ LƯỢNG SKU TRUNG BÌNH / đơn</span></div>
-      <div class="ec-stat-value" data-kpi="avg_sku_per_order">—</div>
-      <div class="ec-stat-sub">Số mã hàng khác nhau mỗi đơn (tính cả quà KM)</div>
-    </div>
-  </div>
-  <div class="col-md-4 mb-3">
-    <div class="rpt-card ec-stat ec-stat--qty" id="ecKpiQty"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
-      <div class="ec-stat-head"><span class="ec-stat-icon"><i class="fas fa-boxes"></i></span><span class="ec-stat-label">Số lượng TRUNG BÌNH sản phẩm / đơn</span></div>
-      <div class="ec-stat-value" data-kpi="avg_qty_per_order">—</div>
-      <div class="ec-stat-sub">Số sản phẩm mỗi đơn (tính cả quà KM)</div>
-    </div>
+<div class="rpt-card ec-kpi-board mb-3" id="ecKpis"><div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+  <div class="ec-kpi-grid">
+    <div class="ec-kpi ec-kpi--revenue" title="Giá niêm yết × SL, không gồm đơn hủy, chưa trừ hàng trả"><div class="ec-kpi-label"><i class="fas fa-money-bill-wave"></i>Tổng doanh thu</div><div class="ec-kpi-value" data-kpi="revenue_short">—</div><div class="ec-kpi-note"><span data-kpi="revenue">—</span> đ</div></div>
+    <div class="ec-kpi ec-kpi--orders"><div class="ec-kpi-label"><i class="fas fa-shopping-bag"></i>Tổng đơn hàng</div><div class="ec-kpi-value" data-kpi="total_orders">—</div><div class="ec-kpi-note">Đơn bán trong kỳ</div></div>
+    <div class="ec-kpi ec-kpi--aov"><div class="ec-kpi-label"><i class="fas fa-chart-line"></i>Giá trị TB / đơn</div><div class="ec-kpi-value" data-kpi="avg_order_value">—</div><div class="ec-kpi-note">Doanh thu / tổng đơn</div></div>
+    <div class="ec-kpi ec-kpi--sku"><div class="ec-kpi-label"><i class="fas fa-layer-group"></i>SKU TB / đơn</div><div class="ec-kpi-value" data-kpi="avg_sku_per_order">—</div><div class="ec-kpi-note">Mã khác nhau, gồm quà KM</div></div>
+    <div class="ec-kpi ec-kpi--qty"><div class="ec-kpi-label"><i class="fas fa-boxes"></i>Sản phẩm TB / đơn</div><div class="ec-kpi-value" data-kpi="avg_qty_per_order">—</div><div class="ec-kpi-note">Số lượng, gồm quà KM</div></div>
+    <div class="ec-kpi ec-kpi--new"><div class="ec-kpi-label"><i class="fas fa-box-open"></i>Thêm mới</div><div class="ec-kpi-value" data-kpi="new_orders">—</div><div class="ec-kpi-note"><span data-kpi="new_rate">—</span> tổng đơn</div></div>
+    <div class="ec-kpi ec-kpi--processing"><div class="ec-kpi-label"><i class="far fa-clock"></i>Đang xử lý</div><div class="ec-kpi-value" data-kpi="processing_orders">—</div><div class="ec-kpi-note"><span data-kpi="processing_rate">—</span> tổng đơn</div></div>
+    <div class="ec-kpi ec-kpi--success"><div class="ec-kpi-label"><i class="far fa-check-circle"></i>Hoàn thành</div><div class="ec-kpi-value" data-kpi="success_orders">—</div><div class="ec-kpi-note"><span data-kpi="success_rate">—</span> tổng đơn</div></div>
+    <div class="ec-kpi ec-kpi--cancel"><div class="ec-kpi-label"><i class="far fa-times-circle"></i>Hủy</div><div class="ec-kpi-value" data-kpi="cancel_orders">—</div><div class="ec-kpi-note"><span data-kpi="cancel_rate">—</span> tổng đơn</div></div>
+    <div class="ec-kpi ec-kpi--return"><div class="ec-kpi-label"><i class="fas fa-undo"></i>Trả hàng</div><div class="ec-kpi-value" data-kpi="return_orders">—</div><div class="ec-kpi-note"><span data-kpi="return_rate">—</span> tổng đơn</div></div>
   </div>
 </div>
 
@@ -166,9 +94,8 @@
 </div>
 
 <div class="rpt-card mb-3" id="ecOrdersCard">
-  <div class="rpt-card-title justify-content-between flex-wrap">
-    <span><i class="fas fa-list-ul mr-2"></i>Chi tiết đơn hàng E-commerce</span>
-    <div class="d-flex align-items-center ec-orders-tools">
+  <div class="rpt-card-title"><span><i class="fas fa-list-ul mr-2"></i>Chi tiết đơn hàng E-commerce</span></div>
+    <div class="d-flex align-items-center justify-content-end ec-orders-tools mb-2">
       <span class="badge badge-pill badge-primary ec-sku-chip d-none" id="ecSkuChip"></span>
       <input type="search" class="form-control form-control-sm ec-orders-search" id="ecOrdersSearch" placeholder="Tìm mã đơn, SKU, tên SP, gian hàng, Sale..." autocomplete="off" />
       <select class="form-control form-control-sm ec-status-select" id="ecStatusGroup" title="Nhóm trạng thái của dòng hàng">
@@ -179,9 +106,8 @@
         <option value="cancel">Hủy</option>
         <option value="return">Trả hàng</option>
       </select>
-      <a href="#" class="btn btn-sm btn-outline-secondary rpt-busy-btn" id="ecOrdersExport" data-needs-export title="Xuất Excel bảng chi tiết (theo bộ lọc và từ khoá hiện tại)"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
+      <a href="#" class="btn btn-sm zns-btn-export rpt-busy-btn" id="ecOrdersExport" data-needs-export title="Xuất Excel bảng chi tiết (theo bộ lọc và từ khoá hiện tại)"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
     </div>
-  </div>
   <table class="table table-bordered table-hover rpt-table" id="ecOrdersTable" width="100%"><thead><tr></tr></thead><tbody></tbody></table>
 </div>
 {% endblock %}
