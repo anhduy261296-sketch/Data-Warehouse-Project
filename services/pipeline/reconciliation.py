@@ -1,30 +1,16 @@
 from __future__ import annotations
 import logging
 from typing import Any
-from services.pipeline.common.constants import NON_WMS_WAREHOUSES, STATUS_FREE_WAREHOUSES, TARGET_SCHEMA
+from services.pipeline.common.constants import TARGET_SCHEMA
 
 logger = logging.getLogger(__name__)
 LOG_TABLE = 'RECON_Refresh_Log'
-_ECOM_ORDER_FILTER = "outbound_order_type IN ('L03', 'L04')"
-_DMS_XUATKHO_ORDER_FILTER = "outbound_order_type IN ('L01', 'L05', 'L07', 'L08', 'L12', 'L14', 'L18', 'L25')"
-_WRT_ORDER_FILTER = "IsCreateBy = 'SYSTEM'"
-_ECOM_OMS_SALES_FILTER = "order_type = 'Sales'"
-_ECOM_OMS_RETURN_FILTER = "order_type = 'Return' AND status IN ('Refunded', 'PackageReturned')"
-_ECOM_SAP_TYPE_FILTER = "[Type] = N'Bán hàng'"
-_OMS_SHIPPED_STATUSES = "('Shipped', 'Delivered')"
-_WRT_SHIPPED_STATUS = "('Shipped', 'Delivered', 'done')"
-_ECOM_SQL = f"\nWITH OMS AS (\n    SELECT order_number, MAX(status) AS SoStatus,\n           SUM(TRY_CONVERT(DECIMAL(18,0), total_amount_after_vat)) AS TotalAmt,\n           MAX(TRY_CONVERT(DATETIME2, created_date)) AS OrderDate\n    FROM dbo.OMS_ORDERS\n    WHERE {_ECOM_ORDER_FILTER} AND {_ECOM_OMS_SALES_FILTER}\n    GROUP BY order_number\n),\nOMS_RETURN AS (\n    SELECT ISNULL(NULLIF(original_order_number, ''), order_number) AS order_number,\n           MAX(CASE status WHEN 'Refunded' THEN 2 WHEN 'PackageReturned' THEN 1 END) AS ReturnRank\n    FROM dbo.OMS_ORDERS\n    WHERE {_ECOM_ORDER_FILTER} AND {_ECOM_OMS_RETURN_FILTER}\n    GROUP BY ISNULL(NULLIF(original_order_number, ''), order_number)\n),\nSAP_LINES AS (\n    SELECT U_SONo, ItemCode, ARNo,\n           CASE WHEN ARNo IS NOT NULL AND ARNo <> ''\n                THEN MAX(TRY_CONVERT(DECIMAL(18,0), ARGTotal))\n                ELSE SUM(TRY_CONVERT(DECIMAL(18,0), TotalAfVAT))\n           END AS ItemAmt\n    FROM dbo.SAP_SO_All\n    WHERE {_ECOM_SAP_TYPE_FILTER}\n    GROUP BY U_SONo, ItemCode, ARNo\n),\nSAP AS (\n    SELECT U_SONo, SUM(ItemAmt) AS TotalAmt\n    FROM SAP_LINES\n    GROUP BY U_SONo\n),\nWRT AS (\n    SELECT order_number, SUM(TRY_CONVERT(DECIMAL(18,0), TotalAmt)) AS TotalAmt\n    FROM dbo.WRT_SO\n    GROUP BY order_number\n)\n%%INSERT%%\nSELECT\n    o.order_number AS OrderCode,\n    o.TotalAmt AS OmsWmsAmount,\n    s.TotalAmt AS SapAmount,\n    CAST(w.TotalAmt AS DECIMAL(18,0)) AS WrtAmount,\n    CASE\n        WHEN o.order_number IS NOT NULL AND s.U_SONo IS NOT NULL AND w.order_number IS NOT NULL\n         AND o.TotalAmt = s.TotalAmt AND s.TotalAmt = CAST(w.TotalAmt AS DECIMAL(18,0))\n         AND o.SoStatus IN {_OMS_SHIPPED_STATUSES}\n        THEN 'Sync' ELSE 'Not Sync'\n    END AS StatusSync,\n    CASE r.ReturnRank WHEN 2 THEN 'Refunded' WHEN 1 THEN 'PackageReturned' ELSE o.SoStatus END,\n    o.OrderDate,\n    SYSUTCDATETIME()\nFROM OMS o\nLEFT JOIN OMS_RETURN r ON r.order_number = o.order_number\nLEFT JOIN SAP s ON s.U_SONo = o.order_number\nLEFT JOIN WRT w ON w.order_number = o.order_number;\n"
-_DMS_DUYET_SQL = "\nWITH DMS AS (\n    SELECT OrderCode, MAX(OrderStatus) AS OrderStatus,\n           SUM(CASE WHEN OrderType = 'L14' THEN -TotalAmtInclVAT ELSE TotalAmtInclVAT END) AS TotalAmt,\n           MAX(DocDate) AS OrderDate\n    FROM dbo.DMS_SO\n    WHERE OrderStatus = 'sale'\n    GROUP BY OrderCode\n),\nOMS AS (\n    SELECT order_number,\n           SUM(TRY_CONVERT(DECIMAL(18,2), total_amount_after_vat)) AS TotalAmt\n    FROM dbo.OMS_ORDERS\n    GROUP BY order_number\n),\nSAP_LINES AS (\n    SELECT U_SONo, ItemCode, ARNo,\n           CASE WHEN ARNo IS NOT NULL AND ARNo <> ''\n                THEN MAX(TRY_CONVERT(DECIMAL(18,2), ARGTotal))\n                ELSE SUM(TRY_CONVERT(DECIMAL(18,2), TotalAfVAT))\n           END AS ItemAmt\n    FROM dbo.SAP_SO_All\n    GROUP BY U_SONo, ItemCode, ARNo\n),\nSAP AS (\n    SELECT U_SONo, SUM(ItemAmt) AS TotalAmt\n    FROM SAP_LINES\n    GROUP BY U_SONo\n)\n%%INSERT%%\nSELECT\n    d.OrderCode,\n    CAST(d.TotalAmt AS DECIMAL(18,2)) AS DmsAmount,\n    o.TotalAmt AS OmsWmsAmount,\n    s.TotalAmt AS SapAmount,\n    CASE\n        WHEN o.order_number IS NOT NULL AND s.U_SONo IS NOT NULL\n         AND CAST(d.TotalAmt AS DECIMAL(18,2)) = o.TotalAmt AND o.TotalAmt = s.TotalAmt\n        THEN 'Sync' ELSE 'Not Sync'\n    END AS StatusSync,\n    d.OrderStatus AS SoStatus,\n    d.OrderDate,\n    SYSUTCDATETIME()\nFROM DMS d\nLEFT JOIN OMS o ON o.order_number = d.OrderCode\nLEFT JOIN SAP s ON s.U_SONo = d.OrderCode;\n"
-_DMS_XUATKHO_SQL = f"\nWITH DMS_DONE AS (\n    SELECT OrderCode, MAX(OrderStatus) AS OrderStatus,\n           SUM(CASE WHEN OrderType = 'L14' THEN -TotalAmtInclVAT ELSE TotalAmtInclVAT END) AS TotalAmt\n    FROM dbo.DMS_SO\n    GROUP BY OrderCode\n),\nOMS AS (\n    SELECT order_number, SUM(TRY_CONVERT(DECIMAL(18,2), total_amount_after_vat)) AS TotalAmt,\n           MAX(TRY_CONVERT(DATETIME2, created_date)) AS OrderDate\n    FROM dbo.OMS_ORDERS\n    WHERE {_DMS_XUATKHO_ORDER_FILTER}\n    GROUP BY order_number\n),\nSAP_LINES AS (\n    SELECT U_SONo, ItemCode, ARNo,\n           CASE WHEN ARNo IS NOT NULL AND ARNo <> ''\n                THEN MAX(TRY_CONVERT(DECIMAL(18,2), ARGTotal))\n                ELSE SUM(TRY_CONVERT(DECIMAL(18,2), TotalAfVAT))\n           END AS ItemAmt\n    FROM dbo.SAP_SO_All\n    GROUP BY U_SONo, ItemCode, ARNo\n),\nSAP AS (\n    SELECT U_SONo, SUM(ItemAmt) AS TotalAmt\n    FROM SAP_LINES\n    GROUP BY U_SONo\n),\nWRT AS (\n    SELECT order_number, SUM(TRY_CONVERT(DECIMAL(18,4), TotalAmt)) AS TotalAmt\n    FROM dbo.WRT_SO\n    GROUP BY order_number\n)\n%%INSERT%%\nSELECT\n    o.order_number AS OrderCode,\n    CAST(d.TotalAmt AS DECIMAL(18,2)) AS DmsAmount,\n    o.TotalAmt AS OmsWmsAmount,\n    s.TotalAmt AS SapAmount,\n    CAST(w.TotalAmt AS DECIMAL(18,2)) AS WrtAmount,\n    CASE\n        WHEN d.OrderCode IS NOT NULL AND s.U_SONo IS NOT NULL AND w.order_number IS NOT NULL\n         AND CAST(d.TotalAmt AS DECIMAL(18,2)) = o.TotalAmt\n         AND o.TotalAmt = s.TotalAmt\n         AND s.TotalAmt = CAST(w.TotalAmt AS DECIMAL(18,2))\n        THEN 'Sync' ELSE 'Not Sync'\n    END AS StatusSync,\n    d.OrderStatus AS SoStatus,\n    o.OrderDate,\n    SYSUTCDATETIME()\nFROM OMS o\nLEFT JOIN DMS_DONE d ON d.OrderCode = o.order_number\nLEFT JOIN SAP s ON s.U_SONo = o.order_number\nLEFT JOIN WRT w ON w.order_number = o.order_number;\n"
-_WRT_SQL = f"\nWITH WRT AS (\n    SELECT order_number, MAX(OrderStatus) AS OrderStatus, MAX(Type) AS Type,\n           SUM(TRY_CONVERT(DECIMAL(18,4), TotalAmt)) AS TotalAmt,\n           MAX(postingDate) AS OrderDate\n    FROM dbo.WRT_SO\n    WHERE {_WRT_ORDER_FILTER}\n    GROUP BY order_number\n),\nOMS AS (\n    SELECT order_number, SUM(TRY_CONVERT(DECIMAL(18,2), total_amount_after_vat)) AS TotalAmt\n    FROM dbo.OMS_ORDERS\n    GROUP BY order_number\n),\nSAP_LINES AS (\n    SELECT U_SONo, ItemCode, ARNo,\n           CASE WHEN ARNo IS NOT NULL AND ARNo <> ''\n                THEN MAX(TRY_CONVERT(DECIMAL(18,2), ARGTotal))\n                ELSE SUM(TRY_CONVERT(DECIMAL(18,2), TotalAfVAT))\n           END AS ItemAmt\n    FROM dbo.SAP_SO_All\n    GROUP BY U_SONo, ItemCode, ARNo\n),\nSAP AS (\n    SELECT U_SONo, SUM(ItemAmt) AS TotalAmt\n    FROM SAP_LINES\n    GROUP BY U_SONo\n)\n%%INSERT%%\nSELECT\n    w.order_number AS OrderCode,\n    o.TotalAmt AS OmsWmsAmount,\n    s.TotalAmt AS SapAmount,\n    CAST(w.TotalAmt AS DECIMAL(18,2)) AS WrtAmount,\n    CASE\n        WHEN o.order_number IS NOT NULL AND s.U_SONo IS NOT NULL\n         AND o.TotalAmt = s.TotalAmt AND s.TotalAmt = CAST(w.TotalAmt AS DECIMAL(18,2))\n         AND w.OrderStatus IN {_WRT_SHIPPED_STATUS}\n        THEN 'Sync' ELSE 'Not Sync'\n    END AS StatusSync,\n    w.OrderStatus AS SoStatus,\n    w.Type AS Type,\n    w.OrderDate,\n    SYSUTCDATETIME()\nFROM WRT w\nLEFT JOIN OMS o ON o.order_number = w.order_number\nLEFT JOIN SAP s ON s.U_SONo = w.order_number;\n"
-_TABLES: dict[str, tuple[tuple[str, ...], str]] = {
-    'RECON_ECOM': (('OrderCode', 'OmsWmsAmount', 'SapAmount', 'WrtAmount', 'StatusSync', 'SoStatus', 'OrderDate'), _ECOM_SQL),
-    'RECON_DMS_DUYET': (('OrderCode', 'DmsAmount', 'OmsWmsAmount', 'SapAmount', 'StatusSync', 'SoStatus', 'OrderDate'), _DMS_DUYET_SQL),
-    'RECON_DMS_XUATKHO': (
-        ('OrderCode', 'DmsAmount', 'OmsWmsAmount', 'SapAmount', 'WrtAmount', 'StatusSync', 'SoStatus', 'OrderDate'),
-        _DMS_XUATKHO_SQL,
-    ),
-    'RECON_WRT': (('OrderCode', 'OmsWmsAmount', 'SapAmount', 'WrtAmount', 'StatusSync', 'SoStatus', 'Type', 'OrderDate'), _WRT_SQL),
+# Cách tính nằm trong view dbo.vw_<tên bảng> (db_migrations), ở đây chỉ khai báo cột cần chép sang bảng.
+_TABLES: dict[str, tuple[str, ...]] = {
+    'RECON_ECOM': ('OrderCode', 'OmsWmsAmount', 'SapAmount', 'WrtAmount', 'StatusSync', 'SoStatus', 'OrderDate'),
+    'RECON_DMS_DUYET': ('OrderCode', 'DmsAmount', 'OmsWmsAmount', 'SapAmount', 'StatusSync', 'SoStatus', 'OrderDate'),
+    'RECON_DMS_XUATKHO': ('OrderCode', 'DmsAmount', 'OmsWmsAmount', 'SapAmount', 'WrtAmount', 'StatusSync', 'SoStatus', 'OrderDate'),
+    'RECON_WRT': ('OrderCode', 'OmsWmsAmount', 'SapAmount', 'WrtAmount', 'StatusSync', 'SoStatus', 'Type', 'OrderDate'),
 }
 _BACKUP_TABLES: dict[str, str] = {name: f'{name}_Backup' for name in _TABLES}
 STATUS_TRACKING_TABLE = 'STATUS_TRACKING'
@@ -39,18 +25,18 @@ _SALEORDERS_COLUMN_EXPR: dict[str, tuple[str, str, str, str, str]] = {
 
 
 def _refresh_table(target_conn: Any, table_name: str) -> int:
-    columns, select_sql = _TABLES[table_name]
+    quoted_cols = ', '.join(f'[{c}]' for c in _TABLES[table_name])
     cursor = target_conn.cursor()
     cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{table_name}')
-    quoted_cols = ', '.join((f'[{c}]' for c in columns)) + ', RefreshedAt'
-    insert_clause = f'INSERT INTO {TARGET_SCHEMA}.{table_name} ({quoted_cols})'
-    cursor.execute(select_sql.replace('%%INSERT%%', insert_clause))
+    cursor.execute(
+        f'INSERT INTO {TARGET_SCHEMA}.{table_name} ({quoted_cols}, RefreshedAt) SELECT {quoted_cols}, SYSUTCDATETIME() FROM {TARGET_SCHEMA}.vw_{table_name}'
+    )
     cursor.execute(f'SELECT COUNT(*) FROM {TARGET_SCHEMA}.{table_name}')
     return cursor.fetchone()[0]
 
 
 def _backup_not_synced(target_conn: Any, table_name: str) -> int:
-    columns, _ = _TABLES[table_name]
+    columns = _TABLES[table_name]
     backup_table = _BACKUP_TABLES[table_name]
     quoted_cols = ', '.join((f'[{c}]' for c in columns)) + ', RefreshedAt, SnapshotAt'
     select_cols = ', '.join((f'[{c}]' for c in columns)) + ', RefreshedAt, SYSUTCDATETIME()'
@@ -86,54 +72,15 @@ def _log_refresh(target_conn: Any, table_name: str, row_count: int, status: str)
 
 
 INVENTORY_TABLE = 'RECON_INVENTORY'
-_STATUS_FREE_SQL = ', '.join((f"'{w}'" for w in STATUS_FREE_WAREHOUSES))
-_SAP_STATUS_ITEM_EXPR = f"CASE WHEN WhsCode IN ({_STATUS_FREE_SQL}) THEN '' ELSE StatusItem END"
-_WMS_STATUS_ITEM_EXPR = f"CASE WHEN 'W' + SUBSTRING(whseid, 3, 10) IN ({_STATUS_FREE_SQL}) THEN '' ELSE ISNULL(status, '') END"
-_INVENTORY_SQL = f"""
-WITH S AS (
-    SELECT ItemCode, WhsCode, {_SAP_STATUS_ITEM_EXPR} AS StatusItem, MAX(ItemName) AS ItemName, MAX(WhsName) AS WhsName,
-           SUM(OnHand) AS Qty, MAX(InvntryUom) AS Uom
-    FROM dbo.SAP_INVENTORY
-    GROUP BY ItemCode, WhsCode, {_SAP_STATUS_ITEM_EXPR}
-),
-W AS (
-    SELECT sku AS ItemCode, 'W' + SUBSTRING(whseid, 3, 10) AS WhsCode, {_WMS_STATUS_ITEM_EXPR} AS StatusItem,
-           MAX(description) AS ItemName, SUM(TRY_CONVERT(DECIMAL(21,6), qty)) AS Qty, MAX(uom) AS Uom
-    FROM dbo.WMS_INVENTORY
-    GROUP BY sku, whseid, {_WMS_STATUS_ITEM_EXPR}
-),
-WHS AS (
-    SELECT WhsCode, MAX(WhsName) AS WhsName FROM dbo.SAP_INVENTORY GROUP BY WhsCode
-)
-INSERT INTO dbo.{INVENTORY_TABLE} (StatusSync, ItemCode, ItemName, WhsCode, WhsName, StatusItem, SapQty, WmsQty, DiffQty, InvntryUom)
-SELECT
-    CASE
-        WHEN s.ItemCode IS NOT NULL AND w.ItemCode IS NOT NULL
-            THEN CASE WHEN s.Qty = w.Qty THEN N'Khớp' ELSE N'Lệch' END
-        WHEN s.WhsCode IN ({', '.join((f"'{w}'" for w in NON_WMS_WAREHOUSES))}) THEN N'Không quản lý trên WMS'
-        WHEN w.ItemCode IS NULL THEN N'Chỉ có SAP'
-        ELSE N'Chỉ có WMS'
-    END,
-    COALESCE(s.ItemCode, w.ItemCode),
-    COALESCE(s.ItemName, w.ItemName),
-    COALESCE(s.WhsCode, w.WhsCode),
-    COALESCE(s.WhsName, whs.WhsName),
-    COALESCE(s.StatusItem, w.StatusItem),
-    s.Qty,
-    w.Qty,
-    ABS(ISNULL(s.Qty, 0) - ISNULL(w.Qty, 0)),
-    COALESCE(s.Uom, w.Uom)
-FROM S s
-FULL OUTER JOIN W w ON w.ItemCode = s.ItemCode AND w.WhsCode = s.WhsCode AND w.StatusItem = s.StatusItem
-LEFT JOIN WHS whs ON whs.WhsCode = COALESCE(s.WhsCode, w.WhsCode);
-"""
+_INVENTORY_COLUMNS = ('StatusSync', 'ItemCode', 'ItemName', 'WhsCode', 'WhsName', 'StatusItem', 'SapQty', 'WmsQty', 'DiffQty', 'InvntryUom')
 
 
 def refresh_inventory_reconciliation(target_conn: Any, **_ignored: Any) -> int:
     cursor = target_conn.cursor()
     try:
         cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{INVENTORY_TABLE}')
-        cursor.execute(_INVENTORY_SQL)
+        columns = ', '.join(f'[{c}]' for c in _INVENTORY_COLUMNS)
+        cursor.execute(f'INSERT INTO {TARGET_SCHEMA}.{INVENTORY_TABLE} ({columns}) SELECT {columns} FROM {TARGET_SCHEMA}.vw_{INVENTORY_TABLE}')
         cursor.execute(f'SELECT COUNT(*) FROM {TARGET_SCHEMA}.{INVENTORY_TABLE}')
         row_count = cursor.fetchone()[0]
         _log_refresh(target_conn, INVENTORY_TABLE, row_count, 'SUCCESS')
