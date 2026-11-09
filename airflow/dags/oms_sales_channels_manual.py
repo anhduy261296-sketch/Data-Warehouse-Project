@@ -9,6 +9,7 @@ from airflow.providers.microsoft.mssql.hooks.mssql import MsSqlHook
 PROJECT_ROOT = Path('/opt/airflow/project')
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+from services.pipeline.alerts import notify_task_failure
 from services.pipeline.oms_sales_channels import sync_oms_sales_channels
 
 LOCAL_TZ = 'Asia/Ho_Chi_Minh'
@@ -33,6 +34,6 @@ with DAG(
     max_active_runs=1,
     is_paused_upon_creation=False,
     tags=['oms', 'sqlserver', 'manual'],
-    default_args={'retries': 0},
+    default_args={'on_failure_callback': notify_task_failure, 'retries': 0},
 ) as dag:
     PythonOperator(task_id='load_oms_sales_channels', python_callable=load_oms_sales_channels)

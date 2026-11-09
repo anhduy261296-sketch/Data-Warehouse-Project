@@ -11,6 +11,7 @@ from airflow.utils.trigger_rule import TriggerRule
 PROJECT_ROOT = Path('/opt/airflow/project')
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+from services.pipeline.alerts import notify_task_failure
 from services.pipeline.data_quality import INVENTORY_SOURCES, ORDER_SOURCES, check_sources_ready, run_quality_checks
 from services.pipeline.reconciliation import refresh_all_reconciliation_tables, refresh_inventory_reconciliation
 
@@ -66,7 +67,7 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     tags=['reconciliation', 'sqlserver', 'dashboard'],
-    default_args={'retries': 2, 'retry_delay': pendulum.duration(minutes=2)},
+    default_args={'on_failure_callback': notify_task_failure, 'retries': 2, 'retry_delay': pendulum.duration(minutes=2)},
 ) as dag:
     wait_orders = PythonOperator(
         task_id='wait_order_sources',

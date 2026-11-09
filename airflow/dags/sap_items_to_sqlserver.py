@@ -10,6 +10,7 @@ from airflow.providers.microsoft.mssql.hooks.mssql import MsSqlHook
 PROJECT_ROOT = Path('/opt/airflow/project')
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+from services.pipeline.alerts import notify_task_failure
 from services.pipeline.sap_item_groups import sync_sap_item_groups, sync_sap_uoms
 from services.pipeline.sap_items import FULL_LOAD_START, last_success_to, sync_sap_items
 
@@ -71,7 +72,7 @@ with DAG(
     max_active_runs=1,
     is_paused_upon_creation=False,
     tags=['sap', 'api', 'sqlserver', 'items', 'manual'],
-    default_args={'retries': 2, 'retry_delay': pendulum.duration(minutes=5)},
+    default_args={'on_failure_callback': notify_task_failure, 'retries': 2, 'retry_delay': pendulum.duration(minutes=5)},
 ) as dag:
     PythonOperator(task_id='load_sap_items', python_callable=load_sap_items) >> PythonOperator(
         task_id='load_sap_item_groups', python_callable=load_sap_item_groups

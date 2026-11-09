@@ -9,6 +9,7 @@ from airflow.providers.microsoft.mssql.hooks.mssql import MsSqlHook
 PROJECT_ROOT = Path('/opt/airflow/project')
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+from services.pipeline.alerts import notify_task_failure
 from services.pipeline.wms_transaction import sync_wms_transaction
 
 LOCAL_TZ = 'Asia/Ho_Chi_Minh'
@@ -48,6 +49,6 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     tags=['wms', 'sqlserver', 'transaction'],
-    default_args={'retries': 2, 'retry_delay': pendulum.duration(minutes=5)},
+    default_args={'on_failure_callback': notify_task_failure, 'retries': 2, 'retry_delay': pendulum.duration(minutes=5)},
 ) as dag:
     PythonOperator(task_id='load_wms_transaction', python_callable=load_wms_transaction)
