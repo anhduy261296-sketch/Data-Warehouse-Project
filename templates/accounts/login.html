@@ -19,6 +19,7 @@
     <link href="{% static 'css/base/variables.css' %}" rel="stylesheet" />
     <link href="{% static 'css/base/typography.css' %}" rel="stylesheet" />
     <link href="{% static 'css/components/loading.css' %}" rel="stylesheet" />
+    <link href="{% static 'css/components/password-field.css' %}" rel="stylesheet" />
     <link href="{% static 'css/pages/accounts/login.css' %}" rel="stylesheet" />
   </head>
   <body class="login-page">
@@ -46,9 +47,6 @@
           <label class="login-label" for="loginPassword">Mật khẩu</label>
           <div class="login-field">
             <input type="password" id="loginPassword" name="password" autocomplete="current-password" required {% if username %}autofocus{% endif %} />
-            <button type="button" class="login-toggle-password" id="loginTogglePassword" aria-label="Hiện mật khẩu" title="Hiện mật khẩu">
-              <i class="fas fa-eye"></i>
-            </button>
           </div>
 
           <label class="login-label" for="loginCaptcha">Mã xác nhận</label>
@@ -68,6 +66,7 @@
     </main>
 
     <script src="{% static 'js/core/loading.js' %}"></script>
+    <script src="{% static 'js/core/password_field.js' %}"></script>
     <script src="{% static 'js/pages/accounts/login.js' %}"></script>
   </body>
 </html>

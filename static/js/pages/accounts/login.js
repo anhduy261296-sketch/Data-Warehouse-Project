@@ -1,19 +1,4 @@
 (function () {
-  const input = document.getElementById("loginPassword");
-  const toggle = document.getElementById("loginTogglePassword");
-  toggle.addEventListener("click", function () {
-    const show = input.type === "password";
-    input.type = show ? "text" : "password";
-    const label = show ? "Ẩn mật khẩu" : "Hiện mật khẩu";
-    toggle.setAttribute("aria-label", label);
-    toggle.title = label;
-    toggle.querySelector("i").className = show ? "fas fa-eye-slash" : "fas fa-eye";
-    input.focus();
-  });
-  input.form.addEventListener("submit", function () {
-    input.type = "password";
-  });
-
   const submit = document.getElementById("loginSubmit");
   const required = ["loginUsername", "loginPassword", "loginCaptcha"].map((id) => document.getElementById(id));
   const updateSubmit = () => {

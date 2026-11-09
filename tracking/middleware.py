@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 
 from accounts.views import _client_ip
 
@@ -9,6 +9,8 @@ from . import access
 from .core import audit
 
 DENIED_MESSAGE = 'Bạn không có quyền thực hiện thao tác này.'
+MUST_CHANGE_MESSAGE = 'Bạn cần đổi mật khẩu trước khi tiếp tục.'
+PASSWORD_CHANGE_ROUTES = ('password-change', 'logout')
 
 
 class AccessControlMiddleware:
@@ -26,7 +28,13 @@ class AccessControlMiddleware:
 
     def process_view(self, request, view_func, view_args, view_kwargs):
         match = request.resolver_match
-        if not getattr(view_func, 'login_required', True) or not request.user.is_authenticated or match.namespace == 'admin':
+        if not getattr(view_func, 'login_required', True) or not request.user.is_authenticated:
+            return None
+        if request.user.must_change_password and match.url_name not in PASSWORD_CHANGE_ROUTES:
+            if request.path.startswith('/api/'):
+                return JsonResponse({'error': MUST_CHANGE_MESSAGE}, status=403)
+            return redirect('password-change')
+        if match.namespace == 'admin':
             return None
         if access.can_open(request.user, match.url_name):
             return None

@@ -180,10 +180,8 @@
       .prop("disabled", Boolean(user));
     $("#cfgFullName").val(user ? user.full_name : "");
     $("#cfgEmail").val(user ? user.email : "");
-    $("#cfgPassword")
-      .val("")
-      .attr("placeholder", user ? "Để trống nếu giữ nguyên" : "");
-    $("#cfgPasswordLabel").text(user ? "Đổi mật khẩu" : "Mật khẩu");
+    $("#cfgPassword").val("");
+    $("#cfgPasswordGroup").toggleClass("d-none", Boolean(user));
     $("#cfgActive").prop("checked", user ? user.is_active : true);
     $("#cfgSuperNote").toggleClass("d-none", !(user && user.is_superuser));
     const chosen = user ? user.roles : [];
@@ -243,6 +241,54 @@
     });
   }
 
+  // navigator.clipboard chỉ có trên HTTPS hoặc localhost; mở bằng http://IP thì sao chép kiểu cũ.
+  function copyElementText(element) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(element.textContent);
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return document.execCommand("copy") ? Promise.resolve() : Promise.reject();
+  }
+
+  function resetPassword(user) {
+    Dialog.confirm({
+      title: `Đặt lại mật khẩu của ${user.username}?`,
+      message: "Mật khẩu cũ sẽ không dùng được nữa và người này bị đăng xuất. Hệ thống tạo mật khẩu tạm, họ phải đổi ở lần đăng nhập tới.",
+      confirmText: "Đặt lại",
+      cancelText: "Không",
+      variant: "warning",
+    }).then((ok) => {
+      if (!ok) return;
+      Api.postJson(EP.userResetPassword(user.id), {})
+        .done((res) => showTempPassword(user, res))
+        .fail(fail);
+    });
+  }
+
+  function formatCountdown(ms) {
+    const seconds = Math.max(0, Math.ceil(ms / 1000));
+    return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+  }
+
+  function showTempPassword(user, res) {
+    const totalMs = res.expires_minutes * 60000;
+    const deadline = Date.now() + totalMs;
+    const timer = setInterval(() => {
+      const left = deadline - Date.now();
+      $(".cfg-temp-countdown").text(formatCountdown(left));
+      if (left <= 0) clearInterval(timer);
+    }, 1000);
+    Dialog.alert({
+      title: "Đã đặt lại mật khẩu",
+      html: true,
+      message: `Mật khẩu tạm của <b>${escapeHtml(user.username)}</b>:<div class="my-2 d-flex align-items-center"><code class="h5 mb-0 user-select-all">${escapeHtml(res.password)}</code><button type="button" class="btn btn-sm btn-outline-secondary ml-2 cfg-copy-password" title="Sao chép" aria-label="Sao chép mật khẩu tạm"><i class="fas fa-copy"></i></button></div><small class="font-italic">Mật khẩu này chỉ hiện một lần và hết hạn sau <span class="cfg-temp-countdown">${formatCountdown(totalMs)}</span>.</small>`,
+      variant: "success",
+      confirmText: "Đóng",
+    }).then(() => clearInterval(timer));
+  }
+
   function initUsers() {
     usersTable = $("#cfgUsersTable").DataTable({
       ...tableOptions,
@@ -253,6 +299,8 @@
           className: "cfg-actions",
           render: (id, type, u) =>
             `<button type="button" class="zns-act cfg-user-edit" title="Sửa"><i class="fas fa-pen"></i></button>${
+              u.can_reset ? ' <button type="button" class="zns-act cfg-user-reset" title="Đặt lại mật khẩu"><i class="fas fa-key"></i></button>' : ""
+            }${
               u.can_delete ? ' <button type="button" class="zns-act zns-act--delete cfg-user-delete" title="Xóa"><i class="far fa-trash-alt"></i></button>' : ""
             }`,
         },
@@ -277,9 +325,22 @@
       .on("click", ".cfg-user-edit", function () {
         openUser(usersTable.row($(this).closest("tr")).data());
       })
+      .on("click", ".cfg-user-reset", function () {
+        resetPassword(usersTable.row($(this).closest("tr")).data());
+      })
       .on("click", ".cfg-user-delete", function () {
         deleteUser(usersTable.row($(this).closest("tr")).data());
       });
+    // Hộp thoại nằm ngoài vùng trang nên phải gắn sự kiện ở document.
+    $(document).on("click", ".cfg-copy-password", function () {
+      const $button = $(this);
+      copyElementText($button.siblings("code")[0])
+        .then(() => {
+          $button.removeClass("btn-outline-secondary").addClass("btn-success").attr("title", "Đã sao chép");
+          $button.find("i").attr("class", "fas fa-check");
+        })
+        .catch(() => Toast.error("Không sao chép được, hãy bôi đen và sao chép thủ công."));
+    });
     $("#cfgUserMatrix").on("click", "label.is-inherited", function () {
       dropInherited($(this).find("input").val(), $(this).text().trim());
     });
@@ -441,7 +502,7 @@
         { data: "actor", render: (v) => escapeHtml(v) },
         { data: "action_label", render: (v) => escapeHtml(v) },
         { data: "target_id", render: (v, type, r) => escapeHtml([r.target_type, v].filter(Boolean).join(" ")) },
-        { data: "detail", render: (v) => escapeHtml(v || "") },
+        { data: "detail", className: "cfg-audit-detail", render: (v) => escapeHtml(v || "") },
         { data: "ip_address", className: "text-nowrap", render: (v) => escapeHtml(v || "—") },
       ],
     });

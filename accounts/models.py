@@ -8,6 +8,8 @@ class User(AbstractUser):
     role = models.CharField(max_length=50, blank=True, null=True)
     deleted_at = models.DateTimeField(blank=True, null=True)
     deleted_by = models.CharField(max_length=150, blank=True, null=True)
+    must_change_password = models.BooleanField(default=False)
+    temp_password_expires_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         db_table = 'AppUser'

@@ -6,6 +6,7 @@ Nhóm quyền (auth_group) và việc gán quyền được quản lý ở trang
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -16,7 +17,7 @@ from .messaging.values import OWNERS
 
 APP_LABEL = 'tracking'
 CONTENT_TYPE_MODEL = 'access'
-OPEN_ROUTES = frozenset({'home', 'no-access', 'login', 'logout', 'login-captcha'})
+OPEN_ROUTES = frozenset({'home', 'no-access', 'login', 'logout', 'login-captcha', 'password-change'})
 
 
 @dataclass(frozen=True)
@@ -180,7 +181,7 @@ CATALOG: tuple[AccessGroup, ...] = (
                 'config',
                 'Phân quyền',
                 (
-                    Perm('config_users', 'Phân quyền theo người dùng', ('config-page', 'config-users', 'config-user-save', 'config-user-delete', 'config-roles')),
+                    Perm('config_users', 'Phân quyền theo người dùng', ('config-page', 'config-users', 'config-user-save', 'config-user-delete', 'config-user-reset-password', 'config-roles')),
                     Perm('config_roles', 'Phân quyền theo nhóm người dùng', ('config-page', 'config-roles', 'config-role-save', 'config-role-delete')),
                     Perm('config_audit', 'Xem nhật ký', ('config-page', 'config-audit')),
                 ),
@@ -207,6 +208,40 @@ EXPORT_PERM_BY_ROUTE: dict[str, str] = {
     if perm.codename == f'view_{page.key}'
     for route in perm.routes
 }
+
+_CODENAME = '|'.join(sorted(ALL_CODENAMES, key=len, reverse=True))
+_CODENAME_LIST = re.compile(rf'\s*\b(?:{_CODENAME})\b(?:, (?:{_CODENAME})\b)*(?P<end>;\s*)?')
+_DETAIL_WORDING = (
+    ('Thêm: —; gỡ: —; ', ''),
+    ('Thêm: ', 'Thêm thành viên: '),
+    ('; gỡ: ', '; Gỡ thành viên: '),
+    ('quyền thêm: ', 'Quyền riêng: '),
+    ('quyền: ', 'Quyền: '),
+    ('hoạt động: True', 'Hoạt động: Có'),
+    ('hoạt động: False', 'Hoạt động: Không'),
+)
+
+
+def _perm_lines(match: re.Match[str]) -> str:
+    codes = set(re.findall(r'\w+', match[0]))
+    lines = [
+        f'• {group.label} - {page.label}: {", ".join(p.label for p in page.perms if p.codename in codes)}'
+        for group in CATALOG
+        for page in group.pages
+        if any(p.codename in codes for p in page.perms)
+    ]
+    return '\n' + '\n'.join(lines) + ('\n' if match['end'] else '')
+
+
+def describe_audit_detail(detail: str | None) -> str | None:
+    """Đổi mã quyền trong log thành tên quyền khi hiển thị, nên log đã ghi từ trước cũng dễ đọc."""
+    if not detail:
+        return detail
+    # Đổi câu chữ trước khi thay mã quyền, để không đụng vào tên quyền như "Phân quyền: ...".
+    for old, new in _DETAIL_WORDING:
+        detail = detail.replace(old, new)
+    return _CODENAME_LIST.sub(_perm_lines, detail)
+
 
 ROLE_ADMIN = 'Quản trị hệ thống'
 ROLE_VIEWER = 'Xem dữ liệu & báo cáo'

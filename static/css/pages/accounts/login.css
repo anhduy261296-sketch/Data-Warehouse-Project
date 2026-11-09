@@ -116,24 +116,10 @@
   display: none;
 }
 
-.login-toggle-password {
-  position: absolute;
+.login-field .password-field-toggle {
   right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
   padding: 6px 8px;
-  border: 0;
-  background: transparent;
-  color: #1b6fa6;
   font-size: 1.02rem;
-  cursor: pointer;
-  line-height: 1;
-}
-
-.login-toggle-password:hover,
-.login-toggle-password:focus {
-  color: #0d4f7a;
-  outline: none;
 }
 
 .login-captcha-row {

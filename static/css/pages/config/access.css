@@ -1,6 +1,9 @@
 .cfg-tabs {
   border-bottom: 0;
 }
+.cfg-audit-detail {
+  white-space: pre-line;
+}
 .cfg-tabs .nav-link {
   font-size: 0.85rem;
   color: #6b7280;

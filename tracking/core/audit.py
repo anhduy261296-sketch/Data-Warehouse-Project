@@ -13,6 +13,8 @@ ACTION_LABELS = {
     'user.create': 'Tạo người dùng',
     'user.update': 'Sửa người dùng',
     'user.password': 'Đổi mật khẩu người dùng',
+    'user.password_change': 'Tự đổi mật khẩu',
+    'user.password_reset': 'Đặt lại mật khẩu người dùng',
     'user.delete': 'Xóa người dùng',
     'role.create': 'Tạo nhóm người dùng',
     'role.update': 'Sửa nhóm người dùng',

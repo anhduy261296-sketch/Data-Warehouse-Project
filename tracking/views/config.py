@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 from django.contrib.auth import get_user_model
@@ -11,7 +12,10 @@ from django.db import connection, transaction
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
+from django.utils.crypto import get_random_string
 from django.views.decorators.http import require_GET, require_POST
+
+from accounts.views import clear_login_lockout
 
 from .. import access
 from ..core import audit
@@ -19,6 +23,12 @@ from ..core.audit import ACTION_LABELS, CAMPAIGN_SQL
 from ..core.sql import rows
 from ..messaging.values import MessagingError, iso_utc
 from .common import api_view, json_body, table_params
+
+TEMP_PASSWORD_LENGTH = 12
+TEMP_PASSWORD_MINUTES = 5
+# Bỏ các ký tự dễ nhầm (0/O, 1/l/I) vì mật khẩu tạm được đọc hoặc gõ lại.
+TEMP_PASSWORD_CHARS = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
 
 def _permissions(codenames: Any) -> list[Permission]:
     wanted = set(codenames or [])
@@ -62,6 +72,7 @@ def users(request):
     data = []
     actor = request.user
     for u in get_user_model().objects.filter(deleted_at__isnull=True).prefetch_related('groups', 'user_permissions').order_by('username'):
+        manageable = u.pk != actor.pk and (actor.is_superuser or not u.is_superuser)
         data.append(
             {
                 'id': u.id,
@@ -73,7 +84,8 @@ def users(request):
                 'last_login': iso_utc(u.last_login.replace(tzinfo=None)) if u.last_login else None,
                 'roles': [g.id for g in u.groups.all()],
                 'perms': [p.codename for p in u.user_permissions.all() if p.codename in access.ALL_CODENAMES],
-                'can_delete': u.pk != actor.pk and (actor.is_superuser or not u.is_superuser),
+                'can_delete': manageable,
+                'can_reset': manageable,
             }
         )
     return JsonResponse({'data': data})
@@ -134,16 +146,37 @@ def user_save(request):
         user.first_name = str(data.get('full_name') or '').strip()[:150]
         user.email = str(data.get('email') or '').strip()[:254]
         user.is_active = is_active
-        if password:
+        if not user_id:
             _set_password(user, password)
         user.save()
         user.groups.set(roles)
         user.user_permissions.set([*direct, *user.user_permissions.exclude(content_type__app_label=access.APP_LABEL)])
         detail = f'Nhóm: {", ".join(r.name for r in roles) or "—"}; quyền thêm: {", ".join(sorted(p.codename for p in direct)) or "—"}; hoạt động: {is_active}'
         audit.log('user.update' if user_id else 'user.create', actor.get_username(), 'user', user.username, detail)
-        if user_id and password:
-            audit.log('user.password', actor.get_username(), 'user', user.username)
     return JsonResponse({'ok': True, 'id': user.id})
+
+
+@require_POST
+@api_view
+def user_reset_password(request, user_id: int):
+    """Cấp mật khẩu tạm, người dùng phải đổi ở lần đăng nhập tới. Các phiên đang mở của họ mất hiệu lực vì mật khẩu đã đổi."""
+    actor = request.user
+    with transaction.atomic():
+        user = get_user_model().objects.select_for_update().filter(id=user_id, deleted_at__isnull=True).first()
+        if not user:
+            raise MessagingError('Không tìm thấy người dùng.')
+        if user.pk == actor.pk:
+            raise MessagingError('Hãy dùng chức năng Đổi mật khẩu cho tài khoản của mình.')
+        if user.is_superuser and not actor.is_superuser:
+            raise MessagingError('Chỉ tài khoản toàn quyền mới đặt lại được mật khẩu tài khoản toàn quyền.')
+        temporary = get_random_string(TEMP_PASSWORD_LENGTH, TEMP_PASSWORD_CHARS)
+        user.set_password(temporary)
+        user.must_change_password = True
+        user.temp_password_expires_at = timezone.now() + timedelta(minutes=TEMP_PASSWORD_MINUTES)
+        user.save(update_fields=['password', 'must_change_password', 'temp_password_expires_at'])
+        clear_login_lockout(user.username)
+        audit.log('user.password_reset', actor.get_username(), 'user', user.username)
+    return JsonResponse({'ok': True, 'password': temporary, 'expires_minutes': TEMP_PASSWORD_MINUTES})
 
 
 @require_POST
@@ -273,4 +306,6 @@ def audit_list(request):
     for r in data:
         r['action_label'] = ACTION_LABELS.get(r['action'], r['action'])
         r['created_at'] = iso_utc(r['created_at'])
+        if r['action'].startswith(('user.', 'role.')):
+            r['detail'] = access.describe_audit_detail(r['detail'])
     return JsonResponse({'draw': params['draw'], 'recordsTotal': total, 'recordsFiltered': total, 'data': data})

@@ -13,6 +13,8 @@ const Dialog = (function () {
   });
   let $modal = null;
   let settle = null;
+  let hiding = false;
+  let showAfterHidden = null;
 
   function ensureModal() {
     if ($modal) return $modal;
@@ -37,7 +39,18 @@ const Dialog = (function () {
     $modal.on("click", ".app-dialog-ok", () => close(true));
     $modal.on("click", ".app-dialog-cancel", () => close(false));
     $modal.on("shown.bs.modal", () => $modal.find(".app-dialog-ok").trigger("focus"));
-    $modal.on("hidden.bs.modal", () => close(false));
+    // Bỏ focus trước khi Bootstrap đặt aria-hidden, nếu không trình duyệt báo lỗi vì phần tử đang focus bị ẩn.
+    $modal.on("hide.bs.modal", () => {
+      hiding = true;
+      $modal.find(":focus").trigger("blur");
+    });
+    $modal.on("hidden.bs.modal", () => {
+      hiding = false;
+      if (!showAfterHidden) return close(false);
+      const show = showAfterHidden;
+      showAfterHidden = null;
+      show();
+    });
     return $modal;
   }
 
@@ -54,19 +67,24 @@ const Dialog = (function () {
     const variant = VARIANTS[opts.variant] || VARIANTS.primary;
     const $m = ensureModal();
     if (settle) close(false);
-    $m.attr("data-variant", VARIANTS[opts.variant] ? opts.variant : "primary");
-    $m.find(".app-dialog-icon i").attr("class", `fas ${opts.icon || variant.icon}`);
-    $m.find(".app-dialog-title").text(opts.title).toggleClass("d-none", !opts.title);
-    $m.find(".app-dialog-message")[opts.html ? "html" : "text"](opts.message);
-    $m.find(".app-dialog-cancel")
-      .text(opts.cancelText || "Hủy")
-      .toggleClass("d-none", !withCancel);
-    $m.find(".app-dialog-ok")
-      .text(opts.confirmText || (withCancel ? "Đồng ý" : "Đã hiểu"))
-      .attr("class", `btn app-dialog-ok ${variant.button}`);
+    const show = () => {
+      $m.attr("data-variant", VARIANTS[opts.variant] ? opts.variant : "primary");
+      $m.find(".app-dialog-icon i").attr("class", `fas ${opts.icon || variant.icon}`);
+      $m.find(".app-dialog-title").text(opts.title).toggleClass("d-none", !opts.title);
+      $m.find(".app-dialog-message")[opts.html ? "html" : "text"](opts.message);
+      $m.find(".app-dialog-cancel")
+        .text(opts.cancelText || "Hủy")
+        .toggleClass("d-none", !withCancel);
+      $m.find(".app-dialog-ok")
+        .text(opts.confirmText || (withCancel ? "Đồng ý" : "Đã hiểu"))
+        .attr("class", `btn app-dialog-ok ${variant.button}`);
+      $m.modal({ backdrop: withCancel ? "static" : true, keyboard: true }).modal("show");
+    };
     return new Promise((resolve) => {
       settle = resolve;
-      $m.modal({ backdrop: withCancel ? "static" : true, keyboard: true }).modal("show");
+      // Modal chưa đóng xong (gồm cả lúc nền mờ đang tắt) thì lệnh show bị bỏ qua hoặc bị đóng theo: đợi hidden mới mở.
+      if (hiding) showAfterHidden = show;
+      else show();
     });
   }
 
