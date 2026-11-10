@@ -6,20 +6,13 @@ from services.pipeline.common.constants import TARGET_SCHEMA
 from services.pipeline.common.db import enable_fast_executemany
 
 logger = logging.getLogger(__name__)
+# Hàm nguồn lọc theo so.create_date, nên mọi lần xóa/nạp lại phía đích phải theo CreateDate cùng khoảng.
 SOURCE_QUERY = '\n    SELECT *\n    FROM public.sp_syn_dms_sales_orders(%(start_at)s::timestamp, %(end_at)s::timestamp)\n    WHERE "Sku" IS NOT NULL\n      AND "OrderType" NOT IN (\'DGH\', \'LR\', \'TEST_LOYALTY\')\n      AND "OrderStatus" NOT IN (\'draft\')\n'
 TARGET_TABLE = 'DMS_SO'
 LOG_TABLE = 'DMS_SO_Load_Log'
+# Cột DocDate của bảng này lưu ngày tạo đơn (ngày dùng để nạp lại), giữ tên cũ để khỏi đổi schema.
 PENDING_TABLE = 'DMS_SO_Pending'
 TERMINAL_STATUSES = {'done', 'cancel', 'refused'}
-
-
-def _window_already_loaded(target_conn: Any, start_at: str, end_at: str) -> bool:
-    cursor = target_conn.cursor()
-    cursor.execute(
-        f"\n        SELECT TOP 1 1\n        FROM {TARGET_SCHEMA}.{LOG_TABLE}\n        WHERE start_at = %s AND end_at = %s AND status = 'SUCCESS'\n        ",
-        (start_at, end_at),
-    )
-    return cursor.fetchone() is not None
 
 
 def _fetch_source_rows(source_conn: Any, start_at: str, end_at: str) -> tuple[list[str], list[tuple[Any, ...]]]:
@@ -32,7 +25,7 @@ def _fetch_source_rows(source_conn: Any, start_at: str, end_at: str) -> tuple[li
 
 def _delete_window(target_conn: Any, start_at: str, end_at: str) -> None:
     cursor = target_conn.cursor()
-    cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE DocDate >= %s AND DocDate < %s', (start_at, end_at))
+    cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{TARGET_TABLE} WHERE CreateDate >= %s AND CreateDate < %s', (start_at, end_at))
 
 
 def _insert_rows(target_conn: Any, columns: Sequence[str], rows: Sequence[Sequence[Any]]) -> None:
@@ -60,19 +53,19 @@ def _sync_pending_table(target_conn: Any, columns: Sequence[str], rows: Sequence
     try:
         code_idx = columns.index('OrderCode')
         status_idx = columns.index('OrderStatus')
-        date_idx = columns.index('DocDate')
+        created_idx = columns.index('CreateDate')
     except ValueError:
-        logger.warning('Khong tim thay cot OrderCode/OrderStatus/DocDate trong ket qua nguon - bo qua cap nhat %s.', PENDING_TABLE)
+        logger.warning('Khong tim thay cot OrderCode/OrderStatus/CreateDate trong ket qua nguon - bo qua cap nhat %s.', PENDING_TABLE)
         return
 
     latest_status: dict[str, str] = {}
-    latest_date: dict[str, Any] = {}
+    created_at: dict[str, Any] = {}
     for row in rows:
         code = row[code_idx]
         if not code:
             continue
         latest_status[code] = row[status_idx]
-        latest_date[code] = row[date_idx]
+        created_at[code] = row[created_idx]
 
     terminal_codes = sorted((c for c, s in latest_status.items() if s in TERMINAL_STATUSES))
     pending_codes = [c for c, s in latest_status.items() if s not in TERMINAL_STATUSES]
@@ -83,66 +76,65 @@ def _sync_pending_table(target_conn: Any, columns: Sequence[str], rows: Sequence
         cursor.execute(f'DELETE FROM {TARGET_SCHEMA}.{PENDING_TABLE} WHERE OrderCode IN ({placeholders})', tuple(terminal_codes))
 
     for code in pending_codes:
-        doc_date = latest_date[code]
-        doc_date = doc_date.date() if hasattr(doc_date, 'date') else doc_date
+        created = created_at[code]
+        created_day = created.date() if hasattr(created, 'date') else str(created)[:10]
+        # Dòng cũ có thể đang lưu ngày chứng từ, nên khi gặp lại thì ghi đè bằng ngày tạo.
         cursor.execute(
-            f'\n            MERGE {TARGET_SCHEMA}.{PENDING_TABLE} AS target\n            USING (SELECT %s AS OrderCode, %s AS DocDate) AS source\n            ON target.OrderCode = source.OrderCode\n            WHEN MATCHED THEN\n                UPDATE SET LastCheckedAt = SYSUTCDATETIME()\n            WHEN NOT MATCHED THEN\n                INSERT (OrderCode, DocDate, FirstSeenAt, LastCheckedAt)\n                VALUES (source.OrderCode, source.DocDate, SYSUTCDATETIME(), SYSUTCDATETIME());\n            ',
-            (code, doc_date),
+            f'\n            MERGE {TARGET_SCHEMA}.{PENDING_TABLE} AS target\n            USING (SELECT %s AS OrderCode, %s AS DocDate) AS source\n            ON target.OrderCode = source.OrderCode\n            WHEN MATCHED THEN\n                UPDATE SET DocDate = source.DocDate, LastCheckedAt = SYSUTCDATETIME()\n            WHEN NOT MATCHED THEN\n                INSERT (OrderCode, DocDate, FirstSeenAt, LastCheckedAt)\n                VALUES (source.OrderCode, source.DocDate, SYSUTCDATETIME(), SYSUTCDATETIME());\n            ',
+            (code, created_day),
         )
 
 
 def _get_pending_days(target_conn: Any, before_date: str) -> list[str]:
+    """Ngày tạo của các đơn còn chờ. Lấy từ DMS_SO trước vì dòng chờ cũ có thể còn lưu ngày chứng từ."""
     cursor = target_conn.cursor()
-    cursor.execute(f'SELECT DISTINCT DocDate FROM {TARGET_SCHEMA}.{PENDING_TABLE} WHERE DocDate < %s ORDER BY DocDate', (before_date,))
+    cursor.execute(
+        f'''
+        SELECT DISTINCT COALESCE(s.created_day, p.DocDate) AS day
+        FROM {TARGET_SCHEMA}.{PENDING_TABLE} p
+        OUTER APPLY (
+            SELECT MIN(CAST(d.CreateDate AS DATE)) AS created_day
+            FROM {TARGET_SCHEMA}.{TARGET_TABLE} d
+            WHERE d.OrderCode = p.OrderCode
+        ) s
+        WHERE COALESCE(s.created_day, p.DocDate) < %s
+        ORDER BY day
+        ''',
+        (before_date,),
+    )
     result = []
     for (d,) in cursor.fetchall():
         result.append(d.isoformat() if hasattr(d, 'isoformat') else str(d)[:10])
     return result
 
 
-def _sync_window(source_conn: Any, target_conn: Any, start_at: str, end_at: str) -> tuple[list[str], list[tuple[Any, ...]]]:
-    columns, rows = _fetch_source_rows(source_conn, start_at, end_at)
-    _delete_window(target_conn, start_at, end_at)
-    _insert_rows(target_conn, columns, rows)
-    return columns, rows
+def _sync_window(source_conn: Any, target_conn: Any, start_at: str, end_at: str) -> int:
+    """Xóa rồi nạp lại đúng khoảng ngày tạo mà nguồn trả về: chạy lại hay kéo tay chồng khoảng đều không sinh trùng."""
+    try:
+        columns, rows = _fetch_source_rows(source_conn, start_at, end_at)
+        _delete_window(target_conn, start_at, end_at)
+        _insert_rows(target_conn, columns, rows)
+        _log_window(target_conn, start_at, end_at, len(rows), 'SUCCESS')
+        target_conn.commit()
+        _sync_pending_table(target_conn, columns, rows)
+        target_conn.commit()
+    except Exception:
+        target_conn.rollback()
+        _log_window(target_conn, start_at, end_at, 0, 'FAILED')
+        target_conn.commit()
+        raise
+    return len(rows)
 
 
 def sync_dms_sales_orders(source_conn: Any, target_conn: Any, *, start_at: str, end_at: str, **_ignored: Any) -> int:
-    total = 0
-    if not _window_already_loaded(target_conn, start_at, end_at):
-        columns, rows = _fetch_source_rows(source_conn, start_at, end_at)
-        try:
-            _insert_rows(target_conn, columns, rows)
-            _log_window(target_conn, start_at, end_at, len(rows), 'SUCCESS')
-            target_conn.commit()
-            total += len(rows)
-            _sync_pending_table(target_conn, columns, rows)
-            target_conn.commit()
-            logger.info('Da insert %d dong vao %s.%s cho window %s -> %s', len(rows), TARGET_SCHEMA, TARGET_TABLE, start_at, end_at)
-        except Exception:
-            target_conn.rollback()
-            _log_window(target_conn, start_at, end_at, 0, 'FAILED')
-            target_conn.commit()
-            raise
-    else:
-        logger.info('Window %s -> %s da load roi, bo qua insert moi (idempotent) - van se recheck cac ngay con pending.', start_at, end_at)
+    total = _sync_window(source_conn, target_conn, start_at, end_at)
+    logger.info('Da nap %d dong vao %s.%s cho window %s -> %s', total, TARGET_SCHEMA, TARGET_TABLE, start_at, end_at)
 
-    window_start_date = start_at[:10]
-    for day in _get_pending_days(target_conn, window_start_date):
+    for day in _get_pending_days(target_conn, start_at[:10]):
         day_start = f'{day} 00:00:00'
         day_end = (dt.date.fromisoformat(day) + dt.timedelta(days=1)).isoformat() + ' 00:00:00'
-        try:
-            day_columns, day_rows = _sync_window(source_conn, target_conn, day_start, day_end)
-            _log_window(target_conn, day_start, day_end, len(day_rows), 'SUCCESS')
-            target_conn.commit()
-            total += len(day_rows)
-            _sync_pending_table(target_conn, day_columns, day_rows)
-            target_conn.commit()
-            logger.info('Recheck pending %s: %d dong (xoa + nap lai tu nguon).', day, len(day_rows))
-        except Exception:
-            target_conn.rollback()
-            _log_window(target_conn, day_start, day_end, 0, 'FAILED')
-            target_conn.commit()
-            raise
+        day_rows = _sync_window(source_conn, target_conn, day_start, day_end)
+        total += day_rows
+        logger.info('Recheck pending %s: %d dong (xoa + nap lai tu nguon).', day, day_rows)
 
     return total

@@ -6,6 +6,7 @@ import pendulum
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.microsoft.mssql.hooks.mssql import MsSqlHook
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.utils.trigger_rule import TriggerRule
 
 PROJECT_ROOT = Path('/opt/airflow/project')
@@ -17,6 +18,7 @@ from services.pipeline.reconciliation import refresh_all_reconciliation_tables, 
 
 LOCAL_TZ = 'Asia/Ho_Chi_Minh'
 SQLSERVER_CONNECTION = 'sqlserver_tracking'
+DMS_POSTGRES_CONNECTION = 'dms_postgres'
 # Chờ nguồn trễ tối đa 1 giờ. Chạy tay khi biết nguồn chưa cập nhật thì truyền conf {"skip_freshness": true}.
 SOURCE_WAIT_RETRIES = 6
 SOURCE_WAIT_DELAY = pendulum.duration(minutes=10)
@@ -53,9 +55,11 @@ def load_inventory_reconciliation(**context: object) -> None:
 
 def check_data_quality(**context: object) -> None:
     target_connection = MsSqlHook(mssql_conn_id=SQLSERVER_CONNECTION).get_conn()
+    dms_connection = PostgresHook(postgres_conn_id=DMS_POSTGRES_CONNECTION).get_conn()
     try:
-        print(f'Data quality: {run_quality_checks(target_connection)}')
+        print(f'Data quality: {run_quality_checks(target_connection, dms_connection)}')
     finally:
+        dms_connection.close()
         target_connection.close()
 
 

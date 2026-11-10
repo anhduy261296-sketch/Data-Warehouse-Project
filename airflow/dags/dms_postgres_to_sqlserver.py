@@ -28,8 +28,9 @@ def _window_from_context(**context: object) -> tuple[str, str]:
     if start_at:
         return (str(start_at), str(end_at))
     interval_end = pendulum.instance(context['data_interval_end']).in_timezone(LOCAL_TZ)
-    source_day = interval_end.subtract(days=1)
-    return (source_day.start_of('day').format('YYYY-MM-DD HH:mm:ss'), source_day.end_of('day').format('YYYY-MM-DD HH:mm:ss'))
+    day_start = interval_end.subtract(days=1).start_of('day')
+    # Nguồn lọc create_date < end_date, nên lấy 00:00 hôm sau để không sót đơn tạo trong giây cuối ngày.
+    return (day_start.format('YYYY-MM-DD HH:mm:ss'), day_start.add(days=1).format('YYYY-MM-DD HH:mm:ss'))
 
 
 def load_dms_sales_orders(**context: object) -> None:
@@ -46,7 +47,7 @@ def load_dms_sales_orders(**context: object) -> None:
 
 with DAG(
     dag_id='dms_postgres_to_sqlserver_daily',
-    description='Read DMS sales orders from PostgreSQL and append into dbo.DMS_SO (SQL Server).',
+    description='Read DMS sales orders from PostgreSQL and reload dbo.DMS_SO by CreateDate window (SQL Server).',
     start_date=pendulum.datetime(2026, 9, 13, tz=LOCAL_TZ),
     schedule='0 0 * * *',
     catchup=False,
