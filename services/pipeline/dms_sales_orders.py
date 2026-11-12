@@ -13,6 +13,8 @@ LOG_TABLE = 'DMS_SO_Load_Log'
 # Cột DocDate của bảng này lưu ngày tạo đơn (ngày dùng để nạp lại), giữ tên cũ để khỏi đổi schema.
 PENDING_TABLE = 'DMS_SO_Pending'
 TERMINAL_STATUSES = {'done', 'cancel', 'refused'}
+# Mỗi lần chạy theo lịch nạp lại chừng này ngày tạo gần nhất; ngày cũ hơn chỉ nạp lại khi còn đơn chưa chốt.
+RELOAD_DAYS = 7
 
 
 def _fetch_source_rows(source_conn: Any, start_at: str, end_at: str) -> tuple[list[str], list[tuple[Any, ...]]]:

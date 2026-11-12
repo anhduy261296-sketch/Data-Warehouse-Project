@@ -11,7 +11,7 @@ PROJECT_ROOT = Path('/opt/airflow/project')
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 from services.pipeline.alerts import notify_task_failure
-from services.pipeline.dms_sales_orders import sync_dms_sales_orders
+from services.pipeline.dms_sales_orders import RELOAD_DAYS, sync_dms_sales_orders
 
 LOCAL_TZ = 'Asia/Ho_Chi_Minh'
 DMS_POSTGRES_CONNECTION = 'dms_postgres'
@@ -28,9 +28,10 @@ def _window_from_context(**context: object) -> tuple[str, str]:
     if start_at:
         return (str(start_at), str(end_at))
     interval_end = pendulum.instance(context['data_interval_end']).in_timezone(LOCAL_TZ)
-    day_start = interval_end.subtract(days=1).start_of('day')
-    # Nguồn lọc create_date < end_date, nên lấy 00:00 hôm sau để không sót đơn tạo trong giây cuối ngày.
-    return (day_start.format('YYYY-MM-DD HH:mm:ss'), day_start.add(days=1).format('YYYY-MM-DD HH:mm:ss'))
+    end_day = interval_end.start_of('day')
+    # Nạp lại cả RELOAD_DAYS ngày, không chỉ hôm qua: báo giá xác nhận muộn và đơn tạo 00:00-07:00 giờ VN
+    # (create_date nguồn là UTC, rơi vào khung ngày trước đã chạy xong) sẽ được lấy ở các lần chạy sau.
+    return (end_day.subtract(days=RELOAD_DAYS).format('YYYY-MM-DD HH:mm:ss'), end_day.format('YYYY-MM-DD HH:mm:ss'))
 
 
 def load_dms_sales_orders(**context: object) -> None:

@@ -68,7 +68,8 @@ CHECKS: tuple[Check, ...] = (
 # Không kiểm tra dòng giống hệt trong DMS_SO: DMS cho nhập mỗi chiếc một dòng (S45457 có 104 dòng giống nhau thật),
 # và bảng không có mã dòng gốc. Thay bằng so số dòng với nguồn theo ngày tạo.
 DMS_GAP_CHECK = 'row_gap.DMS_SO'
-DMS_COMPARE_DAYS = 7
+# Rộng hơn RELOAD_DAYS của DAG DMS để thấy cả báo giá được xác nhận sau khi đã ra khỏi khung nạp lại.
+DMS_COMPARE_DAYS = 14
 
 
 def check_sources_ready(target_conn: Any, sources: tuple[str, ...]) -> None:
