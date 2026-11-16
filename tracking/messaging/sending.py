@@ -325,7 +325,7 @@ def _evaluate(cursor: Any, batch_id: int, template_id: int, raw_mapping: Any, ra
     if excel_code not in (None, '') and str(excel_code).strip() != str(template['zns_code']):
         warnings.append(f'File Excel ghi templatecode = {excel_code}, khác mã của mẫu đang chọn ({template["zns_code"]}).')
 
-    results, seen_phones = [], {}
+    results, seen_messages = [], {}
     for row in draft['rows']:
         cells = row['values']
         errors, values, shown = [], dict(fixed_values), dict(fixed_display)
@@ -333,10 +333,6 @@ def _evaluate(cursor: Any, batch_id: int, template_id: int, raw_mapping: Any, ra
         phone = normalize_phone(cells[phone_col]) if phone_col is not None else None
         if phone_col is not None and phone is None:
             errors.append('Số điện thoại không hợp lệ' if cells[phone_col] is not None else 'Thiếu số điện thoại')
-        elif phone in seen_phones:
-            errors.append(f'Trùng số điện thoại với dòng {seen_phones[phone]}')
-        elif phone:
-            seen_phones[phone] = row['row_no']
         for v in variables:
             if v['source'] != 'customer':
                 continue
@@ -348,6 +344,13 @@ def _evaluate(cursor: Any, batch_id: int, template_id: int, raw_mapping: Any, ra
                 errors.append(f'Thiếu {v["label"] or v["name"]}')
             values[v['name']] = value
             shown[v['name']] = display(v['data_type'], value)
+        # Chỉ chặn tin giống hệt gửi lặp cho cùng số; cùng số khác tham số (vd. mỗi phiếu bảo hành một tin) vẫn gửi.
+        if phone:
+            message_key = (phone, tuple(shown.get(v['name']) or '' for v in variables))
+            if message_key in seen_messages:
+                errors.append(f'Trùng số điện thoại và nội dung với dòng {seen_messages[message_key]}')
+            else:
+                seen_messages[message_key] = row['row_no']
         results.append(
             {
                 'row_no': row['row_no'],
