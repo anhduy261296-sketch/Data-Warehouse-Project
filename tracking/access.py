@@ -122,6 +122,26 @@ CATALOG: tuple[AccessGroup, ...] = (
                 ),
             ),
             AccessPage(
+                'report_dms',
+                'DMS',
+                (
+                    Perm(
+                        'view_report_dms',
+                        'Xem',
+                        (
+                            'report-dms',
+                            'report-dms-meta',
+                            'report-dms-kpi',
+                            'report-dms-daily',
+                            'report-dms-by-sale',
+                            'report-dms-top-customers',
+                            'report-dms-orders',
+                        ),
+                    ),
+                    Perm('export_report_dms', 'Xuất Excel', ('report-dms-orders-export',)),
+                ),
+            ),
+            AccessPage(
                 'zns_reports',
                 'Chiến dịch',
                 (

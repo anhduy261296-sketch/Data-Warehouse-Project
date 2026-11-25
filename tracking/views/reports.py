@@ -7,7 +7,7 @@ from ..constants import OMS_ORDERS_DAG_ID, OMS_SALES_CHANNELS_DAG_ID
 from ..core import airflow
 from ..core.cache import invalidate_source
 from ..core.excel import ExcelColumn, ExcelSheet, excel_response
-from ..queries import ecom, stock
+from ..queries import dms, ecom, stock
 
 
 def _json(fn):
@@ -63,6 +63,11 @@ ecom_kpi = _json(ecom.get_kpi)
 ecom_daily = _json(ecom.get_daily)
 ecom_by_sale = _json(ecom.get_by_sale)
 ecom_top_products = _json(ecom.get_top_products)
+dms_meta = _json(lambda params: dms.get_meta())
+dms_kpi = _json(dms.get_kpi)
+dms_daily = _json(dms.get_daily)
+dms_by_sale = _json(dms.get_by_sale)
+dms_top_customers = _json(dms.get_top_customers)
 
 
 @require_POST

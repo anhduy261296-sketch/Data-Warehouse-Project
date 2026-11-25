@@ -22,6 +22,7 @@ SOURCES: dict[str, str] = {
     'oms_orders': 'SELECT MAX(loaded_at) FROM dbo.OMS_ORDERS_Load_Log',
     'oms_sales_channels': 'SELECT MAX(loaded_at) FROM dbo.OMS_SALES_CHANNELS',
     'dms_so': 'SELECT MAX(loaded_at) FROM dbo.DMS_SO_Load_Log',
+    'dms_so_all': "SELECT MAX(loaded_at) FROM dbo.DMS_SO_ALL_Load_Log WHERE status = 'SUCCESS'",
     'wrt_so': 'SELECT MAX(loaded_at) FROM dbo.WRT_SO_Load_Log',
 }
 

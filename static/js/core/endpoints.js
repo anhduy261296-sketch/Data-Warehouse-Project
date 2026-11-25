@@ -53,6 +53,15 @@ const ENDPOINTS = Object.freeze({
       channelsRefresh: "/api/report/ecom/channels/refresh/",
       channelsRefreshStatus: "/api/report/ecom/channels/refresh/status/",
     }),
+    dms: Object.freeze({
+      meta: "/api/report/dms/meta/",
+      kpi: "/api/report/dms/kpi/",
+      daily: "/api/report/dms/daily/",
+      bySale: "/api/report/dms/by-sale/",
+      topCustomers: "/api/report/dms/top-customers/",
+      orders: "/api/report/dms/orders/",
+      ordersExport: "/api/report/dms/orders/export/",
+    }),
   }),
 
   messaging: Object.freeze({

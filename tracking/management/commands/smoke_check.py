@@ -30,6 +30,7 @@ PAGES = [
     'detail-employee-oms',
     'report-inventory',
     'report-ecom',
+    'report-dms',
     'zns-templates',
     'zns-send',
     'config-page',
@@ -152,6 +153,14 @@ def _cases() -> list[tuple[str, dict[str, str]]]:
     cases += [
         ('report-ecom-orders', {**DT_PAGE, **DATE_RANGE, 'start': '9990', 'status_group': 'cancel', 'search[value]': 'JBL'}),
         ('report-ecom-orders-export', {**DATE_RANGE, 'channel': 'LAZ'}),
+        ('report-dms-meta', {}),
+    ]
+    for filters in (DATE_RANGE, {**DATE_RANGE, 'document_type': 'Đơn bán hàng'}):
+        cases += [(f'report-dms-{area}', filters) for area in ('kpi', 'daily', 'by-sale', 'top-customers')]
+        cases += [('report-dms-orders', {**DT_PAGE, **filters, 'order[0][column]': '0', 'order[0][dir]': 'desc'})]
+    cases += [
+        ('report-dms-orders', {**DT_PAGE, **DATE_RANGE, 'state_code': 'sale', 'search[value]': 'SO'}),
+        ('report-dms-orders-export', {**DATE_RANGE, 'document_type': 'Đơn bán hàng'}),
     ]
     return cases
 

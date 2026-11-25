@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Báo cáo DMS{% endblock %}
+{% block page_css %}
+<link href="{% static 'css/pages/reports/ecom.css' %}" rel="stylesheet" />
+<link href="{% static 'css/pages/reports/dms.css' %}" rel="stylesheet" />
+{% endblock %}
+{% block content %}
+<div class="rpt-header">
+  <div>
+    <h1 class="rpt-title">Báo cáo DMS</h1>
+    <p class="rpt-subtitle">(nguồn: DMS - đơn bán hàng, POS và điều chuyển kho đã đồng bộ OMS)</p>
+  </div>
+  <div class="rpt-header-tools">
+    <span class="rpt-snapshot"><i class="far fa-clock mr-1"></i> Cập nhật: <b id="dmUpdated">—</b></span>
+    <button type="button" class="btn btn-sm btn-outline-primary" id="dmRefresh"><i class="fas fa-sync-alt mr-1"></i> Làm mới</button>
+  </div>
+</div>
+
+<div class="rpt-card mb-3 rpt-filter ec-filter-card">
+  <form class="ec-filter" id="dmFilter" autocomplete="off">
+    <div class="ec-filter-field"><label for="dmPeriod">Kỳ</label><select class="form-control form-control-sm" id="dmPeriod"></select></div>
+    <div class="ec-filter-field ec-custom d-none"><label for="dmFrom">Từ ngày</label><input type="date" class="form-control form-control-sm" id="dmFrom" /></div>
+    <div class="ec-filter-field ec-custom d-none"><label for="dmTo">Đến ngày</label><input type="date" class="form-control form-control-sm" id="dmTo" /></div>
+    <div class="ec-filter-field"><label for="dmType">Loại chứng từ</label><select class="form-control form-control-sm" id="dmType"><option value="">Tất cả</option></select></div>
+    <div class="ec-filter-field"><label for="dmState">Trạng thái</label><select class="form-control form-control-sm" id="dmState"><option value="">Tất cả</option></select></div>
+    <div class="ec-filter-field"><label for="dmOrderType">Loại đơn hàng</label><select class="form-control form-control-sm" id="dmOrderType"><option value="">Tất cả</option></select></div>
+    <div class="ec-filter-field"><label for="dmWarehouse">Kho</label><select class="form-control form-control-sm" id="dmWarehouse"><option value="">Tất cả</option></select></div>
+    <button type="submit" class="btn btn-sm btn-primary" id="dmSearch"><i class="fas fa-search mr-1"></i> Xem báo cáo</button>
+  </form>
+  <div class="ec-filter-error d-none" id="dmFilterError"></div>
+</div>
+
+<div class="rpt-card ec-kpi-board mb-3" id="dmKpis">
+  <div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
+  <div class="ec-kpi-grid dm-kpi-grid">
+    <div class="ec-kpi ec-kpi--revenue"><div class="ec-kpi-label"><i class="fas fa-money-bill-wave"></i>Tổng giá trị</div><div class="ec-kpi-value" data-kpi="amount_short">—</div><div class="ec-kpi-note"><span data-kpi="amount_total">—</span></div></div>
+    <div class="ec-kpi ec-kpi--orders"><div class="ec-kpi-label"><i class="fas fa-shopping-bag"></i>Tổng đơn hàng</div><div class="ec-kpi-value" data-kpi="total_orders">—</div><div class="ec-kpi-note">Đơn bán hàng và POS trong kỳ</div></div>
+    <div class="ec-kpi ec-kpi--processing"><div class="ec-kpi-label"><i class="fas fa-cash-register"></i>Đơn POS</div><div class="ec-kpi-value" data-kpi="pos_orders">—</div><div class="ec-kpi-note">Đã đồng bộ OMS</div></div>
+    <div class="ec-kpi ec-kpi--sku"><div class="ec-kpi-label"><i class="fas fa-dolly"></i>Điều chuyển kho</div><div class="ec-kpi-value" data-kpi="warehouse_transfers">—</div><div class="ec-kpi-note">Chứng từ điều chuyển</div></div>
+    <div class="ec-kpi ec-kpi--aov"><div class="ec-kpi-label"><i class="fas fa-chart-line"></i>Giá trị TB / đơn</div><div class="ec-kpi-value" data-kpi="avg_order_value">—</div><div class="ec-kpi-note">Tổng giá trị / tổng đơn</div></div>
+    <div class="ec-kpi ec-kpi--success"><div class="ec-kpi-label"><i class="fas fa-shopping-bag"></i>Đơn bán hàng</div><div class="ec-kpi-value" data-kpi="sale_orders">—</div><div class="ec-kpi-note">Đã đồng bộ OMS</div></div>
+    <div class="ec-kpi ec-kpi--new"><div class="ec-kpi-label"><i class="fas fa-users"></i>Khách hàng</div><div class="ec-kpi-value" data-kpi="customers">—</div><div class="ec-kpi-note">Khách hàng duy nhất</div></div>
+    <div class="ec-kpi ec-kpi--aov"><div class="ec-kpi-label"><i class="fas fa-sync-alt"></i>Lượt đồng bộ OMS</div><div class="ec-kpi-value" data-kpi="oms_syncs">—</div><div class="ec-kpi-note">Ghi nhận trên đơn hàng</div></div>
+    <div class="ec-kpi ec-kpi--new"><div class="ec-kpi-label"><i class="fas fa-box-open"></i>Thêm mới</div><div class="ec-kpi-value" data-kpi="new_orders">—</div><div class="ec-kpi-note"><span data-kpi="new_rate">—</span> tổng đơn</div></div>
+    <div class="ec-kpi ec-kpi--processing"><div class="ec-kpi-label"><i class="far fa-clock"></i>Đang xử lý</div><div class="ec-kpi-value" data-kpi="processing_orders">—</div><div class="ec-kpi-note"><span data-kpi="processing_rate">—</span> tổng đơn</div></div>
+    <div class="ec-kpi ec-kpi--success"><div class="ec-kpi-label"><i class="far fa-check-circle"></i>Hoàn thành</div><div class="ec-kpi-value" data-kpi="success_orders">—</div><div class="ec-kpi-note"><span data-kpi="success_rate">—</span> tổng đơn</div></div>
+    <div class="ec-kpi ec-kpi--cancel"><div class="ec-kpi-label"><i class="far fa-times-circle"></i>Hủy</div><div class="ec-kpi-value" data-kpi="cancel_orders">—</div><div class="ec-kpi-note"><span data-kpi="cancel_rate">—</span> tổng đơn</div></div>
+    <div class="ec-kpi ec-kpi--return"><div class="ec-kpi-label"><i class="fas fa-undo"></i>Trả hàng</div><div class="ec-kpi-value" data-kpi="return_orders">—</div><div class="ec-kpi-note"><span data-kpi="return_rate">—</span> tổng đơn</div></div>
+  </div>
+</div>
+
+<div class="row rpt-row">
+  <div class="col-12 mb-3">
+    <div class="rpt-card" id="dmDaily"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-chart-line"></i> Giá trị và số đơn hàng theo ngày</div>
+      <div class="rpt-chart ec-chart-lg"><canvas id="dmDailyChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="row rpt-row">
+  <div class="col-12 mb-3">
+    <div class="rpt-card" id="dmSale"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-user-tie"></i> Top 5 nhân viên theo giá trị đơn hàng</div>
+      <div class="rpt-chart ec-chart-lg"><canvas id="dmSaleChart"></canvas></div>
+    </div>
+  </div>
+  <div class="col-12 mb-3">
+    <div class="rpt-card" id="dmSaleDocs"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-user-check"></i> Top 5 nhân viên theo số đơn hàng</div>
+      <div class="rpt-chart ec-chart-lg"><canvas id="dmSaleDocsChart"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="row rpt-row">
+  <div class="col-xl-6 mb-3">
+    <div class="rpt-card ec-top" id="dmTopAmount"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-trophy"></i> Top 10 khách hàng theo giá trị đơn hàng</div>
+      <div class="table-responsive dm-top-table-wrap"><table class="table table-sm rpt-table dm-top-table"><colgroup><col class="dm-col-rank"><col class="dm-col-code"><col class="dm-col-name"><col class="dm-col-orders"><col class="dm-col-value"></colgroup><thead><tr><th>#</th><th>Mã KH</th><th>Tên KH</th><th title="Số đơn hàng">Số ĐH</th><th title="Giá trị đơn hàng">Giá trị (M)</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+  <div class="col-xl-6 mb-3">
+    <div class="rpt-card ec-top" id="dmTopDocuments"><div class="rpt-loading"><div class="spinner-border text-secondary"></div></div>
+      <div class="rpt-card-title"><i class="fas fa-file-alt"></i> Top 10 khách hàng theo số đơn hàng</div>
+      <div class="table-responsive dm-top-table-wrap"><table class="table table-sm rpt-table dm-top-table"><colgroup><col class="dm-col-rank"><col class="dm-col-code"><col class="dm-col-name"><col class="dm-col-orders"><col class="dm-col-value"></colgroup><thead><tr><th>#</th><th>Mã KH</th><th>Tên KH</th><th title="Số đơn hàng">Số ĐH</th><th title="Giá trị đơn hàng">Giá trị (M)</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<div class="rpt-card mb-3" id="dmOrdersCard">
+  <div class="rpt-card-title"><span><i class="fas fa-list-ul mr-2"></i>Chi tiết đơn hàng DMS</span></div>
+  <div class="d-flex align-items-center justify-content-end ec-orders-tools mb-2">
+    <input type="search" class="form-control form-control-sm ec-orders-search" id="dmOrdersSearch" placeholder="Tìm mã chứng từ, khách hàng, mã OMS..." />
+    {% if perms.tracking.export_report_dms %}
+    <a href="#" class="btn btn-sm zns-btn-export rpt-busy-btn ml-2" id="dmOrdersExport" data-needs-export title="Xuất Excel theo bộ lọc hiện tại"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
+    {% endif %}
+  </div>
+  <table class="table table-bordered table-hover rpt-table" id="dmOrdersTable" width="100%"><thead><tr></tr></thead><tbody></tbody></table>
+</div>
+{% endblock %}
+{% block page_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="{% static 'js/core/charts.js' %}"></script>
+<script src="{% static 'js/core/report.js' %}"></script>
+<script src="{% static 'js/pages/reports/dms.js' %}"></script>
+{% endblock %}
