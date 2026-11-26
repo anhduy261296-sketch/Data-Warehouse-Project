@@ -63,7 +63,13 @@
     addOptions("#dmType", data.document_types, (value) => value, (value) => value, $("#dmType").val());
     addOptions("#dmState", data.states, (item) => item.code, (item) => item.name, $("#dmState").val());
     addOptions("#dmOrderType", data.order_types, (value) => value, (value) => value, $("#dmOrderType").val());
-    addOptions("#dmWarehouse", data.warehouses, (item) => item.code, (item) => `${item.code} - ${item.name}`, $("#dmWarehouse").val());
+    addOptions(
+      "#dmWarehouse",
+      data.warehouses,
+      (item) => item.code,
+      (item) => item.name && item.name !== item.code ? `${item.code} - ${item.name}` : item.code,
+      $("#dmWarehouse").val(),
+    );
     $("#dmUpdated").text(formatUtcDateTime(data.updated_at));
     toggleCustom();
   }
@@ -96,13 +102,15 @@
     return area(["#dmKpis"], RPT.kpi, (data) => {
       $("[data-kpi='amount_short']").text(formatMoneyShort(data.amount_total, 2));
       $("[data-kpi='amount_total']").text(`${money(data.amount_total)} đ`);
-      ["total_orders", "sale_orders", "pos_orders", "warehouse_transfers", "customers", "oms_syncs", "new_orders", "processing_orders", "success_orders", "cancel_orders", "return_orders"].forEach((key) =>
+      ["total_orders", "sale_orders", "customers", "new_orders", "processing_orders", "success_orders", "cancel_orders", "return_orders"].forEach((key) =>
         $(`[data-kpi="${key}"]`).text(money(data[key])),
       );
       ["new", "processing", "success", "cancel", "return"].forEach((key) =>
         $(`[data-kpi="${key}_rate"]`).text(formatRate(data[`${key}_rate`])),
       );
       $("[data-kpi='avg_order_value']").text(formatMoneyShort(data.avg_order_value, 2));
+      $("[data-kpi='avg_sku_per_order']").text(formatQty(data.avg_sku_per_order));
+      $("[data-kpi='avg_qty_per_order']").text(formatQty(data.avg_qty_per_order));
     });
   }
   function loadDaily() {
@@ -224,22 +232,19 @@
       ajax: Api.dataTableSource(RPT.orders, () => ordersFilters, pageCache),
       columns: [
         { data: "document_date", title: "Ngày đơn hàng", className: "text-nowrap", render: (value) => (value ? `${value.slice(8, 10)}/${value.slice(5, 7)}/${value.slice(0, 4)} ${value.slice(11, 16)}` : "") },
-        { data: "document_type", title: "Loại đơn hàng", render: (value) => esc(value) },
+        { data: "document_type", title: "Mã loại đơn DMS", render: (value) => esc(value) },
         { data: "document_code", title: "Mã đơn hàng", className: "text-nowrap", render: (value) => esc(value) },
         { data: "order_type", title: "Loại đơn", render: (value) => esc(value) },
         { data: "partner_code", title: "Mã khách hàng", render: (value) => esc(value) },
         { data: "partner_name", title: "Tên khách hàng", className: "text-nowrap", render: (value) => esc(value) },
-        { data: "source_warehouse_code", title: "Mã kho nguồn", width: "100px", className: "text-nowrap", render: (value) => esc(value) },
-        { data: "source_warehouse", title: "Tên kho nguồn", width: "350px", render: (value) => esc(value) },
-        { data: "destination_warehouse_code", title: "Mã kho nhận", width: "110px", className: "text-nowrap", render: (value) => esc(value) },
-        { data: "destination_warehouse", title: "Tên kho nhận", width: "350px", render: (value) => esc(value) },
+        { data: "source_warehouse_code", title: "Mã kho", width: "100px", className: "text-nowrap", render: (value) => esc(value) },
         { data: "salesperson", title: "Sale", width: "200px", className: "text-nowrap", render: (value) => esc(value) },
         { data: "state", title: "Trạng thái đơn hàng", render: (value) => esc(value) },
-        { data: "amount_total", title: "Giá trị đơn hàng", className: "num", render: money },
-        { data: "currency", title: "Loại tiền", render: (value) => esc(value) },
-        { data: "oms_count", title: "Lượt sync OMS", className: "num", render: money },
-        { data: "oms_codes", title: "Mã đơn OMS", render: (value) => esc(value) },
-        { data: "oms_states", title: "Status sync OMS", render: (value) => esc(value) },
+        { data: "sku", title: "SKU", className: "text-nowrap", render: (value) => esc(value) },
+        { data: "quantity", title: "Số lượng", className: "num", render: formatQty },
+        { data: "amount_total", title: "Giá trị dòng hàng", className: "num", render: money },
+        { data: "sales_channel", title: "Kênh bán", render: (value) => esc(value) },
+        { data: "item_type_display", title: "Loại dòng hàng", render: (value) => esc(value) },
       ],
       autoWidth: false,
       scrollX: true,

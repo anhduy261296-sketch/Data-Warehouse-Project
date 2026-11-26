@@ -2,7 +2,7 @@ from django.urls import path
 
 from .queries.orders import DETAIL_CONFIGS, EMPLOYEE_REPORT_CONFIG_DMS, EMPLOYEE_REPORT_CONFIG_OMS, RECON_CONFIGS
 from .queries.ecom import ECOM_DETAIL_CONFIG
-from .queries.dms import DMS_ALL_DETAIL_CONFIG
+from .queries.dms import DMS_OMS_DETAIL_CONFIG
 from .queries.recon_inventory import INVENTORY_CONFIG
 from .views import config, data_tracking, messaging, reports
 from .views.common import datatable_export_view, datatable_report_view, home, no_access, page_view
@@ -110,10 +110,10 @@ urlpatterns += [
     path('api/report/dms/daily/', reports.dms_daily, name='report-dms-daily'),
     path('api/report/dms/by-sale/', reports.dms_by_sale, name='report-dms-by-sale'),
     path('api/report/dms/top-customers/', reports.dms_top_customers, name='report-dms-top-customers'),
-    path('api/report/dms/orders/', datatable_report_view(DMS_ALL_DETAIL_CONFIG, 'report-dms-orders'), name='report-dms-orders'),
+    path('api/report/dms/orders/', datatable_report_view(DMS_OMS_DETAIL_CONFIG, 'report-dms-orders'), name='report-dms-orders'),
     path(
         'api/report/dms/orders/export/',
-        datatable_export_view(DMS_ALL_DETAIL_CONFIG, 'chi_tiet_don_hang_dms.xlsx'),
+        datatable_export_view(DMS_OMS_DETAIL_CONFIG, 'chi_tiet_don_hang_dms.xlsx'),
         name='report-dms-orders-export',
     ),
 ]

@@ -10,7 +10,7 @@
 <div class="rpt-header">
   <div>
     <h1 class="rpt-title">Báo cáo DMS</h1>
-    <p class="rpt-subtitle">(nguồn: DMS - đơn bán hàng, POS và điều chuyển kho đã đồng bộ OMS)</p>
+    <p class="rpt-subtitle">(nguồn: OMS_ORDERS)</p>
   </div>
   <div class="rpt-header-tools">
     <span class="rpt-snapshot"><i class="far fa-clock mr-1"></i> Cập nhật: <b id="dmUpdated">—</b></span>
@@ -23,7 +23,7 @@
     <div class="ec-filter-field"><label for="dmPeriod">Kỳ</label><select class="form-control form-control-sm" id="dmPeriod"></select></div>
     <div class="ec-filter-field ec-custom d-none"><label for="dmFrom">Từ ngày</label><input type="date" class="form-control form-control-sm" id="dmFrom" /></div>
     <div class="ec-filter-field ec-custom d-none"><label for="dmTo">Đến ngày</label><input type="date" class="form-control form-control-sm" id="dmTo" /></div>
-    <div class="ec-filter-field"><label for="dmType">Loại chứng từ</label><select class="form-control form-control-sm" id="dmType"><option value="">Tất cả</option></select></div>
+    <div class="ec-filter-field"><label for="dmType">Mã loại đơn DMS</label><select class="form-control form-control-sm" id="dmType"><option value="">Tất cả</option></select></div>
     <div class="ec-filter-field"><label for="dmState">Trạng thái</label><select class="form-control form-control-sm" id="dmState"><option value="">Tất cả</option></select></div>
     <div class="ec-filter-field"><label for="dmOrderType">Loại đơn hàng</label><select class="form-control form-control-sm" id="dmOrderType"><option value="">Tất cả</option></select></div>
     <div class="ec-filter-field"><label for="dmWarehouse">Kho</label><select class="form-control form-control-sm" id="dmWarehouse"><option value="">Tất cả</option></select></div>
@@ -35,19 +35,18 @@
 <div class="rpt-card ec-kpi-board mb-3" id="dmKpis">
   <div class="rpt-loading"><div class="spinner-border spinner-border-sm text-secondary"></div></div>
   <div class="ec-kpi-grid dm-kpi-grid">
-    <div class="ec-kpi ec-kpi--revenue"><div class="ec-kpi-label"><i class="fas fa-money-bill-wave"></i>Tổng giá trị</div><div class="ec-kpi-value" data-kpi="amount_short">—</div><div class="ec-kpi-note"><span data-kpi="amount_total">—</span></div></div>
-    <div class="ec-kpi ec-kpi--orders"><div class="ec-kpi-label"><i class="fas fa-shopping-bag"></i>Tổng đơn hàng</div><div class="ec-kpi-value" data-kpi="total_orders">—</div><div class="ec-kpi-note">Đơn bán hàng và POS trong kỳ</div></div>
-    <div class="ec-kpi ec-kpi--processing"><div class="ec-kpi-label"><i class="fas fa-cash-register"></i>Đơn POS</div><div class="ec-kpi-value" data-kpi="pos_orders">—</div><div class="ec-kpi-note">Đã đồng bộ OMS</div></div>
-    <div class="ec-kpi ec-kpi--sku"><div class="ec-kpi-label"><i class="fas fa-dolly"></i>Điều chuyển kho</div><div class="ec-kpi-value" data-kpi="warehouse_transfers">—</div><div class="ec-kpi-note">Chứng từ điều chuyển</div></div>
-    <div class="ec-kpi ec-kpi--aov"><div class="ec-kpi-label"><i class="fas fa-chart-line"></i>Giá trị TB / đơn</div><div class="ec-kpi-value" data-kpi="avg_order_value">—</div><div class="ec-kpi-note">Tổng giá trị / tổng đơn</div></div>
-    <div class="ec-kpi ec-kpi--success"><div class="ec-kpi-label"><i class="fas fa-shopping-bag"></i>Đơn bán hàng</div><div class="ec-kpi-value" data-kpi="sale_orders">—</div><div class="ec-kpi-note">Đã đồng bộ OMS</div></div>
-    <div class="ec-kpi ec-kpi--new"><div class="ec-kpi-label"><i class="fas fa-users"></i>Khách hàng</div><div class="ec-kpi-value" data-kpi="customers">—</div><div class="ec-kpi-note">Khách hàng duy nhất</div></div>
-    <div class="ec-kpi ec-kpi--aov"><div class="ec-kpi-label"><i class="fas fa-sync-alt"></i>Lượt đồng bộ OMS</div><div class="ec-kpi-value" data-kpi="oms_syncs">—</div><div class="ec-kpi-note">Ghi nhận trên đơn hàng</div></div>
-    <div class="ec-kpi ec-kpi--new"><div class="ec-kpi-label"><i class="fas fa-box-open"></i>Thêm mới</div><div class="ec-kpi-value" data-kpi="new_orders">—</div><div class="ec-kpi-note"><span data-kpi="new_rate">—</span> tổng đơn</div></div>
-    <div class="ec-kpi ec-kpi--processing"><div class="ec-kpi-label"><i class="far fa-clock"></i>Đang xử lý</div><div class="ec-kpi-value" data-kpi="processing_orders">—</div><div class="ec-kpi-note"><span data-kpi="processing_rate">—</span> tổng đơn</div></div>
-    <div class="ec-kpi ec-kpi--success"><div class="ec-kpi-label"><i class="far fa-check-circle"></i>Hoàn thành</div><div class="ec-kpi-value" data-kpi="success_orders">—</div><div class="ec-kpi-note"><span data-kpi="success_rate">—</span> tổng đơn</div></div>
-    <div class="ec-kpi ec-kpi--cancel"><div class="ec-kpi-label"><i class="far fa-times-circle"></i>Hủy</div><div class="ec-kpi-value" data-kpi="cancel_orders">—</div><div class="ec-kpi-note"><span data-kpi="cancel_rate">—</span> tổng đơn</div></div>
-    <div class="ec-kpi ec-kpi--return"><div class="ec-kpi-label"><i class="fas fa-undo"></i>Trả hàng</div><div class="ec-kpi-value" data-kpi="return_orders">—</div><div class="ec-kpi-note"><span data-kpi="return_rate">—</span> tổng đơn</div></div>
+    <div class="ec-kpi ec-kpi--revenue" title="Tổng giá trị các dòng Sales không hủy trong bộ lọc hiện tại; không cộng chứng từ Return."><div class="ec-kpi-label"><i class="fas fa-money-bill-wave"></i>Tổng giá trị</div><div class="ec-kpi-value" data-kpi="amount_short">—</div><div class="ec-kpi-note"><span data-kpi="amount_total">—</span></div></div>
+    <div class="ec-kpi ec-kpi--orders" title="Số đơn Sales duy nhất trong kỳ theo bộ lọc hiện tại, gồm cả đơn hủy."><div class="ec-kpi-label"><i class="fas fa-shopping-bag"></i>Tổng đơn hàng</div><div class="ec-kpi-value" data-kpi="total_orders">—</div><div class="ec-kpi-note">Đơn Sales DMS trong kỳ</div></div>
+    <div class="ec-kpi ec-kpi--aov" title="Tổng giá trị dòng hàng Sales không hủy chia cho số đơn Sales không hủy; không tính chứng từ Return."><div class="ec-kpi-label"><i class="fas fa-chart-line"></i>Giá trị TB / đơn</div><div class="ec-kpi-value" data-kpi="avg_order_value">—</div><div class="ec-kpi-note">Giá trị Sales không hủy / đơn hợp lệ</div></div>
+    <div class="ec-kpi ec-kpi--sku" title="Số SKU khác nhau trung bình trên mỗi đơn Sales không hủy; gồm các dòng khuyến mãi OMS đánh dấu KM."><div class="ec-kpi-label"><i class="fas fa-layer-group"></i>Số lượng SKU trung bình/Đơn</div><div class="ec-kpi-value" data-kpi="avg_sku_per_order">—</div><div class="ec-kpi-note">Mã SKU khác nhau, gồm hàng KM</div></div>
+    <div class="ec-kpi ec-kpi--qty" title="Tổng số lượng dòng hàng Sales không hủy chia cho số đơn Sales không hủy; gồm hàng KM, không gồm chứng từ Return."><div class="ec-kpi-label"><i class="fas fa-boxes"></i>Số lượng trung bình sản phẩm/Đơn</div><div class="ec-kpi-value" data-kpi="avg_qty_per_order">—</div><div class="ec-kpi-note">Tổng số lượng, gồm hàng KM</div></div>
+    <div class="ec-kpi ec-kpi--success" title="Số đơn Sales không hủy trong bộ lọc hiện tại."><div class="ec-kpi-label"><i class="fas fa-shopping-bag"></i>Đơn bán hợp lệ</div><div class="ec-kpi-value" data-kpi="sale_orders">—</div><div class="ec-kpi-note">Không gồm trạng thái hủy</div></div>
+    <div class="ec-kpi ec-kpi--new" title="Số khách hàng duy nhất theo mã khách hàng trên các đơn Sales trong bộ lọc hiện tại."><div class="ec-kpi-label"><i class="fas fa-users"></i>Khách hàng</div><div class="ec-kpi-value" data-kpi="customers">—</div><div class="ec-kpi-note">Khách hàng Sales duy nhất</div></div>
+    <div class="ec-kpi ec-kpi--new" title="Đơn Sales có trạng thái Created, Approved hoặc Reserved. Tỷ lệ tính trên tổng đơn Sales."><div class="ec-kpi-label"><i class="fas fa-box-open"></i>Thêm mới</div><div class="ec-kpi-value" data-kpi="new_orders">—</div><div class="ec-kpi-note"><span data-kpi="new_rate">—</span> tổng đơn Sales</div></div>
+    <div class="ec-kpi ec-kpi--processing" title="Đơn Sales đang xử lý, không thuộc trạng thái mới, hoàn thành, hủy hoặc trả."><div class="ec-kpi-label"><i class="far fa-clock"></i>Đang xử lý</div><div class="ec-kpi-value" data-kpi="processing_orders">—</div><div class="ec-kpi-note"><span data-kpi="processing_rate">—</span> tổng đơn Sales</div></div>
+    <div class="ec-kpi ec-kpi--success" title="Đơn Sales có trạng thái Delivered hoặc Shipped."><div class="ec-kpi-label"><i class="far fa-check-circle"></i>Hoàn thành</div><div class="ec-kpi-value" data-kpi="success_orders">—</div><div class="ec-kpi-note"><span data-kpi="success_rate">—</span> tổng đơn Sales</div></div>
+    <div class="ec-kpi ec-kpi--cancel" title="Đơn Sales có trạng thái Cancelled, Cancel hoặc InCancel."><div class="ec-kpi-label"><i class="far fa-times-circle"></i>Hủy</div><div class="ec-kpi-value" data-kpi="cancel_orders">—</div><div class="ec-kpi-note"><span data-kpi="cancel_rate">—</span> tổng đơn Sales</div></div>
+    <div class="ec-kpi ec-kpi--return" title="Chứng từ có order_type Return chưa hủy hoặc đơn Sales mang trạng thái trả hàng. Tỷ lệ tính trên tổng chứng từ Sales và Return."><div class="ec-kpi-label"><i class="fas fa-undo"></i>Trả hàng</div><div class="ec-kpi-value" data-kpi="return_orders">—</div><div class="ec-kpi-note"><span data-kpi="return_rate">—</span> tổng Sales + Return</div></div>
   </div>
 </div>
 
@@ -93,7 +92,7 @@
 <div class="rpt-card mb-3" id="dmOrdersCard">
   <div class="rpt-card-title"><span><i class="fas fa-list-ul mr-2"></i>Chi tiết đơn hàng DMS</span></div>
   <div class="d-flex align-items-center justify-content-end ec-orders-tools mb-2">
-    <input type="search" class="form-control form-control-sm ec-orders-search" id="dmOrdersSearch" placeholder="Tìm mã chứng từ, khách hàng, mã OMS..." />
+    <input type="search" class="form-control form-control-sm ec-orders-search" id="dmOrdersSearch" placeholder="Tìm mã đơn, SKU, khách hàng..." />
     {% if perms.tracking.export_report_dms %}
     <a href="#" class="btn btn-sm zns-btn-export rpt-busy-btn ml-2" id="dmOrdersExport" data-needs-export title="Xuất Excel theo bộ lọc hiện tại"><i class="fas fa-file-excel mr-1"></i> Xuất Excel</a>
     {% endif %}

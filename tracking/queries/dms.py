@@ -10,9 +10,13 @@ from ..core.cache import cached
 from ..core.datatables import DetailColumn, DetailReportConfig
 from ..core.sql import num, rows as fetch_rows
 
-DMS_SOURCES = ('dms_so_all',)
-_FROM = 'FROM dbo.DMS_SO_ALL t'
-_REPORT_DATE = 't.report_date'
+DMS_SOURCES = ('oms_orders',)
+DMS_CODE_FILTER = "LEFT(t.outbound_order_type, 2) = 'L0' AND t.outbound_order_type NOT IN ('L03', 'L04')"
+_FROM = 'FROM dbo.OMS_ORDERS t'
+_REPORT_DATE = 'DATEADD(HOUR, 7, t._k_created_at)'
+_CANCEL_STATUSES = "('Cancelled', 'Cancel', 'InCancel')"
+_SUCCESS_STATUSES = "('Delivered', 'Shipped')"
+_RETURN_STATUSES = "('PackageReturned', 'Refunded', 'Returned', 'Returning', 'RefundRejected', 'PackageReturn', 'Lostdamaged')"
 
 
 def _today_vn() -> dt.date:
@@ -36,15 +40,16 @@ def _period(params: Any) -> tuple[dt.date, dt.date]:
 def _filters(params: Any) -> tuple[str, list[Any]]:
     d_from, d_to = _period(params)
     where = [
+        DMS_CODE_FILTER,
         f'{_REPORT_DATE} >= CAST(%s AS DATETIME2)',
         f'{_REPORT_DATE} < DATEADD(DAY, 1, CAST(%s AS DATETIME2))',
     ]
     args: list[Any] = [d_from.isoformat(), d_to.isoformat()]
     for param, column in (
-        ('document_type', 't.document_type'),
-        ('state_code', 't.state_code'),
+        ('document_type', 't.outbound_order_type'),
+        ('state_code', 't.status'),
         ('order_type', 't.order_type'),
-        ('source_warehouse_code', 't.source_warehouse_code'),
+        ('source_warehouse_code', 't.warehouse_code'),
     ):
         value = (params.get(param) or '').strip()
         if value:
@@ -64,23 +69,30 @@ def get_meta(_params: Any = None) -> dict[str, Any]:
     with connection.cursor() as cursor:
         cursor.execute(
             f'SELECT CONVERT(CHAR(7), {_REPORT_DATE}, 126) AS month '
-            f'FROM dbo.DMS_SO_ALL t GROUP BY CONVERT(CHAR(7), {_REPORT_DATE}, 126) ORDER BY month DESC'
+            f'{_FROM} WHERE {DMS_CODE_FILTER} GROUP BY CONVERT(CHAR(7), {_REPORT_DATE}, 126) ORDER BY month DESC'
         )
         months = [{'value': row[0]} for row in cursor.fetchall()]
-        cursor.execute('SELECT DISTINCT document_type FROM dbo.DMS_SO_ALL WHERE document_type IS NOT NULL ORDER BY document_type')
+        cursor.execute(
+            f'SELECT DISTINCT t.outbound_order_type {_FROM} WHERE {DMS_CODE_FILTER} '
+            'AND t.outbound_order_type IS NOT NULL ORDER BY t.outbound_order_type'
+        )
         document_types = [row[0] for row in cursor.fetchall()]
         cursor.execute(
-            'SELECT state_code, MAX(state) FROM dbo.DMS_SO_ALL WHERE state_code IS NOT NULL GROUP BY state_code ORDER BY state_code'
+            f'SELECT t.status, MAX(t.status) {_FROM} WHERE {DMS_CODE_FILTER} AND t.status IS NOT NULL '
+            'GROUP BY t.status ORDER BY t.status'
         )
         states = [{'code': code, 'name': name or code} for code, name in cursor.fetchall()]
-        cursor.execute('SELECT DISTINCT order_type FROM dbo.DMS_SO_ALL WHERE order_type IS NOT NULL ORDER BY order_type')
+        cursor.execute(
+            f'SELECT DISTINCT t.order_type {_FROM} WHERE {DMS_CODE_FILTER} '
+            'AND t.order_type IS NOT NULL ORDER BY t.order_type'
+        )
         order_types = [row[0] for row in cursor.fetchall()]
         cursor.execute(
-            'SELECT source_warehouse_code, MAX(source_warehouse) FROM dbo.DMS_SO_ALL '
-            'WHERE source_warehouse_code IS NOT NULL GROUP BY source_warehouse_code ORDER BY source_warehouse_code'
+            f'SELECT t.warehouse_code, MAX(t.warehouse_code) {_FROM} WHERE {DMS_CODE_FILTER} '
+            'AND t.warehouse_code IS NOT NULL GROUP BY t.warehouse_code ORDER BY t.warehouse_code'
         )
         warehouses = [{'code': code, 'name': name or code} for code, name in cursor.fetchall()]
-        cursor.execute('SELECT MAX(loaded_at) FROM dbo.DMS_SO_ALL_Load_Log WHERE status = %s', ['SUCCESS'])
+        cursor.execute('SELECT MAX(loaded_at) FROM dbo.OMS_ORDERS_Load_Log WHERE status = %s', ['SUCCESS'])
         updated_at = cursor.fetchone()[0]
     return {
         'months': months,
@@ -98,35 +110,57 @@ def get_kpi(params: Any) -> dict[str, Any]:
     where, args = _filters(params)
     rows = _query(
         f"""
-        SELECT COUNT(DISTINCT CASE WHEN t.model IN ('sale.order', 'pos.order')
-                                   THEN CONCAT(t.model, ':', t.document_id) END) AS total_orders,
-               COUNT(DISTINCT CASE WHEN t.model = 'sale.order' THEN t.document_id END) AS sale_orders,
-               COUNT(DISTINCT CASE WHEN t.model = 'pos.order' THEN t.document_id END) AS pos_orders,
-               COUNT(DISTINCT CASE WHEN t.model = 'warehouse.transfer' THEN t.document_id END) AS warehouse_transfers,
-               COUNT(DISTINCT CASE WHEN (t.model = 'sale.order' AND t.state_code IN ('draft', 'sent', 'to_approve'))
-                                         OR (t.model = 'pos.order' AND t.state_code = 'draft')
-                                   THEN CONCAT(t.model, ':', t.document_id) END) AS new_orders,
-               COUNT(DISTINCT CASE WHEN t.model = 'sale.order' AND t.state_code = 'sale'
-                                   THEN CONCAT(t.model, ':', t.document_id) END) AS processing_orders,
-               COUNT(DISTINCT CASE WHEN (t.model = 'sale.order' AND t.state_code = 'done')
-                                         OR (t.model = 'pos.order' AND t.state_code IN ('paid', 'done', 'invoiced'))
-                                   THEN CONCAT(t.model, ':', t.document_id) END) AS success_orders,
-               COUNT(DISTINCT CASE WHEN t.model IN ('sale.order', 'pos.order') AND t.state_code = 'cancel'
-                                   THEN CONCAT(t.model, ':', t.document_id) END) AS cancel_orders,
-               COUNT(DISTINCT CASE WHEN t.model IN ('sale.order', 'pos.order')
-                                         AND t.order_type IN ('L10', 'L14') AND t.state_code <> 'cancel'
-                                   THEN CONCAT(t.model, ':', t.document_id) END) AS return_orders,
-               COUNT(DISTINCT NULLIF(t.partner_code, '')) AS customers,
-               ISNULL(SUM(t.amount_total), 0) AS amount_total,
-               ISNULL(SUM(ISNULL(t.oms_count, 0)), 0) AS oms_syncs
-        {_FROM} WHERE {where}
+        ;WITH filtered AS (
+            SELECT t.order_number, t.order_type, t.status, NULLIF(t.customer_code, '') AS customer_code,
+                   NULLIF(t.logistic_sku, '') AS logistic_sku,
+                   TRY_CONVERT(DECIMAL(28, 6), t.quantity) AS quantity,
+                   TRY_CONVERT(DECIMAL(28, 6), t.total_amount_after_vat) AS line_amount
+            {_FROM} WHERE {where}
+        ), order_metrics AS (
+            SELECT order_number, order_type,
+                   MAX(CASE WHEN status IN {_CANCEL_STATUSES} THEN 1 ELSE 0 END) AS is_cancel,
+                   MAX(CASE WHEN status IN {_SUCCESS_STATUSES} THEN 1 ELSE 0 END) AS is_success,
+                   MAX(CASE WHEN status IN {_RETURN_STATUSES} THEN 1 ELSE 0 END) AS has_return_status,
+                   MAX(CASE WHEN status IN ('Created', 'Approved', 'Reserved') THEN 1 ELSE 0 END) AS is_new,
+                   COUNT(DISTINCT logistic_sku) AS sku_count,
+                   SUM(ISNULL(quantity, 0)) AS quantity_total,
+                   SUM(ISNULL(line_amount, 0)) AS amount_total,
+                   MAX(customer_code) AS customer_code
+            FROM filtered
+            GROUP BY order_number, order_type
+        )
+        SELECT         COUNT(CASE WHEN order_type = 'Sales' THEN 1 END) AS total_orders,
+        COUNT(CASE WHEN order_type = 'Sales' AND is_cancel = 0 THEN 1 END) AS valid_orders,
+        COUNT(CASE WHEN order_type = 'Sales' AND is_cancel = 0 THEN 1 END) AS sale_orders,
+        COUNT(CASE WHEN order_type = 'Sales' AND is_cancel = 0 AND is_new = 1 THEN 1 END) AS new_orders,
+               COUNT(CASE WHEN order_type = 'Sales' AND is_cancel = 0 AND is_success = 0
+                                AND is_new = 0 AND has_return_status = 0 THEN 1 END) AS processing_orders,
+               COUNT(CASE WHEN order_type = 'Sales' AND is_cancel = 0 AND is_success = 1 THEN 1 END) AS success_orders,
+               COUNT(CASE WHEN order_type = 'Sales' AND is_cancel = 1 THEN 1 END) AS cancel_orders,
+               COUNT(CASE WHEN (order_type = 'Return' AND is_cancel = 0)
+                                OR (order_type = 'Sales' AND is_cancel = 0 AND has_return_status = 1) THEN 1 END) AS return_orders,
+               COUNT(DISTINCT CASE WHEN order_type = 'Sales' THEN customer_code END) AS customers,
+               ISNULL(SUM(CASE WHEN order_type = 'Sales' AND is_cancel = 0 THEN amount_total ELSE 0 END), 0) AS amount_total,
+               SUM(CASE WHEN order_type = 'Sales' AND is_cancel = 0 THEN sku_count ELSE 0 END) AS sku_sum,
+               SUM(CASE WHEN order_type = 'Sales' AND is_cancel = 0 THEN quantity_total ELSE 0 END) AS quantity_sum,
+               COUNT(CASE WHEN order_type = 'Sales' AND is_cancel = 0 THEN 1 END) AS metric_orders,
+               COUNT(CASE WHEN order_type = 'Sales' OR (order_type = 'Return' AND is_cancel = 0) THEN 1 END) AS all_documents
+        FROM order_metrics
         """,
         args,
     )
     kpi = {key: num(value) for key, value in rows[0].items()}
-    kpi['avg_order_value'] = kpi['amount_total'] / kpi['total_orders'] if kpi['total_orders'] else 0
+    valid_orders = kpi.pop('valid_orders')
+    all_documents = kpi.pop('all_documents')
+    metric_orders = kpi.pop('metric_orders')
+    sku_sum = kpi.pop('sku_sum')
+    quantity_sum = kpi.pop('quantity_sum')
+    kpi['avg_order_value'] = kpi['amount_total'] / valid_orders if valid_orders else 0
+    kpi['avg_sku_per_order'] = sku_sum / metric_orders if metric_orders else None
+    kpi['avg_qty_per_order'] = quantity_sum / metric_orders if metric_orders else None
     for key in ('new', 'processing', 'success', 'cancel', 'return'):
-        kpi[f'{key}_rate'] = kpi[f'{key}_orders'] / kpi['total_orders'] if kpi['total_orders'] else None
+        denominator = all_documents if key == 'return' else kpi['total_orders']
+        kpi[f'{key}_rate'] = kpi[f'{key}_orders'] / denominator if denominator else None
     return kpi
 
 
@@ -136,9 +170,9 @@ def get_daily(params: Any) -> dict[str, Any]:
     rows = _query(
         f"""
         SELECT CAST({_REPORT_DATE} AS DATE) AS day,
-               ISNULL(SUM(CASE WHEN ISNULL(t.state_code, '') <> 'cancel' THEN t.amount_total ELSE 0 END), 0) AS amount_total,
-               COUNT(DISTINCT CASE WHEN t.model IN ('sale.order', 'pos.order')
-                                   THEN CONCAT(t.model, ':', t.document_id) END) AS orders
+               ISNULL(SUM(CASE WHEN t.order_type = 'Sales' AND t.status NOT IN {_CANCEL_STATUSES}
+                               THEN TRY_CONVERT(DECIMAL(28, 6), t.total_amount_after_vat) ELSE 0 END), 0) AS amount_total,
+               COUNT(DISTINCT CASE WHEN t.order_type = 'Sales' THEN t.order_number END) AS orders
         {_FROM} WHERE {where} GROUP BY CAST({_REPORT_DATE} AS DATE)
         """,
         args,
@@ -159,12 +193,12 @@ def get_by_sale(params: Any) -> dict[str, Any]:
     where, args = _filters(params)
     rows = _query(
         f"""
-        SELECT ISNULL(NULLIF(t.salesperson, ''), N'(Chưa gán Sale)') AS salesperson,
-               COUNT(DISTINCT CASE WHEN t.model IN ('sale.order', 'pos.order')
-                                   THEN CONCAT(t.model, ':', t.document_id) END) AS orders,
-               ISNULL(SUM(CASE WHEN ISNULL(t.state_code, '') <> 'cancel' THEN t.amount_total ELSE 0 END), 0) AS amount_total
+        SELECT ISNULL(NULLIF(t.employee_name, ''), N'(Chưa gán Sale)') AS salesperson,
+               COUNT(DISTINCT CASE WHEN t.order_type = 'Sales' THEN t.order_number END) AS orders,
+               ISNULL(SUM(CASE WHEN t.order_type = 'Sales' AND t.status NOT IN {_CANCEL_STATUSES}
+                               THEN TRY_CONVERT(DECIMAL(28, 6), t.total_amount_after_vat) ELSE 0 END), 0) AS amount_total
         {_FROM} WHERE {where}
-        GROUP BY NULLIF(t.salesperson, '') ORDER BY amount_total DESC
+        GROUP BY NULLIF(t.employee_name, '') ORDER BY amount_total DESC
         """,
         args,
     )
@@ -176,13 +210,13 @@ def get_top_customers(params: Any) -> dict[str, Any]:
     where, args = _filters(params)
     rows = _query(
         f"""
-        SELECT ISNULL(NULLIF(t.partner_code, ''), N'(Chưa có mã)') AS partner_code,
-               ISNULL(MAX(NULLIF(t.partner_name, '')), N'(Chưa có tên khách hàng)') AS partner_name,
-               COUNT(DISTINCT CASE WHEN t.model IN ('sale.order', 'pos.order')
-                                   THEN CONCAT(t.model, ':', t.document_id) END) AS orders,
-               ISNULL(SUM(CASE WHEN ISNULL(t.state_code, '') <> 'cancel' THEN t.amount_total ELSE 0 END), 0) AS amount_total
+        SELECT ISNULL(NULLIF(t.customer_code, ''), N'(Chưa có mã)') AS partner_code,
+               ISNULL(MAX(NULLIF(t.customer_name, '')), N'(Chưa có tên khách hàng)') AS partner_name,
+               COUNT(DISTINCT CASE WHEN t.order_type = 'Sales' THEN t.order_number END) AS orders,
+               ISNULL(SUM(CASE WHEN t.order_type = 'Sales' AND t.status NOT IN {_CANCEL_STATUSES}
+                               THEN TRY_CONVERT(DECIMAL(28, 6), t.total_amount_after_vat) ELSE 0 END), 0) AS amount_total
         {_FROM} WHERE {where}
-        GROUP BY NULLIF(t.partner_code, '')
+        GROUP BY NULLIF(t.customer_code, '')
         """,
         args,
     )
@@ -194,37 +228,33 @@ def get_top_customers(params: Any) -> dict[str, Any]:
     return {'by_amount': by_amount, 'by_orders': by_orders}
 
 
-DMS_ALL_DETAIL_CONFIG = DetailReportConfig(
-    table='dbo.DMS_SO_ALL',
-    where='1=1',
+DMS_OMS_DETAIL_CONFIG = DetailReportConfig(
+    table='dbo.OMS_ORDERS',
+    where=DMS_CODE_FILTER,
     row_key='_row_id',
     cache_sources=DMS_SOURCES,
-    date_expr='t.report_date',
-    default_order_sql='t.report_date',
+    date_expr=_REPORT_DATE,
+    default_order_sql=_REPORT_DATE,
     filter_params=(
-        ('document_type', 't.document_type'),
-        ('state_code', 't.state_code'),
+        ('document_type', 't.outbound_order_type'),
+        ('state_code', 't.status'),
         ('order_type', 't.order_type'),
-        ('source_warehouse_code', 't.source_warehouse_code'),
+        ('source_warehouse_code', 't.warehouse_code'),
     ),
     columns=[
-        DetailColumn('t.report_date', 'document_date', title='Ngày đơn hàng'),
-        DetailColumn('t.document_type', 'document_type', searchable=True, title='Loại đơn hàng'),
-        DetailColumn('t.document_code', 'document_code', searchable=True, title='Mã đơn hàng'),
+        DetailColumn(_REPORT_DATE, 'document_date', title='Ngày đơn hàng'),
+        DetailColumn('t.outbound_order_type', 'document_type', searchable=True, title='Mã loại đơn DMS'),
+        DetailColumn('t.order_number', 'document_code', searchable=True, title='Mã đơn hàng'),
         DetailColumn('t.order_type', 'order_type', title='Loại đơn'),
-        DetailColumn('t.partner_code', 'partner_code', searchable=True, title='Mã khách hàng'),
-        DetailColumn('t.partner_name', 'partner_name', searchable=True, title='Khách hàng'),
-        DetailColumn('t.source_warehouse_code', 'source_warehouse_code', title='Mã kho'),
-        DetailColumn('t.source_warehouse', 'source_warehouse', title='Kho'),
-        DetailColumn('t.destination_warehouse_code', 'destination_warehouse_code', title='Mã kho nhận'),
-        DetailColumn('t.destination_warehouse', 'destination_warehouse', title='Kho nhận'),
-        DetailColumn('t.salesperson', 'salesperson', searchable=True, title='Sale'),
-        DetailColumn('t.state', 'state', title='Trạng thái đơn hàng'),
-        DetailColumn('t.amount_total', 'amount_total', title='Giá trị đơn hàng'),
-        DetailColumn('t.currency', 'currency', title='Loại tiền'),
-        DetailColumn('t.oms_count', 'oms_count', title='Lượt sync OMS'),
-        DetailColumn('t.oms_codes', 'oms_codes', searchable=True, title='Mã đơn OMS'),
-        DetailColumn('t.oms_states', 'oms_states', title='Status sync OMS'),
-        DetailColumn('t.created_at', 'created_at', title='Ngày tạo'),
+        DetailColumn('t.customer_code', 'partner_code', searchable=True, title='Mã khách hàng'),
+        DetailColumn('t.customer_name', 'partner_name', searchable=True, title='Khách hàng'),
+        DetailColumn('t.warehouse_code', 'source_warehouse_code', title='Mã kho'),
+        DetailColumn('t.employee_name', 'salesperson', searchable=True, title='Sale'),
+        DetailColumn('t.status', 'state', title='Trạng thái đơn hàng'),
+        DetailColumn('TRY_CONVERT(DECIMAL(28, 6), t.total_amount_after_vat)', 'amount_total', title='Giá trị dòng hàng'),
+        DetailColumn('t.logistic_sku', 'sku', searchable=True, title='SKU'),
+        DetailColumn('TRY_CONVERT(DECIMAL(28, 6), t.quantity)', 'quantity', title='Số lượng'),
+        DetailColumn('t.sales_channel', 'sales_channel', title='Kênh bán'),
+        DetailColumn('t.item_type_display', 'item_type_display', title='Loại dòng hàng'),
     ],
 )

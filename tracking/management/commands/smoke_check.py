@@ -155,12 +155,12 @@ def _cases() -> list[tuple[str, dict[str, str]]]:
         ('report-ecom-orders-export', {**DATE_RANGE, 'channel': 'LAZ'}),
         ('report-dms-meta', {}),
     ]
-    for filters in (DATE_RANGE, {**DATE_RANGE, 'document_type': 'Đơn bán hàng'}):
+    for filters in (DATE_RANGE, {**DATE_RANGE, 'document_type': 'L01'}):
         cases += [(f'report-dms-{area}', filters) for area in ('kpi', 'daily', 'by-sale', 'top-customers')]
         cases += [('report-dms-orders', {**DT_PAGE, **filters, 'order[0][column]': '0', 'order[0][dir]': 'desc'})]
     cases += [
-        ('report-dms-orders', {**DT_PAGE, **DATE_RANGE, 'state_code': 'sale', 'search[value]': 'SO'}),
-        ('report-dms-orders-export', {**DATE_RANGE, 'document_type': 'Đơn bán hàng'}),
+        ('report-dms-orders', {**DT_PAGE, **DATE_RANGE, 'state_code': 'Delivered', 'search[value]': 'SO'}),
+        ('report-dms-orders-export', {**DATE_RANGE, 'document_type': 'L01'}),
     ]
     return cases
 
