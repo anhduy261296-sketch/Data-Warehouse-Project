@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, NamedTuple
 
-from services.pipeline.alerts import VN_TZ, send_telegram
 from services.pipeline.common.constants import TARGET_SCHEMA
 from services.pipeline.dms_sales_orders import SOURCE_QUERY as DMS_SOURCE_QUERY
 
 logger = logging.getLogger(__name__)
+VN_TZ = timezone(timedelta(hours=7))
 
 RESULTS_TABLE = 'DQ_Results'
 REFRESH_LOG_TABLE = 'RECON_Refresh_Log'
@@ -111,12 +111,6 @@ def _row_drops(cursor: Any) -> list[str]:
     return drops
 
 
-def _previous_violations(cursor: Any, name: str) -> int | None:
-    cursor.execute(f'SELECT TOP 1 violations FROM {TARGET_SCHEMA}.{RESULTS_TABLE} WHERE check_name = %s ORDER BY id DESC', (name,))
-    row = cursor.fetchone()
-    return row[0] if row else None
-
-
 def _record(cursor: Any, name: str, severity: str, violations: int, detail: str) -> None:
     status = 'PASS' if not violations else 'FAIL'
     cursor.execute(
@@ -130,18 +124,11 @@ def run_quality_checks(target_conn: Any, dms_conn: Any = None) -> dict[str, int]
     cursor = target_conn.cursor()
     results: dict[str, int] = {}
     errors = []
-    changed_warnings = []
-
     def warn(name: str, violations: int, detail: str) -> None:
-        previous = _previous_violations(cursor, name)
         _record(cursor, name, WARNING, violations, detail)
         if not violations:
             return
         logger.warning('%s: %d (%s)', name, violations, detail)
-        # Cảnh báo tồn tại lâu ngày chỉ báo khi số lượng đổi, tránh ngày nào cũng nhận cùng một tin.
-        if violations != previous:
-            before = 'chưa có' if previous is None else previous
-            changed_warnings.append(f'{name}: {before} -> {violations} ({detail})')
 
     for check in CHECKS:
         cursor.execute(check.sql)
@@ -167,8 +154,6 @@ def run_quality_checks(target_conn: Any, dms_conn: Any = None) -> dict[str, int]
     _record(cursor, 'row_drop.RECON', ERROR, len(drops), '; '.join(drops) or 'Số dòng đối soát ổn định')
     errors.extend(drops)
     target_conn.commit()
-    if changed_warnings:
-        send_telegram('🟡 Cảnh báo dữ liệu\n' + '\n'.join(changed_warnings))
     if errors:
         raise RuntimeError(f"Kiem tra du lieu khong dat: {'; '.join(errors)} (xem {RESULTS_TABLE})")
     return results
